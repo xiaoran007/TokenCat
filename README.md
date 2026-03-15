@@ -1,96 +1,166 @@
 # TokenCat
 
-TokenCat is a local-first, read-only CLI for inspecting AI coding agent usage on your own machine.
+TokenCat is a local-first, read-only CLI for understanding how AI coding agents are being used on your machine.
 
-v0.1 focuses on:
+It scans local Codex and Gemini CLI logs, summarizes tokens, sessions, and models in one place, and can optionally estimate API-equivalent cost without touching your prompts, responses, auth credentials, or network endpoints.
 
-- Codex local telemetry and archived session logs
-- Gemini CLI local session files
-- GitHub Copilot CLI detection and explicit unsupported diagnostics when no safe CLI telemetry source is available
-- A dashboard-style default entry with optional API-equivalent price estimates
+![TokenCat dashboard demo](https://files.catbox.moe/2uelh2.png)
 
-TokenCat never proxies requests, changes endpoints, touches OAuth/session credentials, or uploads prompt/response bodies.
+## Why TokenCat
 
-## License
+- One dashboard for Codex, Gemini CLI, and Copilot CLI detection
+- Read-only by design: no proxying, no request interception, no endpoint rewrites
+- Local-first privacy defaults: no raw prompt/response output, no OAuth/session token access
+- Useful in both human and script workflows: terminal dashboard by default, JSON when needed
 
-This project is licensed under GNU GPLv3. See [LICENSE](/Users/xiaoran/Desktop/code/TokenCat/LICENSE).
+## Features
+
+- Default 0-argument dashboard: `tokencat`
+- Session-level and model-level usage views
+- Daily usage breakdown with concrete model rows
+- Local pricing catalog with optional refresh for cost estimation
+- Stable anonymous session IDs by default
+- Explicit diagnostics for unsupported or missing providers
 
 ## Install
 
 Python 3.11+ is required.
 
+Install with `pipx`:
+
+```bash
+pipx install tokencat
+```
+
+Upgrade later with:
+
+```bash
+pipx upgrade tokencat
+```
+
+If you want to run from a local checkout instead:
+
 ```bash
 pipx install .
 ```
 
-For development:
+For maintainers preparing a release from a local checkout:
 
 ```bash
-python3 -m pip install -e '.[dev]'
+make install-release
+make release-check
 ```
 
-For release tooling:
+## Quick Start
+
+Open the default dashboard:
 
 ```bash
-python3 -m pip install -e '.[dev,release]'
+tokencat
+```
+
+Inspect a longer time window:
+
+```bash
+tokencat --since 30d
+```
+
+Focus on one provider:
+
+```bash
+tokencat dashboard --provider codex
+```
+
+List recent sessions:
+
+```bash
+tokencat sessions --provider codex --limit 20
+```
+
+See model totals:
+
+```bash
+tokencat models --provider gemini
+```
+
+Check local provider detection:
+
+```bash
+tokencat doctor
+```
+
+Inspect pricing coverage:
+
+```bash
+tokencat pricing show
+```
+
+Refresh the local pricing cache:
+
+```bash
+tokencat pricing refresh
 ```
 
 ## Commands
 
 ```bash
 tokencat
-tokencat --since 30d
-tokencat dashboard --provider gemini
-tokencat sessions --provider codex --limit 20
-tokencat models --provider gemini --json
+tokencat dashboard --provider codex
+tokencat summary --json
+tokencat sessions --provider gemini --limit 20
+tokencat models --since 30d
 tokencat doctor
 tokencat pricing show
 tokencat pricing refresh
 ```
 
-`tokencat` without any subcommand now opens the default 7-day dashboard.
-
-Dashboard and read commands support:
+Common flags:
 
 - `--provider codex|gemini|copilot`
-- `--since` and `--until` using `7d`, `24h`, or ISO date/datetime
+- `--since` / `--until` with values like `7d`, `24h`, or ISO dates
 - `--json`
-- `--no-price` to disable local price estimation
+- `--no-price`
 
-Session listing also supports:
+Extra session flags:
 
 - `--limit`
 - `--model`
 - `--show-title`
 - `--show-path`
 
-## Support Matrix
+## Supported Providers
 
-| Provider | v0.1 status | Notes |
+| Provider | Status | Notes |
 | --- | --- | --- |
-| Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite`. |
+| Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite` when needed. |
 | Gemini CLI | Supported | Reads `~/.gemini/tmp/**/chats/session-*.json` and non-sensitive settings metadata. |
-| GitHub Copilot CLI | Detection only | Reports `partial`, `unsupported`, or `not_found`; does not treat IDE plugin state as CLI usage telemetry. |
+| GitHub Copilot CLI | Detection only | Reports `partial`, `unsupported`, or `not_found`; does not treat editor plugin state as CLI usage telemetry. |
 
-## Dashboard UX
+## Privacy
 
-The default dashboard is human-first and terminal-native:
+TokenCat is intentionally conservative.
 
-- A headline status bar with provider health and pricing source
-- A dense hero overview with total tokens, estimated cost, coverage, and top-model highlights
-- A daily usage view grouped by day with concrete per-model rows
-- A recent sessions panel for quick drill-down
+- It only reads local files that already exist on your machine.
+- It does not proxy traffic or intercept requests.
+- It does not modify provider endpoints or sessions.
+- It does not read OAuth credentials for reporting.
+- It never outputs raw prompt or response bodies.
+- It redacts sensitive local metadata by default.
 
-The goal is a denser, more technical CLI feel without switching to a full-screen TUI.
+By default, output does not include session titles, cwd paths, or raw session IDs. If you want more local detail in session listings:
+
+```bash
+tokencat sessions --show-title --show-path
+```
 
 ## Pricing
 
-TokenCat can estimate API-equivalent cost for models that have an exact entry in the local pricing catalog.
+TokenCat can estimate API-equivalent cost for models with a known pricing entry.
 
-- Pricing is offline by default through a bundled catalog shipped with the package.
-- `tokencat pricing refresh` can refresh the catalog from a structured pricing dataset and cache it under `~/.tokencat/pricing/catalog.json`.
-- Unknown or historically renamed models are intentionally marked `unknown` instead of being guessed.
-- Cost totals always include a pricing coverage figure so unknown or unattributed tokens are visible.
+- Pricing works offline by default using a bundled catalog.
+- `tokencat pricing refresh` updates TokenCat's own local cache at `~/.tokencat/pricing/catalog.json`.
+- Unknown or old model names are shown as `unknown` instead of being guessed.
+- Coverage is always shown so you can see how much usage was actually priceable.
 
 Current pricing references:
 
@@ -99,47 +169,9 @@ Current pricing references:
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)
 - [GitHub Copilot plans](https://docs.github.com/en/copilot/about-github-copilot/subscription-plans-for-github-copilot)
 
-## Release
-
-`pipx` installs from a Python package index such as PyPI, so the release flow is:
-
-```bash
-make install-release
-make test
-make build
-make check-dist
-make publish
-```
-
-After publishing to PyPI, users can install it with:
-
-```bash
-pipx install tokencat
-```
-
-For a dry run against TestPyPI:
-
-```bash
-make publish-testpypi
-```
-
-## Privacy Defaults
-
-- Default output is redacted: no session title, no cwd, no source file path.
-- Raw prompt/response bodies are never emitted.
-- OAuth/session tokens and auth files are never read for reporting.
-- Stable anonymous session IDs are derived from provider + raw session ID using `sha256`.
-- Price refresh writes only TokenCat's own cache and never mutates provider logs.
-
-To opt into more local metadata for session listings:
-
-```bash
-tokencat sessions --show-title --show-path
-```
-
 ## JSON Output
 
-JSON commands use a stable v0.1 top-level shape:
+All JSON commands keep a stable top-level shape:
 
 - `generated_at`
 - `filters`
@@ -147,14 +179,16 @@ JSON commands use a stable v0.1 top-level shape:
 - `summary` or `items`
 - `warnings`
 
-The dashboard JSON nests its richer view under `summary` with:
+This makes TokenCat easy to use in scripts and local automation.
 
-- `overview`
-- `daily`
-- `top_models`
-- `recent_sessions`
-- `pricing`
+## Scope and Limitations
 
-## macOS-first Scope
+- v0.1 is macOS-first.
+- Linux path hooks are intentionally easy to extend, but Linux is not yet a polished support target.
+- Windows is not yet supported.
+- Copilot support is currently detection-only, not full usage accounting.
+- Cost is an estimate, not your actual bill.
 
-v0.1 is implemented for macOS path layouts first. Linux path hooks are intentionally left easy to extend, but Linux and Windows are not yet guaranteed support targets in this release.
+## License
+
+TokenCat is licensed under GNU GPLv3. See [LICENSE](LICENSE).
