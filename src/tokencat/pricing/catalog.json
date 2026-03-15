@@ -1,0 +1,107 @@
+{
+  "source_url": "https://platform.openai.com/docs/pricing/ , https://ai.google.dev/pricing",
+  "refreshed_at": "2026-03-15T00:00:00+00:00",
+  "entries": [
+    {
+      "provider": "codex",
+      "model": "gpt-5",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cached_input_per_1m": 0.125,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5-codex",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cached_input_per_1m": 0.125,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.1-codex",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cached_input_per_1m": 0.125,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.1-codex-max",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cached_input_per_1m": 0.125,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.2-codex",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "cached_input_per_1m": 0.175,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.3-codex",
+      "input_per_1m": 1.75,
+      "output_per_1m": 14.0,
+      "cached_input_per_1m": 0.175,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://platform.openai.com/docs/pricing/",
+      "notes": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-pro",
+      "input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "cached_input_per_1m": 0.125,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://ai.google.dev/pricing",
+      "notes": [
+        "Assumes the standard <=200k prompt pricing tier."
+      ]
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "input_per_1m": 0.3,
+      "output_per_1m": 2.5,
+      "cached_input_per_1m": 0.03,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://ai.google.dev/pricing",
+      "notes": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-lite",
+      "input_per_1m": 0.1,
+      "output_per_1m": 0.4,
+      "cached_input_per_1m": 0.01,
+      "currency": "USD",
+      "effective_date": "2026-03-15",
+      "source_url": "https://ai.google.dev/pricing",
+      "notes": []
+    }
+  ]
+}

@@ -27,9 +27,13 @@ tokencat = "tokencat.cli:app"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+tokencat = ["pricing/catalog.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
