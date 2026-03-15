@@ -10,12 +10,80 @@ from typer.testing import CliRunner
 from tokencat.cli import app
 from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
-from tokencat.core.pricing import apply_pricing, estimate_cost, load_pricing_catalog, refresh_builtin_pricing
+from tokencat.core.pricing import (
+    apply_pricing,
+    estimate_cost,
+    load_pricing_catalog,
+    pricing_bootstrap_path,
+    refresh_bundled_pricing_catalog,
+    refresh_builtin_pricing,
+    refresh_user_pricing_cache,
+)
 from tokencat.core.render import render_dashboard
 from tokencat.core.time import parse_datetime_value
 from tokencat.providers.registry import scan_providers
 
 from conftest import create_codex_state_db, write_json, write_jsonl
+
+
+def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> None:
+    entries = [
+        {
+            "provider": "codex",
+            "model": "gpt-5",
+            "input_per_1m": 1.25,
+            "output_per_1m": 10.0,
+            "cached_input_per_1m": 0.125,
+            "currency": "USD",
+            "effective_date": "2026-03-15",
+            "source_url": "https://example.test/pricing",
+            "notes": [],
+        },
+        {
+            "provider": "codex",
+            "model": "gpt-5.2-codex",
+            "input_per_1m": 1.75,
+            "output_per_1m": 14.0,
+            "cached_input_per_1m": 0.175,
+            "currency": "USD",
+            "effective_date": "2026-03-15",
+            "source_url": "https://example.test/pricing",
+            "notes": [],
+        },
+        {
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "input_per_1m": 1.25,
+            "output_per_1m": 10.0,
+            "cached_input_per_1m": 0.125,
+            "currency": "USD",
+            "effective_date": "2026-03-15",
+            "source_url": "https://example.test/pricing",
+            "notes": [],
+        },
+    ]
+    if include_gemini_preview:
+        entries.append(
+            {
+                "provider": "gemini",
+                "model": "gemini-3-pro-preview",
+                "input_per_1m": 1.25,
+                "output_per_1m": 10.0,
+                "cached_input_per_1m": 0.125,
+                "currency": "USD",
+                "effective_date": "2026-03-15",
+                "source_url": "https://example.test/pricing",
+                "notes": [],
+            }
+        )
+    write_json(
+        home / ".tokencat" / "pricing" / "catalog.json",
+        {
+            "source_url": "https://example.test/pricing",
+            "refreshed_at": "2026-03-15T00:00:00+00:00",
+            "entries": entries,
+        },
+    )
 
 
 def seed_dashboard_sample(home: Path, *, unknown_gemini: bool = False) -> None:
@@ -124,6 +192,7 @@ def build_dashboard_render_output(home: Path) -> str:
 
 def test_root_command_defaults_to_dashboard_json(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
@@ -137,6 +206,7 @@ def test_root_command_defaults_to_dashboard_json(sample_home: Path, monkeypatch)
 
 def test_summary_keeps_envelope_and_adds_pricing_coverage(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
@@ -150,6 +220,7 @@ def test_summary_keeps_envelope_and_adds_pricing_coverage(sample_home: Path, mon
 
 def test_pricing_show_reports_unknown_models(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home, unknown_gemini=True)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
@@ -189,8 +260,122 @@ def test_refresh_builtin_pricing_writes_cache(sample_home: Path) -> None:
     assert "gemini-2.5-pro" in models
 
 
+def test_refresh_bundled_pricing_catalog_writes_normalized_catalog(sample_home: Path) -> None:
+    raw_dataset = {
+        "gpt-5": {
+            "input_cost_per_token": 1.25e-6,
+            "output_cost_per_token": 1.0e-5,
+            "cache_read_input_token_cost": 1.25e-7,
+        },
+        "gemini/gemini-2.5-pro": {
+            "input_cost_per_token": 1.25e-6,
+            "output_cost_per_token": 1.0e-5,
+            "cache_read_input_token_cost": 1.25e-7,
+        },
+    }
+    target = sample_home / "bundle" / "catalog.json"
+
+    catalog = refresh_bundled_pricing_catalog(raw_dataset=raw_dataset, target_path=target)
+
+    assert catalog.source == "builtin"
+    assert target.exists()
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert {entry["model"] for entry in payload["entries"]} == {"gpt-5", "gemini-2.5-pro"}
+
+
+def test_refresh_bundled_pricing_catalog_fails_when_dataset_has_no_supported_entries(sample_home: Path) -> None:
+    target = sample_home / "bundle" / "catalog.json"
+
+    try:
+        refresh_bundled_pricing_catalog(raw_dataset={"not-a-model": {}}, target_path=target)
+    except ValueError as exc:
+        assert "Could not parse any pricing entries" in str(exc)
+    else:  # pragma: no cover - defensive
+        raise AssertionError("Expected refresh_bundled_pricing_catalog to fail for an unsupported dataset")
+
+
+def test_load_pricing_catalog_bootstraps_cache_once_on_first_success(sample_home: Path, monkeypatch) -> None:
+    raw_dataset = {
+        "gpt-5": {
+            "input_cost_per_token": 1.25e-6,
+            "output_cost_per_token": 1.0e-5,
+            "cache_read_input_token_cost": 1.25e-7,
+        }
+    }
+    calls: list[str] = []
+
+    def fake_fetch(_: str) -> dict[str, object]:
+        calls.append("fetch")
+        return raw_dataset
+
+    monkeypatch.setattr("tokencat.core.pricing._fetch_json", fake_fetch)
+
+    catalog = load_pricing_catalog(sample_home)
+
+    assert catalog.source == "cache"
+    assert calls == ["fetch"]
+    assert pricing_bootstrap_path(sample_home).exists()
+    marker = json.loads(pricing_bootstrap_path(sample_home).read_text(encoding="utf-8"))
+    assert marker["succeeded"] is True
+
+
+def test_load_pricing_catalog_falls_back_silently_and_records_failed_bootstrap(sample_home: Path, monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_fetch(_: str) -> dict[str, object]:
+        calls.append("fetch")
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr("tokencat.core.pricing._fetch_json", fake_fetch)
+
+    catalog = load_pricing_catalog(sample_home)
+
+    assert catalog.source == "builtin"
+    assert calls == ["fetch"]
+    marker = json.loads(pricing_bootstrap_path(sample_home).read_text(encoding="utf-8"))
+    assert marker["succeeded"] is False
+
+
+def test_load_pricing_catalog_does_not_retry_after_failed_bootstrap(sample_home: Path, monkeypatch) -> None:
+    pricing_bootstrap_path(sample_home).parent.mkdir(parents=True, exist_ok=True)
+    pricing_bootstrap_path(sample_home).write_text(
+        json.dumps({"attempted_at": "2026-03-15T00:00:00+00:00", "succeeded": False}),
+        encoding="utf-8",
+    )
+
+    def fake_fetch(_: str) -> dict[str, object]:
+        raise AssertionError("bootstrap should not retry once marker exists")
+
+    monkeypatch.setattr("tokencat.core.pricing._fetch_json", fake_fetch)
+
+    catalog = load_pricing_catalog(sample_home)
+
+    assert catalog.source == "builtin"
+
+
+def test_load_pricing_catalog_prefers_existing_cache_without_bootstrap(sample_home: Path, monkeypatch) -> None:
+    raw_dataset = {
+        "gpt-5": {
+            "input_cost_per_token": 1.25e-6,
+            "output_cost_per_token": 1.0e-5,
+            "cache_read_input_token_cost": 1.25e-7,
+        }
+    }
+    refresh_user_pricing_cache(sample_home, raw_dataset=raw_dataset)
+
+    def fake_fetch(_: str) -> dict[str, object]:
+        raise AssertionError("existing cache should be used before bootstrap")
+
+    monkeypatch.setattr("tokencat.core.pricing._fetch_json", fake_fetch)
+
+    catalog = load_pricing_catalog(sample_home)
+
+    assert catalog.source == "cache"
+
+
 def test_dashboard_render_matches_golden_files(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     rendered = build_dashboard_render_output(sample_home)
     expected = (Path(__file__).parent / "golden" / "dashboard_priced.txt").read_text(encoding="utf-8")
@@ -199,6 +384,7 @@ def test_dashboard_render_matches_golden_files(sample_home: Path, monkeypatch) -
 
 def test_dashboard_render_unknown_pricing_matches_golden(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home, unknown_gemini=True)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     rendered = build_dashboard_render_output(sample_home)
     expected = (Path(__file__).parent / "golden" / "dashboard_unknown.txt").read_text(encoding="utf-8")
@@ -207,6 +393,7 @@ def test_dashboard_render_unknown_pricing_matches_golden(sample_home: Path, monk
 
 def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
     summary = aggregate_summary(result.sessions, pricing_coverage=None)
@@ -232,6 +419,7 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
 
 def test_codex_dashboard_and_models_agree_for_recent_active_sessions(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
@@ -364,6 +552,7 @@ def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None
 
 def test_aggregate_daily_includes_model_subrows_and_preserves_day_totals(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
 
     result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
