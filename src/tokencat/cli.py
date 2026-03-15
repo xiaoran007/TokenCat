@@ -10,7 +10,7 @@ from rich.table import Table
 
 from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import PricingCatalog, PricingCoverage, ProviderName, ScanFilters
-from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_builtin_pricing
+from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
 from tokencat.core.render import render_dashboard, render_pricing_summary
 from tokencat.core.serialize import (
     serialize_daily_records,
@@ -376,7 +376,7 @@ def pricing_refresh(
 ) -> None:
     warnings: list[str] = []
     try:
-        catalog = refresh_builtin_pricing()
+        catalog = refresh_user_pricing_cache()
     except Exception as exc:  # pragma: no cover - exercised in tests by function patching
         catalog = load_pricing_catalog()
         warnings.append(str(exc))

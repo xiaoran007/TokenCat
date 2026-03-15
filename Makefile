@@ -3,7 +3,7 @@ PIP := $(PYTHON) -m pip
 PACKAGE ?= tokencat
 TWINE_REPOSITORY ?= pypi
 
-.PHONY: install-dev install-release test clean build check-dist release-check publish publish-testpypi
+.PHONY: install-dev install-release test clean refresh-bundled-pricing build check-dist release-check publish publish-testpypi
 
 install-dev:
 	$(PIP) install -e '.[dev]'
@@ -17,7 +17,10 @@ test:
 clean:
 	rm -rf build dist *.egg-info
 
-build: clean
+refresh-bundled-pricing:
+	$(PYTHON) -m tokencat.core.pricing refresh-bundled
+
+build: clean refresh-bundled-pricing
 	$(PYTHON) -m build
 
 check-dist: build

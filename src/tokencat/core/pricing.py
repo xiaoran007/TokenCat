@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from importlib import resources
@@ -12,6 +13,7 @@ from tokencat.core.models import CostEstimate, PricingCatalog, PricingCoverage, 
 
 APP_DIR_NAME = ".tokencat"
 CATALOG_RELATIVE_PATH = Path("pricing") / "catalog.json"
+BOOTSTRAP_RELATIVE_PATH = Path("pricing") / "bootstrap.json"
 BUILTIN_CATALOG_PACKAGE = "tokencat.pricing"
 LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 SUPPORTED_PREFIXES = {
@@ -39,6 +41,11 @@ def user_catalog_path(home: Path | None = None) -> Path:
     return base / CATALOG_RELATIVE_PATH
 
 
+def pricing_bootstrap_path(home: Path | None = None) -> Path:
+    base = (home or Path.home()) / APP_DIR_NAME
+    return base / BOOTSTRAP_RELATIVE_PATH
+
+
 def load_pricing_catalog(home: Path | None = None) -> PricingCatalog:
     cache_path = user_catalog_path(home)
     if cache_path.exists():
@@ -46,6 +53,13 @@ def load_pricing_catalog(home: Path | None = None) -> PricingCatalog:
             return _catalog_from_json(json.loads(cache_path.read_text(encoding="utf-8")), source="cache", cache_path=cache_path)
         except (OSError, json.JSONDecodeError, ValueError):
             pass
+    if _should_attempt_bootstrap(home):
+        try:
+            catalog = refresh_user_pricing_cache(home)
+            _write_bootstrap_marker(home, succeeded=True)
+            return catalog
+        except Exception:
+            _write_bootstrap_marker(home, succeeded=False)
     return load_builtin_catalog()
 
 
@@ -56,13 +70,7 @@ def load_builtin_catalog() -> PricingCatalog:
 
 def save_pricing_catalog(catalog: PricingCatalog, home: Path | None = None) -> Path:
     path = user_catalog_path(home)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "source_url": catalog.source_url,
-        "refreshed_at": catalog.refreshed_at or datetime.now().astimezone().isoformat(),
-        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.provider.value, item.model))],
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_catalog_payload(path, catalog)
     return path
 
 
@@ -187,7 +195,7 @@ def estimate_cost(tokens: TokenTotals, entry: PricingEntry) -> CostEstimate:
     )
 
 
-def refresh_builtin_pricing(home: Path | None = None, *, raw_dataset: dict[str, object] | None = None) -> PricingCatalog:
+def refresh_user_pricing_cache(home: Path | None = None, *, raw_dataset: dict[str, object] | None = None) -> PricingCatalog:
     dataset = raw_dataset if raw_dataset is not None else _fetch_json(LITELLM_PRICING_URL)
     entries = _normalize_litellm_dataset(dataset)
     if not entries:
@@ -204,6 +212,30 @@ def refresh_builtin_pricing(home: Path | None = None, *, raw_dataset: dict[str, 
     )
     save_pricing_catalog(catalog, home)
     return catalog
+
+
+def refresh_bundled_pricing_catalog(*, raw_dataset: dict[str, object] | None = None, target_path: Path | None = None) -> PricingCatalog:
+    dataset = raw_dataset if raw_dataset is not None else _fetch_json(LITELLM_PRICING_URL)
+    entries = _normalize_litellm_dataset(dataset)
+    if not entries:
+        raise ValueError("Could not parse any pricing entries from the structured pricing dataset.")
+
+    refreshed_at = datetime.now().astimezone().isoformat()
+    bundle_path = target_path or _bundled_catalog_path()
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=datetime.now().astimezone(),
+        entries={(entry.provider, entry.model): entry for entry in entries},
+        source_url=LITELLM_PRICING_URL,
+        refreshed_at=refreshed_at,
+        cache_path=None,
+    )
+    _write_catalog_payload(bundle_path, catalog)
+    return catalog
+
+
+def refresh_builtin_pricing(home: Path | None = None, *, raw_dataset: dict[str, object] | None = None) -> PricingCatalog:
+    return refresh_user_pricing_cache(home, raw_dataset=raw_dataset)
 
 
 def _catalog_from_json(payload: dict[str, object], *, source: str, cache_path: Path | None) -> PricingCatalog:
@@ -300,3 +332,43 @@ def _as_number(value: object) -> float:
 
 def _has_non_zero_pricing(entry: PricingEntry) -> bool:
     return any(value > 0 for value in (entry.input_per_1m, entry.output_per_1m, entry.cached_input_per_1m or 0.0))
+
+
+def _bundled_catalog_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "pricing" / "catalog.json"
+
+
+def _write_catalog_payload(path: Path, catalog: PricingCatalog) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "source_url": catalog.source_url,
+        "refreshed_at": catalog.refreshed_at or datetime.now().astimezone().isoformat(),
+        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.provider.value, item.model))],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _should_attempt_bootstrap(home: Path | None) -> bool:
+    return not pricing_bootstrap_path(home).exists()
+
+
+def _write_bootstrap_marker(home: Path | None, *, succeeded: bool) -> None:
+    marker = pricing_bootstrap_path(home)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "attempted_at": datetime.now().astimezone().isoformat(),
+        "succeeded": succeeded,
+    }
+    marker.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args == ["refresh-bundled"]:
+        refresh_bundled_pricing_catalog()
+        return 0
+    raise SystemExit("Usage: python -m tokencat.core.pricing refresh-bundled")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
