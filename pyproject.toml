@@ -21,6 +21,10 @@ dependencies = [
 dev = [
   "pytest>=8.0.0,<9",
 ]
+release = [
+  "build>=1.2.2,<2",
+  "twine>=5.1.1,<6",
+]
 
 [project.scripts]
 tokencat = "tokencat.cli:app"
