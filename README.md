@@ -157,8 +157,10 @@ tokencat sessions --show-title --show-path
 
 TokenCat can estimate API-equivalent cost for models with a known pricing entry.
 
-- Pricing works offline by default using a bundled catalog.
+- Pricing works offline by default using a bundled catalog shipped in the package.
+- On first pricing use, TokenCat silently tries to refresh its own local cache under `~/.tokencat/pricing/`; if that fails, it quietly falls back to the bundled catalog.
 - `tokencat pricing refresh` updates TokenCat's own local cache at `~/.tokencat/pricing/catalog.json`.
+- Package builds refresh the bundled pricing catalog before creating the wheel/sdist, so new releases ship with current pricing data.
 - Unknown or old model names are shown as `unknown` instead of being guessed.
 - Coverage is always shown so you can see how much usage was actually priceable.
 
