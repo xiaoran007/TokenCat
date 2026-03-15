@@ -239,23 +239,48 @@ class PricingCoverage:
 
 
 @dataclass(slots=True)
+class DailyModelUsageRecord:
+    provider: ProviderName
+    model: str
+    token_totals: TokenTotals = field(default_factory=TokenTotals.zero)
+    estimated_cost: CostEstimate = field(default_factory=CostEstimate)
+    session_count: int = 0
+    priced_tokens: int = 0
+    attribution_status: str | None = None
+    pricing_status: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        total_tokens = self.token_totals.total or 0
+        return {
+            "provider": self.provider.value,
+            "model": self.model,
+            "session_count": self.session_count,
+            "token_totals": self.token_totals.to_dict(),
+            "estimated_cost": self.estimated_cost.to_dict(),
+            "priced_ratio": round((self.priced_tokens / total_tokens), 4) if total_tokens else 0.0,
+            "attribution_status": self.attribution_status,
+            "pricing_status": self.pricing_status,
+        }
+
+
+@dataclass(slots=True)
 class DailyUsageRecord:
     date: date
     providers: set[ProviderName] = field(default_factory=set)
-    models: set[str] = field(default_factory=set)
     token_totals: TokenTotals = field(default_factory=TokenTotals.zero)
     session_count: int = 0
     estimated_cost: CostEstimate = field(default_factory=CostEstimate)
     priced_tokens: int = 0
     total_tokens: int = 0
+    models: list[DailyModelUsageRecord] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "date": self.date.isoformat(),
             "providers": sorted(provider.value for provider in self.providers),
-            "models": sorted(self.models),
             "session_count": self.session_count,
             "token_totals": self.token_totals.to_dict(),
             "estimated_cost": self.estimated_cost.to_dict(),
             "priced_ratio": round((self.priced_tokens / self.total_tokens), 4) if self.total_tokens else 0.0,
+            "models": [model.to_dict() for model in self.models],
         }

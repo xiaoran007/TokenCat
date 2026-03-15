@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary
+from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_builtin_pricing
 from tokencat.core.render import render_dashboard, render_pricing_summary
@@ -91,6 +91,7 @@ def dashboard(
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
     daily = aggregate_daily(result.sessions)
     top_models = aggregate_models(result.sessions)
+    overview = build_dashboard_overview(summary_data, top_models, result.statuses)
     recent_sessions = result.sessions[:6]
     time_label = _format_window_label(filters)
 
@@ -99,7 +100,7 @@ def dashboard(
         "filters": serialize_filters(filters),
         "providers": [serialize_status(status) for status in result.statuses],
         "summary": {
-            "overview": summary_data,
+            "overview": overview,
             "daily": serialize_daily_records(daily),
             "top_models": top_models[:8],
             "recent_sessions": [serialize_session(record, show_title=False, show_path=False) for record in recent_sessions],
@@ -118,9 +119,8 @@ def dashboard(
         console,
         time_label=time_label,
         statuses=result.statuses,
-        summary=summary_data,
+        overview=overview,
         daily=daily[-7:],
-        top_models=top_models,
         sessions=recent_sessions,
         pricing_catalog=catalog,
         pricing_coverage=coverage,
@@ -214,7 +214,7 @@ def summary(
             provider_name,
             str(provider_summary["session_count"]),
             str(provider_summary["model_count"]),
-            str(provider_summary["token_totals"]["total"] or 0),
+            _format_tokens(provider_summary["token_totals"]["total"]),
             _format_cost(provider_summary["estimated_cost"]["total_cost"]),
         )
     console.print(providers_table)
@@ -267,7 +267,7 @@ def sessions(
             _format_datetime(record.updated_at or record.started_at),
             record.primary_model or "-",
             record.attribution_status or "-",
-            str(record.token_totals.total or 0),
+            _format_tokens(record.token_totals.total),
         ]
         if not no_price:
             row.append(_format_cost(record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0))
@@ -328,10 +328,10 @@ def models(
             item.get("attribution_status") or "-",
             str(item["session_count"]),
             str(item["message_count"]),
-            str(tokens["total"] or 0),
-            str(tokens["input"] or 0),
-            str((tokens["output"] or 0) + (tokens["reasoning"] or 0)),
-            str(tokens["cached"] or 0),
+            _format_tokens(tokens["total"]),
+            _format_tokens(tokens["input"]),
+            _format_tokens((tokens["output"] or 0) + (tokens["reasoning"] or 0)),
+            _format_tokens(tokens["cached"]),
         ]
         if not no_price:
             estimated = item.get("estimated_cost") or {}
@@ -413,11 +413,11 @@ def _scan_with_pricing(filters: ScanFilters, *, pricing_enabled: bool) -> tuple[
 
 def _token_rows(tokens: dict[str, int | None]) -> dict[str, str]:
     return {
-        "Input Tokens": str(tokens["input"] or 0),
-        "Output Tokens": str((tokens["output"] or 0) + (tokens["reasoning"] or 0)),
-        "Cached Tokens": str(tokens["cached"] or 0),
-        "Tool Tokens": str(tokens["tool"] or 0),
-        "Total Tokens": str(tokens["total"] or 0),
+        "Input Tokens": _format_tokens(tokens["input"]),
+        "Output Tokens": _format_tokens((tokens["output"] or 0) + (tokens["reasoning"] or 0)),
+        "Cached Tokens": _format_tokens(tokens["cached"]),
+        "Tool Tokens": _format_tokens(tokens["tool"]),
+        "Total Tokens": _format_tokens(tokens["total"]),
     }
 
 
@@ -437,3 +437,15 @@ def _format_window_label(filters: ScanFilters) -> str:
     start = filters.since.astimezone().date().isoformat() if filters.since is not None else "start"
     end = filters.until.astimezone().date().isoformat() if filters.until is not None else local_now().date().isoformat()
     return f"{start} -> {end}"
+
+
+def _format_tokens(value: int | None) -> str:
+    number = float(value or 0)
+    abs_number = abs(number)
+    if abs_number >= 1_000_000_000:
+        return f"{int(number):,} ({number / 1_000_000_000:.1f}B)"
+    if abs_number >= 1_000_000:
+        return f"{int(number):,} ({number / 1_000_000:.1f}M)"
+    if abs_number >= 1_000:
+        return f"{int(number):,} ({number / 1_000:.1f}K)"
+    return f"{int(number):,}"

@@ -23,9 +23,8 @@ def render_dashboard(
     *,
     time_label: str,
     statuses: list[ProviderStatus],
-    summary: dict[str, object],
+    overview: dict[str, object],
     daily: list[DailyUsageRecord],
-    top_models: list[dict[str, object]],
     sessions: list[SessionRecord],
     pricing_catalog: PricingCatalog | None,
     pricing_coverage: PricingCoverage | None,
@@ -33,27 +32,9 @@ def render_dashboard(
 ) -> None:
     renderables = [
         _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
-        Columns(
-            [
-                _metric_card("Sessions", str(summary["session_count"]), "Local sessions in range"),
-                _metric_card("Total Tokens", _format_int(summary["token_totals"]["total"]), "Across supported providers"),
-                _metric_card("Est Cost", _format_cost(summary["estimated_cost"]["total_cost"]), "Equivalent API reference"),
-                _metric_card("Coverage", _format_ratio((summary.get("pricing_coverage") or {}).get("priced_ratio", 0.0)), "Priced token share"),
-                _metric_card("Models", str(summary["model_count"]), "Unique models seen"),
-                _metric_card("Providers", str(len([status for status in statuses if status.status.value == "supported"])), "Supported local sources"),
-            ],
-            equal=True,
-            expand=True,
-        ),
-        Rule(style=MUTED),
-        _daily_table(daily),
-        Columns(
-            [
-                Panel(_top_models_table(top_models[:6]), title="Top Models", border_style=COOL, box=box.ROUNDED),
-                Panel(_recent_sessions_table(sessions[:6]), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED),
-            ],
-            expand=True,
-        ),
+        _hero_panel(overview),
+        _daily_panel(daily),
+        Panel(_recent_sessions_table(sessions[:6]), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED),
     ]
     if warnings:
         warning_text = Text("\n".join(f"- {warning}" for warning in warnings), style=WARN)
@@ -109,77 +90,157 @@ def _brand_panel(time_label: str, statuses: list[ProviderStatus], pricing_catalo
     return Panel(Group(header, status_line, footer), border_style=ACCENT, box=box.ROUNDED)
 
 
-def _metric_card(label: str, value: str, subtitle: str) -> Panel:
-    text = Text()
-    text.append(f"{value}\n", style=f"bold {ACCENT}")
-    text.append(label, style=COOL)
-    text.append(f"\n{subtitle}", style=MUTED)
-    return Panel(text, border_style=MUTED, box=box.ROUNDED, padding=(1, 2))
+def _hero_panel(overview: dict[str, object]) -> Panel:
+    totals = overview["token_totals"]
+    cost = overview["estimated_cost"]
+    secondary = overview.get("secondary_metrics") or {}
+    top_models = overview.get("top_models") or []
+
+    primary = Text()
+    primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {ACCENT}")
+    primary.append("Total tokens\n", style=COOL)
+    primary.append(f"{_format_cost(cost['total_cost'])} estimated API cost\n", style=f"bold {WARN}")
+    primary.append(
+        "  ".join(
+            [
+                f"{overview['session_count']} sessions",
+                f"{overview['model_count']} models",
+                f"{secondary.get('provider_count', 0)} providers",
+            ]
+        )
+        + "\n",
+        style=MUTED,
+    )
+    primary.append(
+        "  ".join(
+            [
+                f"coverage {_format_ratio(secondary.get('priced_coverage', 0.0))}",
+                f"unknown {_format_int(secondary.get('unknown_model_tokens'))}",
+                f"unattributed {_format_int(secondary.get('unattributed_token_count'))}",
+            ]
+        ),
+        style=MUTED,
+    )
+
+    ranking = Table(box=None, expand=True, pad_edge=False)
+    ranking.add_column("Top models", style=COOL)
+    ranking.add_column("Tokens", justify="right")
+    ranking.add_column("Cost", justify="right")
+    for item in top_models[:5]:
+        estimated = item.get("estimated_cost") or {}
+        ranking.add_row(
+            item["model"],
+            _format_int(item["token_totals"]["total"]),
+            _format_cost(estimated.get("total_cost", 0.0)),
+        )
+    if not top_models:
+        ranking.add_row("No model data", "-", "-")
+
+    return Panel(
+        Columns(
+            [
+                Panel(primary, title="Overview", border_style=MUTED, box=box.ROUNDED),
+                Panel(ranking, title="Top Models", border_style=COOL, box=box.ROUNDED),
+            ],
+            equal=False,
+            expand=True,
+        ),
+        border_style=ACCENT,
+        box=box.ROUNDED,
+    )
 
 
-def _daily_table(records: list[DailyUsageRecord]) -> Table:
-    table = Table(title="Daily Usage", box=box.SIMPLE_HEAVY, border_style=MUTED, expand=True)
-    table.add_column("Date", style=COOL)
-    table.add_column("Providers / Models", style=ACCENT)
+def _daily_panel(records: list[DailyUsageRecord]) -> Panel:
+    if not records:
+        return Panel(Text("No usage in this window.", style=MUTED), title="Daily Usage", border_style=MUTED, box=box.ROUNDED)
+
+    sections: list[object] = []
+    for index, record in enumerate(records):
+        if index:
+            sections.append(Rule(style=MUTED))
+        sections.append(_daily_block(record))
+    return Panel(Group(*sections), title="Daily Usage", border_style=MUTED, box=box.ROUNDED)
+
+
+def _daily_block(record: DailyUsageRecord) -> Group:
+    header = Text()
+    header.append(record.date.isoformat(), style=f"bold {ACCENT}")
+    header.append("  ", style=MUTED)
+    header.append(f"{_format_int(record.token_totals.total)} total", style=COOL)
+    header.append("  ", style=MUTED)
+    header.append(f"{_format_cost(record.estimated_cost.total_cost)}", style=WARN)
+    header.append("  ", style=MUTED)
+    header.append(f"{record.session_count} sessions", style=MUTED)
+    header.append("  ", style=MUTED)
+    header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=MUTED)
+
+    table = Table(box=box.SIMPLE_HEAVY, expand=True)
+    table.add_column("Model", style=ACCENT)
     table.add_column("Input", justify="right")
     table.add_column("Output", justify="right")
     table.add_column("Cached", justify="right")
     table.add_column("Total", justify="right")
     table.add_column("Est Cost", justify="right")
-    for record in records:
-        providers = "+".join(sorted(provider.value for provider in record.providers))
-        model_summary = f"{len(record.models)} models"
-        table.add_row(
-            record.date.isoformat(),
-            f"{providers}\n{model_summary}",
-            _format_int(record.token_totals.input),
-            _format_int((record.token_totals.output or 0) + (record.token_totals.reasoning or 0)),
-            _format_int(record.token_totals.cached),
-            _format_int(record.token_totals.total),
-            _format_cost(record.estimated_cost.total_cost),
-        )
-    return table
 
-
-def _top_models_table(items: list[dict[str, object]]) -> Table:
-    table = Table(box=box.SIMPLE_HEAVY, expand=True)
-    table.add_column("Model", style=ACCENT)
-    table.add_column("Provider", style=COOL)
-    table.add_column("Tokens", justify="right")
-    table.add_column("Cost", justify="right")
-    for item in items:
-        estimated = item.get("estimated_cost") or {}
+    visible_models = record.models[:5]
+    for model in visible_models:
         table.add_row(
-            item["model"],
-            item["provider"],
-            _format_int(item["token_totals"]["total"]),
-            _format_cost(estimated.get("total_cost", 0.0)),
+            f"{model.model} ({model.provider.value})",
+            _format_int(model.token_totals.input),
+            _format_int((model.token_totals.output or 0) + (model.token_totals.reasoning or 0)),
+            _format_int(model.token_totals.cached),
+            _format_int(model.token_totals.total),
+            _format_cost(model.estimated_cost.total_cost),
         )
-    return table
+    if len(record.models) > len(visible_models):
+        table.add_row(
+            f"+{len(record.models) - len(visible_models)} more models",
+            "",
+            "",
+            "",
+            "",
+            "",
+        )
+
+    return Group(header, table)
 
 
 def _recent_sessions_table(records: list[SessionRecord]) -> Table:
+    single_provider = len({record.provider.value for record in records}) <= 1 if records else False
     table = Table(box=box.SIMPLE_HEAVY, expand=True)
     table.add_column("Session", style=ACCENT)
-    table.add_column("Provider", style=COOL)
+    if not single_provider:
+        table.add_column("Provider", style=COOL)
     table.add_column("Model")
     table.add_column("Attr")
     table.add_column("Tokens", justify="right")
     table.add_column("Cost", justify="right")
     for record in records:
-        table.add_row(
-            record.anon_session_id,
-            record.provider.value,
-            record.primary_model or "unknown",
-            record.attribution_status or "-",
-            _format_int(record.token_totals.total),
-            _format_cost(record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0),
+        row = [record.anon_session_id]
+        if not single_provider:
+            row.append(record.provider.value)
+        row.extend(
+            [
+                record.primary_model or "unknown",
+                record.attribution_status or "-",
+                _format_int(record.token_totals.total),
+                _format_cost(record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0),
+            ]
         )
+        table.add_row(*row)
     return table
 
 
 def _format_int(value: int | None) -> str:
-    return f"{value or 0:,}"
+    number = float(value or 0)
+    abs_number = abs(number)
+    if abs_number >= 1_000_000_000:
+        return f"{int(number):,} ({number / 1_000_000_000:.1f}B)"
+    if abs_number >= 1_000_000:
+        return f"{int(number):,} ({number / 1_000_000:.1f}M)"
+    if abs_number >= 1_000:
+        return f"{int(number):,} ({number / 1_000:.1f}K)"
+    return f"{int(number):,}"
 
 
 def _format_cost(value: float | None) -> str:

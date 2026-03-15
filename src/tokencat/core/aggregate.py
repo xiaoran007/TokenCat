@@ -3,7 +3,16 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
-from tokencat.core.models import CostEstimate, DailyUsageRecord, ModelUsage, PricingCoverage, ProviderName, SessionRecord, TokenTotals
+from tokencat.core.models import (
+    CostEstimate,
+    DailyModelUsageRecord,
+    DailyUsageRecord,
+    ModelUsage,
+    PricingCoverage,
+    ProviderName,
+    SessionRecord,
+    TokenTotals,
+)
 
 
 def aggregate_summary(records: list[SessionRecord], *, pricing_coverage: PricingCoverage | None = None) -> dict[str, object]:
@@ -97,6 +106,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
 
 def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
     buckets: dict[date, DailyUsageRecord] = {}
+    model_buckets: dict[date, dict[tuple[ProviderName, str], DailyModelUsageRecord]] = defaultdict(dict)
     for record in records:
         timestamp = record.updated_at or record.started_at
         if timestamp is None:
@@ -104,14 +114,96 @@ def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
         day = timestamp.date()
         bucket = buckets.setdefault(day, DailyUsageRecord(date=day))
         bucket.providers.add(record.provider)
-        bucket.models.update(record.models)
         bucket.token_totals.add(record.token_totals)
         bucket.session_count += 1
         bucket.total_tokens += record.token_totals.total or 0
         if record.estimated_cost is not None:
             bucket.estimated_cost.add(record.estimated_cost)
-        if record.pricing_status in {"priced", "partial"}:
-            priced_tokens = sum((usage.tokens.total or 0) for usage in record.model_usage.values() if usage.pricing_status == "priced")
-            bucket.priced_tokens += priced_tokens
+        priced_tokens = 0
+        seen_models_for_session: set[tuple[ProviderName, str]] = set()
+        for model_name, usage in record.model_usage.items():
+            key = (record.provider, model_name)
+            model_bucket = model_buckets[day].setdefault(
+                key,
+                DailyModelUsageRecord(
+                    provider=record.provider,
+                    model=model_name,
+                    token_totals=TokenTotals.zero(),
+                    estimated_cost=CostEstimate(),
+                ),
+            )
+            model_bucket.token_totals.add(usage.tokens)
+            if usage.estimated_cost is not None:
+                model_bucket.estimated_cost.add(usage.estimated_cost)
+            if key not in seen_models_for_session:
+                model_bucket.session_count += 1
+                seen_models_for_session.add(key)
+            model_bucket.attribution_status = _pick_attribution_status(model_bucket.attribution_status, usage.attribution_status)
+            model_bucket.pricing_status = _pick_pricing_status(model_bucket.pricing_status, usage.pricing_status)
+            if usage.pricing_status in {"priced", "fallback_priced"}:
+                model_bucket.priced_tokens += usage.tokens.total or 0
+                priced_tokens += usage.tokens.total or 0
+        bucket.priced_tokens += priced_tokens
 
-    return [buckets[key] for key in sorted(buckets)]
+    items: list[DailyUsageRecord] = []
+    for day in sorted(buckets):
+        bucket = buckets[day]
+        day_models = sorted(
+            model_buckets[day].values(),
+            key=lambda item: (
+                _daily_model_sort_rank(item.pricing_status),
+                -(item.token_totals.total or 0),
+                item.provider.value,
+                item.model,
+            ),
+        )
+        bucket.models = day_models
+        items.append(bucket)
+    return items
+
+
+def build_dashboard_overview(summary: dict[str, object], top_models: list[dict[str, object]], statuses: list[object]) -> dict[str, object]:
+    pricing = summary.get("pricing_coverage") or {}
+    return {
+        **summary,
+        "top_models": top_models[:5],
+        "secondary_metrics": {
+            "priced_coverage": pricing.get("priced_ratio", 0.0),
+            "unknown_model_tokens": pricing.get("unknown_model_tokens", 0),
+            "unattributed_token_count": pricing.get("unattributed_token_count", 0),
+            "provider_count": len([status for status in statuses if getattr(getattr(status, "status", None), "value", None) == "supported"]),
+        },
+    }
+
+
+def _daily_model_sort_rank(pricing_status: str | None) -> int:
+    if pricing_status in {"unknown_model", "unattributed"}:
+        return 1
+    return 0
+
+
+def _pick_attribution_status(current: str | None, incoming: str | None) -> str | None:
+    if current == "exact" or incoming is None:
+        return current
+    if incoming == "exact" or current is None:
+        return incoming
+    if incoming == "fallback":
+        return "fallback"
+    return current or incoming
+
+
+def _pick_pricing_status(current: str | None, incoming: str | None) -> str | None:
+    order = {
+        None: 0,
+        "priced": 1,
+        "fallback_priced": 2,
+        "partial": 3,
+        "unknown_model": 4,
+        "unattributed": 5,
+        "unpriced": 6,
+    }
+    if current is None:
+        return incoming
+    if incoming is None:
+        return current
+    return incoming if order[incoming] > order[current] else current

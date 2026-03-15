@@ -171,9 +171,10 @@ def apply_pricing(records: list[SessionRecord], catalog: PricingCatalog | None) 
 def estimate_cost(tokens: TokenTotals, entry: PricingEntry) -> CostEstimate:
     input_tokens = tokens.input or 0
     cached_tokens = tokens.cached or 0
+    non_cached_input_tokens = max(input_tokens - cached_tokens, 0)
     output_tokens = (tokens.output or 0) + (tokens.tool or 0)
 
-    input_cost = input_tokens / 1_000_000 * entry.input_per_1m
+    input_cost = non_cached_input_tokens / 1_000_000 * entry.input_per_1m
     cached_rate = entry.cached_input_per_1m if entry.cached_input_per_1m is not None else entry.input_per_1m
     cached_cost = cached_tokens / 1_000_000 * cached_rate
     output_cost = output_tokens / 1_000_000 * entry.output_per_1m
