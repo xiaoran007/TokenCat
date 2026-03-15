@@ -8,9 +8,9 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from tokencat.cli import app
-from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary
+from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
-from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_builtin_pricing
+from tokencat.core.pricing import apply_pricing, estimate_cost, load_pricing_catalog, refresh_builtin_pricing
 from tokencat.core.render import render_dashboard
 from tokencat.core.time import parse_datetime_value
 from tokencat.providers.registry import scan_providers
@@ -106,14 +106,14 @@ def build_dashboard_render_output(home: Path) -> str:
     summary = aggregate_summary(result.sessions, pricing_coverage=coverage)
     daily = aggregate_daily(result.sessions)
     models = aggregate_models(result.sessions)
+    overview = build_dashboard_overview(summary, models, result.statuses)
     console = Console(width=100, force_terminal=False, color_system=None, record=True)
     render_dashboard(
         console,
         time_label="7d",
         statuses=result.statuses,
-        summary=summary,
+        overview=overview,
         daily=daily[-7:],
-        top_models=models,
         sessions=result.sessions[:6],
         pricing_catalog=catalog,
         pricing_coverage=coverage,
@@ -132,6 +132,7 @@ def test_root_command_defaults_to_dashboard_json(sample_home: Path, monkeypatch)
     payload = json.loads(result.stdout)
     assert set(payload["summary"]) == {"overview", "daily", "top_models", "recent_sessions", "pricing"}
     assert payload["summary"]["overview"]["pricing_coverage"]["priced_tokens"] > 0
+    assert payload["summary"]["overview"]["top_models"][0]["model"] in {"gpt-5.3-codex", "gemini-2.5-pro"}
 
 
 def test_summary_keeps_envelope_and_adds_pricing_coverage(sample_home: Path, monkeypatch) -> None:
@@ -211,14 +212,14 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
     summary = aggregate_summary(result.sessions, pricing_coverage=None)
     daily = aggregate_daily(result.sessions)
     models = aggregate_models(result.sessions)
+    overview = build_dashboard_overview(summary, models, result.statuses)
     console = Console(width=100, force_terminal=False, color_system=None, record=True)
     render_dashboard(
         console,
         time_label="7d",
         statuses=result.statuses,
-        summary=summary,
+        overview=overview,
         daily=daily[-7:],
-        top_models=models,
         sessions=result.sessions[:6],
         pricing_catalog=None,
         pricing_coverage=None,
@@ -244,7 +245,7 @@ def test_codex_dashboard_and_models_agree_for_recent_active_sessions(sample_home
     models_payload = json.loads(models_result.stdout)
 
     assert dashboard_payload["summary"]["overview"]["token_totals"]["total"] == 180
-    assert dashboard_payload["summary"]["daily"][0]["models"] == ["gpt-5.3-codex"]
+    assert dashboard_payload["summary"]["daily"][0]["models"][0]["model"] == "gpt-5.3-codex"
     assert models_payload["items"][0]["model"] == "gpt-5.3-codex"
     assert models_payload["items"][0]["token_totals"]["total"] == 180
 
@@ -333,3 +334,46 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
     assert unknown_record.model_usage["gpt-5.4"].pricing_status == "unknown_model"
     assert coverage.unknown_models == ["gpt-5.4"]
     assert coverage.unknown_model_tokens == 550
+
+
+def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None:
+    entry = PricingEntry(
+        provider=ProviderName.CODEX,
+        model="gpt-5",
+        input_per_1m=1.0,
+        output_per_1m=2.0,
+        cached_input_per_1m=0.5,
+        currency="USD",
+        effective_date="2026-03-15",
+        source_url="https://example.test/pricing",
+    )
+
+    mixed = estimate_cost(TokenTotals(input=1000, cached=200, output=100, total=1100), entry)
+    no_cached = estimate_cost(TokenTotals(input=1000, cached=0, output=100, total=1100), entry)
+    clamped = estimate_cost(TokenTotals(input=100, cached=200, output=0, total=100), entry)
+
+    assert mixed.input_cost == 0.0008
+    assert mixed.cached_input_cost == 0.0001
+    assert mixed.output_cost == 0.0002
+    assert mixed.total_cost == 0.0011
+    assert no_cached.input_cost == 0.001
+    assert no_cached.cached_input_cost == 0.0
+    assert clamped.input_cost == 0.0
+    assert clamped.cached_input_cost == 0.0001
+
+
+def test_aggregate_daily_includes_model_subrows_and_preserves_day_totals(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
+    catalog = load_pricing_catalog(sample_home)
+    apply_pricing(result.sessions, catalog)
+    daily = aggregate_daily(result.sessions)
+
+    assert len(daily) == 2
+    codex_day = next(item for item in daily if item.date.isoformat() == "2026-03-15")
+    assert codex_day.token_totals.total == 180
+    assert len(codex_day.models) == 1
+    assert codex_day.models[0].model == "gpt-5.3-codex"
+    assert codex_day.models[0].token_totals.total == 180
