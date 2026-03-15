@@ -29,6 +29,12 @@ For development:
 python3 -m pip install -e '.[dev]'
 ```
 
+For release tooling:
+
+```bash
+python3 -m pip install -e '.[dev,release]'
+```
+
 ## Commands
 
 ```bash
@@ -62,7 +68,7 @@ Session listing also supports:
 
 | Provider | v0.1 status | Notes |
 | --- | --- | --- |
-| Codex | Supported | Reads `~/.codex/archived_sessions/*.jsonl` and falls back to `~/.codex/state_*.sqlite`. |
+| Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite`. |
 | Gemini CLI | Supported | Reads `~/.gemini/tmp/**/chats/session-*.json` and non-sensitive settings metadata. |
 | GitHub Copilot CLI | Detection only | Reports `partial`, `unsupported`, or `not_found`; does not treat IDE plugin state as CLI usage telemetry. |
 
@@ -71,9 +77,9 @@ Session listing also supports:
 The default dashboard is human-first and terminal-native:
 
 - A headline status bar with provider health and pricing source
-- Metric cards for sessions, total tokens, estimated cost, pricing coverage, models, and providers
-- A daily usage table for the current time window
-- Top models and recent sessions panels for quick drill-down
+- A dense hero overview with total tokens, estimated cost, coverage, and top-model highlights
+- A daily usage view grouped by day with concrete per-model rows
+- A recent sessions panel for quick drill-down
 
 The goal is a denser, more technical CLI feel without switching to a full-screen TUI.
 
@@ -82,7 +88,7 @@ The goal is a denser, more technical CLI feel without switching to a full-screen
 TokenCat can estimate API-equivalent cost for models that have an exact entry in the local pricing catalog.
 
 - Pricing is offline by default through a bundled catalog shipped with the package.
-- `tokencat pricing refresh` can refresh the catalog from official pricing pages and cache it under `~/.tokencat/pricing/catalog.json`.
+- `tokencat pricing refresh` can refresh the catalog from a structured pricing dataset and cache it under `~/.tokencat/pricing/catalog.json`.
 - Unknown or historically renamed models are intentionally marked `unknown` instead of being guessed.
 - Cost totals always include a pricing coverage figure so unknown or unattributed tokens are visible.
 
@@ -92,6 +98,30 @@ Current pricing references:
 - [OpenAI Codex pricing](https://developers.openai.com/codex/pricing/)
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)
 - [GitHub Copilot plans](https://docs.github.com/en/copilot/about-github-copilot/subscription-plans-for-github-copilot)
+
+## Release
+
+`pipx` installs from a Python package index such as PyPI, so the release flow is:
+
+```bash
+make install-release
+make test
+make build
+make check-dist
+make publish
+```
+
+After publishing to PyPI, users can install it with:
+
+```bash
+pipx install tokencat
+```
+
+For a dry run against TestPyPI:
+
+```bash
+make publish-testpypi
+```
 
 ## Privacy Defaults
 
