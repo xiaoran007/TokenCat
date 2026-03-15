@@ -126,7 +126,7 @@ def test_doctor_and_models_commands_report_provider_status_and_model_usage(sampl
     assert statuses["gemini"] == "supported"
     assert statuses["copilot"] == "not_found"
 
-    models_result = runner.invoke(app, ["models", "--provider", "gemini", "--json"])
+    models_result = runner.invoke(app, ["models", "--provider", "gemini", "--since", "30d", "--json"])
     assert models_result.exit_code == 0
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["model"] == "gemini-3-pro-preview"

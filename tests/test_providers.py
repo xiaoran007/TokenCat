@@ -99,6 +99,91 @@ def test_codex_adapter_aggregates_archived_sessions_and_sqlite_fallback(sample_h
     assert fallback.token_totals.total == 640
     assert fallback.title == "SQLite Only Session"
     assert fallback.primary_model is None
+    assert fallback.attribution_status == "unattributed"
+
+
+def test_codex_adapter_reads_active_sessions_before_sqlite_fallback(sample_home: Path) -> None:
+    codex_dir = sample_home / ".codex"
+    write_jsonl(
+        codex_dir / "sessions" / "2026" / "03" / "15" / "rollout-2026-03-15T16-07-41-019cf23f-a38c-7c21-b2f2-ecbb145c1652.jsonl",
+        [
+            {
+                "timestamp": "2026-03-15T16:07:41.000Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": "019cf23f-a38c-7c21-b2f2-ecbb145c1652",
+                    "timestamp": "2026-03-15T16:07:41.000Z",
+                    "cwd": "/repo/project",
+                    "source": "vscode",
+                    "model_provider": "openai",
+                    "cli_version": "0.115.0-alpha.4",
+                },
+            },
+            {
+                "timestamp": "2026-03-15T16:08:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5.4"},
+            },
+            {
+                "timestamp": "2026-03-15T16:08:02.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 100,
+                            "cached_input_tokens": 20,
+                            "output_tokens": 30,
+                            "reasoning_output_tokens": 10,
+                            "total_tokens": 130,
+                        }
+                    },
+                },
+            },
+            {
+                "timestamp": "2026-03-15T16:08:12.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 160,
+                            "cached_input_tokens": 40,
+                            "output_tokens": 45,
+                            "reasoning_output_tokens": 12,
+                            "total_tokens": 205,
+                        }
+                    },
+                },
+            },
+        ],
+    )
+    create_codex_state_db(
+        codex_dir / "state_5.sqlite",
+        [
+            (
+                "019cf23f-a38c-7c21-b2f2-ecbb145c1652",
+                1773590861,
+                1773590961,
+                "vscode",
+                "openai",
+                "/repo/project",
+                "Build TokenCat",
+                99999,
+                "0.115.0-alpha.4",
+            ),
+        ],
+    )
+
+    adapter = CodexAdapter(home=sample_home)
+    sessions = adapter.scan(ScanFilters())
+    assert len(sessions) == 1
+
+    record = sessions[0]
+    assert record.primary_model == "gpt-5.4"
+    assert record.token_totals.total == 205
+    assert record.model_usage["gpt-5.4"].tokens.total == 205
+    assert record.attribution_status == "exact"
 
 
 def test_gemini_adapter_aggregates_message_level_tokens(sample_home: Path) -> None:
