@@ -11,6 +11,14 @@ class ProviderName(StrEnum):
     GEMINI = "gemini"
     COPILOT = "copilot"
 
+    @property
+    def display_name(self) -> str:
+        if self is ProviderName.CODEX:
+            return "Codex"
+        if self is ProviderName.GEMINI:
+            return "Gemini CLI"
+        return "GitHub Copilot CLI"
+
 
 class ProviderSupportLevel(StrEnum):
     SUPPORTED = "supported"

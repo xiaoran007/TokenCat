@@ -9,6 +9,12 @@ from rich.table import Table
 from rich.text import Text
 
 from tokencat.core.models import DailyUsageRecord, PricingCatalog, PricingCoverage, ProviderStatus, SessionRecord
+from tokencat.core.presentation import (
+    filter_displayable_daily_records,
+    filter_displayable_model_items,
+    filter_displayable_sessions,
+    provider_display_name,
+)
 
 ACCENT = "#d7ba7d"
 MUTED = "#9ba1a6"
@@ -16,6 +22,7 @@ COOL = "#89dceb"
 SUCCESS = "#a6e3a1"
 WARN = "#f9e2af"
 ERROR = "#f38ba8"
+SURFACE = "on #1a1a1a"
 
 
 def render_dashboard(
@@ -30,20 +37,22 @@ def render_dashboard(
     pricing_coverage: PricingCoverage | None,
     warnings: list[str],
 ) -> None:
+    visible_daily = filter_displayable_daily_records(daily)
+    visible_sessions = filter_displayable_sessions(sessions[:6])
     renderables = [
         _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
         _hero_panel(overview),
-        _daily_panel(daily),
-        Panel(_recent_sessions_table(sessions[:6]), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED),
+        _daily_panel(visible_daily),
+        Panel(_recent_sessions_renderable(visible_sessions), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED, style=SURFACE),
     ]
     if warnings:
         warning_text = Text("\n".join(f"- {warning}" for warning in warnings), style=WARN)
-        renderables.append(Panel(warning_text, title="Warnings", border_style=WARN, box=box.ROUNDED))
+        renderables.append(Panel(warning_text, title="Warnings", border_style=WARN, box=box.ROUNDED, style=SURFACE))
     console.print(Group(*renderables))
 
 
 def render_pricing_summary(console: Console, *, catalog: PricingCatalog | None, coverage: PricingCoverage | None, unknown_models: list[str]) -> None:
-    table = Table(box=box.SIMPLE_HEAVY)
+    table = Table(box=box.SIMPLE_HEAVY, pad_edge=False, collapse_padding=True, padding=(0, 1))
     table.add_column("Metric", style=ACCENT)
     table.add_column("Value", justify="right")
     if catalog is not None:
@@ -60,7 +69,7 @@ def render_pricing_summary(console: Console, *, catalog: PricingCatalog | None, 
         table.add_row("Coverage", _format_ratio(coverage.priced_ratio))
         table.add_row("Estimated cost", _format_cost(coverage.estimated_cost.total_cost))
     table.add_row("Unknown models", ", ".join(unknown_models) if unknown_models else "-")
-    console.print(Panel(table, title="Pricing", border_style=COOL, box=box.ROUNDED))
+    console.print(Panel(table, title="Pricing", border_style=COOL, box=box.ROUNDED, style=SURFACE))
 
 
 def _brand_panel(time_label: str, statuses: list[ProviderStatus], pricing_catalog: PricingCatalog | None, pricing_coverage: PricingCoverage | None) -> Panel:
@@ -75,7 +84,7 @@ def _brand_panel(time_label: str, statuses: list[ProviderStatus], pricing_catalo
             status_line.append("  ")
         color = SUCCESS if status.status.value == "supported" else WARN if status.status.value == "partial" else ERROR if status.status.value == "unsupported" else MUTED
         status_line.append("● ", style=color)
-        status_line.append(f"{status.provider.value}:{status.status.value}", style=color)
+        status_line.append(f"{provider_display_name(status.provider)}:{status.status.value}", style=color)
 
     footer = Text()
     if pricing_catalog is not None:
@@ -87,14 +96,14 @@ def _brand_panel(time_label: str, statuses: list[ProviderStatus], pricing_catalo
     if pricing_coverage is not None and pricing_coverage.unattributed_token_count:
         footer.append(f"\nunattributed tokens: {_format_int(pricing_coverage.unattributed_token_count)}", style=WARN)
 
-    return Panel(Group(header, status_line, footer), border_style=ACCENT, box=box.ROUNDED)
+    return Panel(Group(header, status_line, footer), border_style=ACCENT, box=box.ROUNDED, style=SURFACE)
 
 
 def _hero_panel(overview: dict[str, object]) -> Panel:
     totals = overview["token_totals"]
     cost = overview["estimated_cost"]
     secondary = overview.get("secondary_metrics") or {}
-    top_models = overview.get("top_models") or []
+    top_models = filter_displayable_model_items(overview.get("top_models") or [])
 
     primary = Text()
     primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {ACCENT}")
@@ -122,7 +131,7 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
         style=MUTED,
     )
 
-    ranking = Table(box=None, expand=True, pad_edge=False)
+    ranking = Table(box=None, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
     ranking.add_column("Top models", style=COOL)
     ranking.add_column("Tokens", justify="right")
     ranking.add_column("Cost", justify="right")
@@ -140,26 +149,27 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
         Columns(
             [
                 Panel(primary, title="Overview", border_style=MUTED, box=box.ROUNDED),
-                Panel(ranking, title="Top Models", border_style=COOL, box=box.ROUNDED),
+                Panel(ranking, title="Top Models", border_style=COOL, box=box.ROUNDED, style=SURFACE),
             ],
             equal=False,
             expand=True,
         ),
         border_style=ACCENT,
         box=box.ROUNDED,
+        style=SURFACE,
     )
 
 
 def _daily_panel(records: list[DailyUsageRecord]) -> Panel:
     if not records:
-        return Panel(Text("No usage in this window.", style=MUTED), title="Daily Usage", border_style=MUTED, box=box.ROUNDED)
+        return Panel(Text("No usage in this window.", style=MUTED), title="Daily Usage", border_style=MUTED, box=box.ROUNDED, style=SURFACE)
 
     sections: list[object] = []
     for index, record in enumerate(records):
         if index:
             sections.append(Rule(style=MUTED))
         sections.append(_daily_block(record))
-    return Panel(Group(*sections), title="Daily Usage", border_style=MUTED, box=box.ROUNDED)
+    return Panel(Group(*sections), title="Daily Usage", border_style=MUTED, box=box.ROUNDED, style=SURFACE)
 
 
 def _daily_block(record: DailyUsageRecord) -> Group:
@@ -174,7 +184,7 @@ def _daily_block(record: DailyUsageRecord) -> Group:
     header.append("  ", style=MUTED)
     header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=MUTED)
 
-    table = Table(box=box.SIMPLE_HEAVY, expand=True)
+    table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
     table.add_column("Model", style=ACCENT)
     table.add_column("Input", justify="right")
     table.add_column("Output", justify="right")
@@ -185,7 +195,7 @@ def _daily_block(record: DailyUsageRecord) -> Group:
     visible_models = record.models[:5]
     for model in visible_models:
         table.add_row(
-            f"{model.model} ({model.provider.value})",
+            f"{model.model} ({provider_display_name(model.provider)})",
             _format_int(model.token_totals.input),
             _format_int((model.token_totals.output or 0) + (model.token_totals.reasoning or 0)),
             _format_int(model.token_totals.cached),
@@ -205,9 +215,15 @@ def _daily_block(record: DailyUsageRecord) -> Group:
     return Group(header, table)
 
 
+def _recent_sessions_renderable(records: list[SessionRecord]) -> Table | Text:
+    if not records:
+        return Text("No recent sessions in this window.", style=MUTED)
+    return _recent_sessions_table(records)
+
+
 def _recent_sessions_table(records: list[SessionRecord]) -> Table:
     single_provider = len({record.provider.value for record in records}) <= 1 if records else False
-    table = Table(box=box.SIMPLE_HEAVY, expand=True)
+    table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
     table.add_column("Session", style=ACCENT)
     if not single_provider:
         table.add_column("Provider", style=COOL)
@@ -218,7 +234,7 @@ def _recent_sessions_table(records: list[SessionRecord]) -> Table:
     for record in records:
         row = [record.anon_session_id]
         if not single_provider:
-            row.append(record.provider.value)
+            row.append(provider_display_name(record.provider))
         row.extend(
             [
                 record.primary_model or "unknown",

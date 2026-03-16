@@ -10,6 +10,13 @@ from tokencat.cli import app
 from conftest import create_codex_state_db, write_json, write_jsonl
 
 
+def seed_bootstrap_marker(home: Path) -> None:
+    write_json(
+        home / ".tokencat" / "pricing" / "bootstrap.json",
+        {"attempted_at": "2026-03-16T00:00:00+00:00", "succeeded": False},
+    )
+
+
 def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monkeypatch) -> None:
     codex_dir = sample_home / ".codex"
     write_jsonl(
@@ -96,6 +103,7 @@ def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monk
 
 
 def test_doctor_and_models_commands_report_provider_status_and_model_usage(sample_home: Path, monkeypatch) -> None:
+    seed_bootstrap_marker(sample_home)
     write_json(
         sample_home / ".gemini" / "settings.json",
         {"model": {"name": "gemini-3.1-pro-preview"}},
@@ -131,3 +139,66 @@ def test_doctor_and_models_commands_report_provider_status_and_model_usage(sampl
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["model"] == "gemini-3-pro-preview"
     assert models_payload["items"][0]["token_totals"]["total"] == 16
+
+    doctor_text = runner.invoke(app, ["doctor"])
+    assert doctor_text.exit_code == 0
+    assert "Gemini CLI" in doctor_text.stdout
+    assert "GitHub Copilot" in doctor_text.stdout
+
+
+def test_terminal_ui_hides_broken_zero_token_sessions_but_json_keeps_them(sample_home: Path, monkeypatch) -> None:
+    seed_bootstrap_marker(sample_home)
+    codex_dir = sample_home / ".codex"
+    write_jsonl(
+        codex_dir / "session_index.jsonl",
+        [
+            {"id": "valid-session", "thread_name": "SQLite Only Session"},
+            {"id": "broken-session", "thread_name": "Broken Empty Session"},
+        ],
+    )
+    create_codex_state_db(
+        codex_dir / "state_5.sqlite",
+        [
+            (
+                "valid-session",
+                1773590000,
+                1773590600,
+                "vscode",
+                "openai",
+                "/repo/other",
+                "SQLite Only Session",
+                640,
+                "0.115.0-alpha.4",
+            ),
+            (
+                "broken-session",
+                1773591000,
+                1773591001,
+                "vscode",
+                "openai",
+                "/repo/broken",
+                "Broken Empty Session",
+                0,
+                "0.115.0-alpha.4",
+            ),
+        ],
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    ui_result = runner.invoke(app, ["sessions", "--provider", "codex", "--show-title", "--no-price"])
+    assert ui_result.exit_code == 0
+    assert "SQLite" in ui_result.stdout
+    assert "Broken" not in ui_result.stdout
+    assert "Codex" in ui_result.stdout
+
+    json_result = runner.invoke(app, ["sessions", "--provider", "codex", "--show-title", "--json"])
+    assert json_result.exit_code == 0
+    payload = json.loads(json_result.stdout)
+    titles = {item["title"] for item in payload["items"]}
+    assert titles == {"SQLite Only Session", "Broken Empty Session"}
+
+    models_result = runner.invoke(app, ["models", "--provider", "codex", "--no-price"])
+    assert models_result.exit_code == 0
+    assert "No model usage in this window." in models_result.stdout

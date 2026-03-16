@@ -11,6 +11,7 @@ from rich.table import Table
 from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
+from tokencat.core.presentation import filter_displayable_model_items, filter_displayable_sessions, provider_display_name
 from tokencat.core.render import render_dashboard, render_pricing_summary
 from tokencat.core.serialize import (
     serialize_daily_records,
@@ -92,7 +93,7 @@ def dashboard(
     daily = aggregate_daily(result.sessions)
     top_models = aggregate_models(result.sessions)
     overview = build_dashboard_overview(summary_data, top_models, result.statuses)
-    recent_sessions = result.sessions[:6]
+    recent_sessions = filter_displayable_sessions(result.sessions)[:6]
     time_label = _format_window_label(filters)
 
     payload = {
@@ -157,7 +158,7 @@ def doctor(
     table.add_column("Reasons")
     for status in result.statuses:
         table.add_row(
-            status.provider.value,
+            provider_display_name(status.provider),
             status.status.value,
             "\n".join(str(path) for path in status.found_paths) or "-",
             "\n".join(str(path) for path in status.ignored_paths) or "-",
@@ -211,7 +212,7 @@ def summary(
     providers_table.add_column("Est Cost")
     for provider_name, provider_summary in summary_data["providers"].items():
         providers_table.add_row(
-            provider_name,
+            provider_display_name(provider_name),
             str(provider_summary["session_count"]),
             str(provider_summary["model_count"]),
             _format_tokens(provider_summary["token_totals"]["total"]),
@@ -260,10 +261,15 @@ def sessions(
     if show_path:
         table.add_column("Path")
 
-    for record in result.sessions:
+    visible_sessions = filter_displayable_sessions(result.sessions)
+    if not visible_sessions:
+        console.print("No sessions in this window.")
+        return
+
+    for record in visible_sessions:
         row = [
             record.anon_session_id,
-            record.provider.value,
+            provider_display_name(record.provider),
             _format_datetime(record.updated_at or record.started_at),
             record.primary_model or "-",
             record.attribution_status or "-",
@@ -320,10 +326,15 @@ def models(
         table.add_column("Est Cost", justify="right")
         table.add_column("Coverage", justify="right")
 
-    for item in items:
+    visible_items = filter_displayable_model_items(items)
+    if not visible_items:
+        console.print("No model usage in this window.")
+        return
+
+    for item in visible_items:
         tokens = item["token_totals"]
         row = [
-            item["provider"],
+            provider_display_name(item["provider"]),
             item["model"],
             item.get("attribution_status") or "-",
             str(item["session_count"]),

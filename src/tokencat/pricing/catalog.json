@@ -1,6 +1,6 @@
 {
   "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-  "refreshed_at": "2026-03-15T15:04:51.303369-04:00",
+  "refreshed_at": "2026-03-15T15:12:21.560773-04:00",
   "entries": [
     {
       "provider": "codex",
