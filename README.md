@@ -1,5 +1,12 @@
 # TokenCat
 
+[![PyPI Version](https://img.shields.io/pypi/v/tokencat?style=for-the-badge&logo=pypi&logoColor=white&label=PyPI&color=1f6feb)](https://pypi.org/project/tokencat/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/tokencat?style=for-the-badge&logo=python&logoColor=white&label=Python&color=3776ab)](https://pypi.org/project/tokencat/)
+[![License](https://img.shields.io/pypi/l/tokencat?style=for-the-badge&label=License&color=3fb950)](LICENSE)
+
+[![Supported](https://img.shields.io/badge/Supported-Codex%20%7C%20Gemini%20%7C%20Copilot-6e7781?style=for-the-badge&labelColor=3a3a3a)](#supported-tools)
+[![Platform](https://img.shields.io/badge/Platform-macOS--first-f78166?style=for-the-badge&labelColor=3a3a3a)](#limits)
+
 TokenCat is a local-first, read-only CLI for understanding how AI coding agents are being used on your machine.
 
 If you jump between Codex, Gemini CLI, and Copilot CLI, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
