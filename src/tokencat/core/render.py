@@ -185,12 +185,12 @@ def _daily_block(record: DailyUsageRecord) -> Group:
     header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=MUTED)
 
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    table.add_column("Model", style=ACCENT)
-    table.add_column("Input", justify="right")
-    table.add_column("Output", justify="right")
-    table.add_column("Cached", justify="right")
-    table.add_column("Total", justify="right")
-    table.add_column("Est Cost", justify="right")
+    table.add_column("Model", style=ACCENT, width=32, no_wrap=True, overflow="ellipsis")
+    table.add_column("Input", justify="right", width=12, no_wrap=True)
+    table.add_column("Output", justify="right", width=12, no_wrap=True)
+    table.add_column("Cached", justify="right", width=12, no_wrap=True)
+    table.add_column("Total", justify="right", width=12, no_wrap=True)
+    table.add_column("Est Cost", justify="right", width=8, no_wrap=True)
 
     visible_models = record.models[:5]
     for model in visible_models:
