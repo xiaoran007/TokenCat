@@ -25,6 +25,26 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
             handle.write("\n")
 
 
+def write_copilot_cli_session_state(
+    home: Path,
+    session_id: str,
+    events: list[dict[str, object]],
+    *,
+    workspace: dict[str, object] | None = None,
+) -> Path:
+    session_dir = home / ".copilot" / "session-state" / session_id
+    events_path = session_dir / "events.jsonl"
+    write_jsonl(events_path, events)
+
+    if workspace is not None:
+        lines: list[str] = []
+        for key, value in workspace.items():
+            lines.append(f"{key}: {value}")
+        write_text(session_dir / "workspace.yaml", "\n".join(lines) + "\n")
+
+    return events_path
+
+
 def create_codex_state_db(path: Path, rows: list[tuple]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)

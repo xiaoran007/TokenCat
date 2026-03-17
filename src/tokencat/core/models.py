@@ -118,6 +118,7 @@ class SessionRecord:
     token_totals: TokenTotals
     source_refs: list[Path] = field(default_factory=list)
     model_usage: dict[str, ModelUsage] = field(default_factory=dict)
+    primary_model_override: str | None = None
     title: str | None = None
     cwd: str | None = None
     metadata: dict[str, str | int | float | None] = field(default_factory=dict)
@@ -133,6 +134,8 @@ class SessionRecord:
 
     @property
     def primary_model(self) -> str | None:
+        if self.primary_model_override:
+            return self.primary_model_override
         best_model: str | None = None
         best_total = -1
         for model, usage in self.model_usage.items():

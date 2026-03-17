@@ -7,7 +7,28 @@ from typer.testing import CliRunner
 
 from tokencat.cli import app
 
-from conftest import create_codex_state_db, write_json, write_jsonl
+from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+
+
+def write_copilot_session_json(
+    home: Path,
+    workspace_id: str,
+    session_id: str,
+    payload: dict[str, object],
+) -> Path:
+    path = (
+        home
+        / "Library"
+        / "Application Support"
+        / "Code"
+        / "User"
+        / "workspaceStorage"
+        / workspace_id
+        / "chatSessions"
+        / f"{session_id}.json"
+    )
+    write_json(path, payload)
+    return path
 
 
 def seed_bootstrap_marker(home: Path) -> None:
@@ -202,3 +223,116 @@ def test_terminal_ui_hides_broken_zero_token_sessions_but_json_keeps_them(sample
     models_result = runner.invoke(app, ["models", "--provider", "codex", "--no-price"])
     assert models_result.exit_code == 0
     assert "No model usage in this window." in models_result.stdout
+
+
+def test_copilot_doctor_sessions_and_models_commands_report_vscode_usage(sample_home: Path, monkeypatch) -> None:
+    seed_bootstrap_marker(sample_home)
+    write_copilot_session_json(
+        sample_home,
+        "workspace-a",
+        "session-a",
+        {
+            "sessionId": "session-a",
+            "creationDate": 1771433087111,
+            "customTitle": "Copilot Pairing",
+            "requests": [
+                {
+                    "timestamp": 1771433108061,
+                    "modelId": "copilot/gpt-5.3-codex",
+                    "result": {"usage": {"promptTokens": 24438, "completionTokens": 238}},
+                }
+            ],
+        },
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    doctor_result = runner.invoke(app, ["doctor", "--json"])
+    assert doctor_result.exit_code == 0
+    doctor_payload = json.loads(doctor_result.stdout)
+    statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
+    assert statuses["copilot"] == "supported"
+
+    sessions_result = runner.invoke(app, ["sessions", "--provider", "copilot", "--since", "365d", "--json"])
+    assert sessions_result.exit_code == 0
+    sessions_payload = json.loads(sessions_result.stdout)
+    assert len(sessions_payload["items"]) == 1
+    assert sessions_payload["items"][0]["primary_model"] == "copilot/gpt-5.3-codex"
+    assert sessions_payload["items"][0]["token_totals"]["total"] == 24676
+    assert "provider_session_id" not in sessions_payload["items"][0]
+
+    models_result = runner.invoke(app, ["models", "--provider", "copilot", "--since", "365d", "--json", "--no-price"])
+    assert models_result.exit_code == 0
+    models_payload = json.loads(models_result.stdout)
+    assert models_payload["items"][0]["model"] == "copilot/gpt-5.3-codex"
+    assert models_payload["items"][0]["token_totals"]["total"] == 24676
+
+
+def test_copilot_doctor_sessions_and_models_commands_report_cli_session_state_usage(sample_home: Path, monkeypatch) -> None:
+    seed_bootstrap_marker(sample_home)
+    write_copilot_cli_session_state(
+        sample_home,
+        "cf76050a-de21-4ea4-84d4-15393a6791d9",
+        [
+            {
+                "timestamp": "2026-03-16T21:58:06.501Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "cf76050a-de21-4ea4-84d4-15393a6791d9",
+                    "startTime": "2026-03-16T21:58:06.501Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-16T22:08:06.501Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-16T21:58:06.501Z",
+                    "currentModel": "claude-sonnet-4.6",
+                    "totalPremiumRequests": 1,
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 428306,
+                                "outputTokens": 8235,
+                                "cacheReadTokens": 406292,
+                                "cacheWriteTokens": 0,
+                            },
+                            "requests": {"count": 16, "cost": 1},
+                        }
+                    },
+                },
+            },
+        ],
+        workspace={
+            "id": "cf76050a-de21-4ea4-84d4-15393a6791d9",
+            "cwd": "/repo/copilot-playground",
+            "created_at": "2026-03-16T21:58:06.501Z",
+            "updated_at": "2026-03-16T22:01:33.596Z",
+        },
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    doctor_result = runner.invoke(app, ["doctor", "--json"])
+    assert doctor_result.exit_code == 0
+    doctor_payload = json.loads(doctor_result.stdout)
+    statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
+    assert statuses["copilot"] == "supported"
+
+    sessions_result = runner.invoke(app, ["sessions", "--provider", "copilot", "--since", "365d", "--json"])
+    assert sessions_result.exit_code == 0
+    sessions_payload = json.loads(sessions_result.stdout)
+    assert len(sessions_payload["items"]) == 1
+    assert sessions_payload["items"][0]["primary_model"] == "claude-sonnet-4.6"
+    assert sessions_payload["items"][0]["token_totals"]["input"] == 428306
+    assert sessions_payload["items"][0]["token_totals"]["cached"] == 406292
+    assert sessions_payload["items"][0]["token_totals"]["total"] == 436541
+    assert "provider_session_id" not in sessions_payload["items"][0]
+
+    models_result = runner.invoke(app, ["models", "--provider", "copilot", "--since", "365d", "--json", "--no-price"])
+    assert models_result.exit_code == 0
+    models_payload = json.loads(models_result.stdout)
+    assert models_payload["items"][0]["model"] == "claude-sonnet-4.6"
+    assert models_payload["items"][0]["token_totals"]["cached"] == 406292

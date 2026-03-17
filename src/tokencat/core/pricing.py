@@ -85,6 +85,11 @@ def lookup_pricing_entry(catalog: PricingCatalog, provider: ProviderName, model:
         if aliased is not None and _has_non_zero_pricing(aliased):
             return PricingLookupResult(entry=aliased, resolved_model=alias, is_fallback=True)
 
+    if provider is ProviderName.COPILOT:
+        fallback = _lookup_copilot_pricing_entry(catalog, model)
+        if fallback is not None:
+            return fallback
+
     if direct is not None:
         return PricingLookupResult(entry=direct, resolved_model=direct.model, is_fallback=False)
     return None
@@ -322,6 +327,32 @@ def _classify_model_name(raw_name: str) -> tuple[ProviderName | None, str | None
     if lower.startswith("gemini-"):
         return ProviderName.GEMINI, normalized
     return None, None
+
+
+def _lookup_copilot_pricing_entry(catalog: PricingCatalog, model: str) -> PricingLookupResult | None:
+    resolved = _resolve_copilot_backing_model(model)
+    if resolved is None:
+        return None
+    backing_provider, backing_model = resolved
+    fallback = lookup_pricing_entry(catalog, backing_provider, backing_model)
+    if fallback is None:
+        return None
+    return PricingLookupResult(entry=fallback.entry, resolved_model=fallback.resolved_model, is_fallback=True)
+
+
+def _resolve_copilot_backing_model(model: str) -> tuple[ProviderName, str] | None:
+    normalized = model.strip()
+    if not normalized:
+        return None
+    if normalized.startswith("copilot/"):
+        normalized = normalized.split("/", 1)[1]
+
+    lower = normalized.lower()
+    if lower.startswith("gpt-") or "codex" in lower:
+        return ProviderName.CODEX, normalized
+    if lower.startswith("gemini-"):
+        return ProviderName.GEMINI, normalized
+    return None
 
 
 def _as_number(value: object) -> float:

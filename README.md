@@ -15,7 +15,7 @@ If you jump between Codex, Gemini CLI, and Copilot CLI, TokenCat gives you one t
 
 ## Why TokenCat
 
-- One place to inspect Codex and Gemini CLI usage, plus Copilot CLI detection
+- One place to inspect Codex, Gemini CLI, VS Code Copilot Chat/Agent usage, and Copilot CLI session-state totals
 - A default 0-argument dashboard: just run `tokencat`
 - Read-only by design: no proxying, no interception, no auth-token handling
 - Local pricing estimates with clear coverage for unknown or unattributed usage
@@ -100,7 +100,7 @@ tokencat pricing refresh
 | --- | --- | --- |
 | Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite` when needed. |
 | Gemini CLI | Supported | Reads `~/.gemini/tmp/**/chats/session-*.json` and non-sensitive settings metadata. |
-| GitHub Copilot CLI | Detection only | Reports `partial`, `unsupported`, or `not_found`; does not treat editor plugin state as CLI usage telemetry. |
+| GitHub Copilot | Supported | Reads VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl` for Copilot Chat/Agent sessions and `~/.copilot/session-state/*/events.jsonl` for standalone Copilot CLI shutdown summaries. Active CLI sessions without shutdown summaries still show as partial in `doctor`. |
 
 ## Pricing
 
@@ -167,7 +167,7 @@ Session listings also support:
 - TokenCat is macOS-first today.
 - Linux path hooks are present, but Linux is not yet a polished target.
 - Windows is not yet supported.
-- Copilot support is currently detection-only, not full usage accounting.
+- Copilot support covers VS Code Chat/Agent sessions plus standalone CLI shutdown summaries under `~/.copilot/session-state/`. Active CLI sessions without a shutdown summary are detected but not yet counted.
 - Cost is an estimate, not your actual bill.
 
 ## License

@@ -8,7 +8,49 @@ from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
 
-from conftest import create_codex_state_db, write_json, write_jsonl
+from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+
+
+def write_copilot_session_json(
+    home: Path,
+    workspace_id: str,
+    session_id: str,
+    payload: dict[str, object],
+) -> Path:
+    path = (
+        home
+        / "Library"
+        / "Application Support"
+        / "Code"
+        / "User"
+        / "workspaceStorage"
+        / workspace_id
+        / "chatSessions"
+        / f"{session_id}.json"
+    )
+    write_json(path, payload)
+    return path
+
+
+def write_copilot_session_jsonl(
+    home: Path,
+    workspace_id: str,
+    session_id: str,
+    rows: list[dict[str, object]],
+) -> Path:
+    path = (
+        home
+        / "Library"
+        / "Application Support"
+        / "Code"
+        / "User"
+        / "workspaceStorage"
+        / workspace_id
+        / "chatSessions"
+        / f"{session_id}.jsonl"
+    )
+    write_jsonl(path, rows)
+    return path
 
 
 def test_codex_adapter_aggregates_archived_sessions_and_sqlite_fallback(sample_home: Path) -> None:
@@ -233,3 +275,410 @@ def test_copilot_detect_marks_plugin_only_state_as_unsupported(sample_home: Path
     status = CopilotAdapter(home=sample_home).detect()
     assert status.status.value == "unsupported"
     assert status.ignored_paths
+
+
+def test_copilot_detect_marks_vscode_chat_sessions_as_supported(sample_home: Path) -> None:
+    write_copilot_session_json(
+        sample_home,
+        "workspace-a",
+        "session-a",
+        {
+            "sessionId": "session-a",
+            "creationDate": 1771433087111,
+            "customTitle": "Token support",
+            "requests": [
+                {
+                    "timestamp": 1771433108061,
+                    "modelId": "copilot/gpt-5.3-codex",
+                    "result": {"usage": {"promptTokens": 24438, "completionTokens": 238}},
+                }
+            ],
+        },
+    )
+
+    status = CopilotAdapter(home=sample_home).detect()
+
+    assert status.status.value == "supported"
+    assert any("workspaceStorage" in str(path) for path in status.found_paths)
+
+
+def test_copilot_detect_marks_cli_session_state_as_supported(sample_home: Path) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "cli-session-a",
+        [
+            {
+                "timestamp": "2026-03-16T21:58:06.501Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "cli-session-a",
+                    "startTime": "2026-03-16T21:58:06.501Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-16T22:08:06.501Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-16T21:58:06.501Z",
+                    "currentModel": "claude-sonnet-4.6",
+                    "shutdownType": "user_exit",
+                    "totalPremiumRequests": 1,
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 428306,
+                                "outputTokens": 8235,
+                                "cacheReadTokens": 406292,
+                                "cacheWriteTokens": 0,
+                            },
+                            "requests": {"count": 16, "cost": 1},
+                        }
+                    },
+                },
+            },
+        ],
+    )
+
+    status = CopilotAdapter(home=sample_home).detect()
+
+    assert status.status.value == "supported"
+    assert any(".copilot/session-state" in str(path) for path in status.found_paths)
+
+
+def test_copilot_detect_marks_active_cli_session_state_as_partial(sample_home: Path) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "cli-session-active",
+        [
+            {
+                "timestamp": "2026-03-16T21:58:06.501Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "cli-session-active",
+                    "startTime": "2026-03-16T21:58:06.501Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-16T22:00:06.501Z",
+                "type": "assistant.message",
+                "data": {"content": "do not leak this prompt body"},
+            },
+        ],
+    )
+
+    status = CopilotAdapter(home=sample_home).detect()
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert status.status.value == "partial"
+    assert sessions == []
+    assert any("active sessions" in reason for reason in status.reasons)
+
+
+def test_copilot_adapter_scans_jsonl_request_usage(sample_home: Path) -> None:
+    write_copilot_session_jsonl(
+        sample_home,
+        "workspace-a",
+        "session-a",
+        [
+            {
+                "kind": 0,
+                "v": {
+                    "version": 3,
+                    "creationDate": 1771433087111,
+                    "customTitle": "Pairing",
+                    "sessionId": "session-a",
+                    "requests": [],
+                },
+            },
+            {
+                "kind": 2,
+                "k": ["requests"],
+                "v": [
+                    {
+                        "timestamp": 1771433108061,
+                        "modelId": "copilot/gpt-5.3-codex",
+                    }
+                ],
+            },
+            {
+                "kind": 1,
+                "k": ["requests", 0, "result"],
+                "v": {"usage": {"promptTokens": 24438, "completionTokens": 238}},
+            },
+        ],
+    )
+
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.title == "Pairing"
+    assert record.primary_model == "copilot/gpt-5.3-codex"
+    assert record.token_totals.input == 24438
+    assert record.token_totals.output == 238
+    assert record.token_totals.total == 24676
+    assert record.model_usage["copilot/gpt-5.3-codex"].message_count == 1
+    assert record.metadata["request_count"] == 1
+    assert record.attribution_status == "exact"
+
+
+def test_copilot_adapter_scans_json_without_usage(sample_home: Path) -> None:
+    write_copilot_session_json(
+        sample_home,
+        "workspace-b",
+        "session-b",
+        {
+            "sessionId": "session-b",
+            "creationDate": 1761790671719,
+            "customTitle": "Metadata only",
+            "requests": [
+                {
+                    "timestamp": 1761790672719,
+                    "modelId": "copilot/gemini-2.5-pro",
+                }
+            ],
+        },
+    )
+
+    adapter = CopilotAdapter(home=sample_home)
+    status = adapter.detect()
+    sessions = adapter.scan(ScanFilters())
+
+    assert status.status.value == "partial"
+    assert len(sessions) == 1
+    assert sessions[0].title == "Metadata only"
+    assert sessions[0].primary_model == "copilot/gemini-2.5-pro"
+    assert sessions[0].token_totals.total == 0
+    assert sessions[0].model_usage["copilot/gemini-2.5-pro"].message_count == 1
+
+
+def test_copilot_adapter_aggregates_mixed_model_usage(sample_home: Path) -> None:
+    write_copilot_session_json(
+        sample_home,
+        "workspace-c",
+        "session-c",
+        {
+            "sessionId": "session-c",
+            "creationDate": 1771964962718,
+            "requests": [
+                {
+                    "timestamp": 1771964963718,
+                    "modelId": "copilot/gpt-5.3-codex",
+                    "result": {"usage": {"promptTokens": 1000, "completionTokens": 100}},
+                },
+                {
+                    "timestamp": 1771964964718,
+                    "modelId": "copilot/gemini-2.5-pro",
+                    "result": {"usage": {"promptTokens": 500, "completionTokens": 50}},
+                },
+            ],
+        },
+    )
+
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert set(record.model_usage) == {"copilot/gpt-5.3-codex", "copilot/gemini-2.5-pro"}
+    assert record.token_totals.total == 1650
+    assert record.model_usage["copilot/gpt-5.3-codex"].tokens.total == 1100
+    assert record.model_usage["copilot/gemini-2.5-pro"].tokens.total == 550
+
+
+def test_copilot_adapter_ignores_empty_scaffold_sessions(sample_home: Path) -> None:
+    write_copilot_session_jsonl(
+        sample_home,
+        "workspace-d",
+        "session-d",
+        [
+            {
+                "kind": 0,
+                "v": {
+                    "version": 3,
+                    "creationDate": 1771433087111,
+                    "sessionId": "session-d",
+                    "requests": [],
+                },
+            }
+        ],
+    )
+
+    adapter = CopilotAdapter(home=sample_home)
+    status = adapter.detect()
+    sessions = adapter.scan(ScanFilters())
+
+    assert status.status.value == "partial"
+    assert sessions == []
+
+
+def test_copilot_adapter_scans_cli_session_state_shutdown_usage(sample_home: Path) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "cf76050a-de21-4ea4-84d4-15393a6791d9",
+        [
+            {
+                "timestamp": "2026-03-16T21:58:06.501Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "cf76050a-de21-4ea4-84d4-15393a6791d9",
+                    "startTime": "2026-03-16T21:58:06.501Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-16T22:01:10.000Z",
+                "type": "assistant.message",
+                "data": {"content": "never include this raw body in TokenCat"},
+            },
+            {
+                "timestamp": "2026-03-16T22:08:06.501Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-16T21:58:06.501Z",
+                    "currentModel": "claude-sonnet-4.6",
+                    "shutdownType": "user_exit",
+                    "totalPremiumRequests": 1,
+                    "totalApiDurationMs": 3210,
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 428306,
+                                "outputTokens": 8235,
+                                "cacheReadTokens": 406292,
+                                "cacheWriteTokens": 19,
+                            },
+                            "requests": {"count": 16, "cost": 1},
+                        }
+                    },
+                },
+            },
+        ],
+        workspace={
+            "id": "cf76050a-de21-4ea4-84d4-15393a6791d9",
+            "cwd": "/repo/copilot-playground",
+            "created_at": "2026-03-16T21:58:06.501Z",
+            "updated_at": "2026-03-16T22:01:33.596Z",
+        },
+    )
+
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.provider_session_id == "cf76050a-de21-4ea4-84d4-15393a6791d9"
+    assert record.primary_model == "claude-sonnet-4.6"
+    assert record.cwd == "/repo/copilot-playground"
+    assert record.token_totals.input == 428306
+    assert record.token_totals.output == 8235
+    assert record.token_totals.cached == 406292
+    assert record.token_totals.total == 436541
+    assert record.model_usage["claude-sonnet-4.6"].message_count == 16
+    assert record.metadata["source"] == "copilot_cli_session_state"
+    assert record.metadata["premium_requests"] == 1
+    assert record.metadata["cache_write_tokens"] == 19
+    assert record.metadata["request_count"] == 16
+    assert record.metadata["request_cost"] == 1.0
+    assert record.metadata["shutdown_type"] == "user_exit"
+    assert record.attribution_status == "exact"
+    assert "never include this raw body" not in json.dumps(record.metadata, ensure_ascii=False)
+
+
+def test_copilot_adapter_scans_cli_session_state_multi_model_usage(sample_home: Path) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "cli-session-multi",
+        [
+            {
+                "timestamp": "2026-03-16T21:58:06.501Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "cli-session-multi",
+                    "startTime": "2026-03-16T21:58:06.501Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-16T22:08:06.501Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-16T21:58:06.501Z",
+                    "currentModel": "gemini-2.5-pro",
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 100,
+                                "outputTokens": 20,
+                                "cacheReadTokens": 80,
+                                "cacheWriteTokens": 3,
+                            },
+                            "requests": {"count": 2, "cost": 1},
+                        },
+                        "gemini-2.5-pro": {
+                            "usage": {
+                                "inputTokens": 50,
+                                "outputTokens": 10,
+                                "cacheReadTokens": 5,
+                                "cacheWriteTokens": 7,
+                            },
+                            "requests": {"count": 1, "cost": 0},
+                        },
+                    },
+                },
+            },
+        ],
+    )
+
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.primary_model == "gemini-2.5-pro"
+    assert set(record.model_usage) == {"claude-sonnet-4.6", "gemini-2.5-pro"}
+    assert record.token_totals.input == 150
+    assert record.token_totals.output == 30
+    assert record.token_totals.cached == 85
+    assert record.token_totals.total == 180
+    assert record.metadata["request_count"] == 3
+    assert record.metadata["cache_write_tokens"] == 10
+    assert record.metadata["request_cost"] == 1.0
+
+
+def test_copilot_adapter_cli_session_state_falls_back_to_directory_name(sample_home: Path) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "fallback-dir-id",
+        [
+            {
+                "timestamp": "2026-03-16T22:08:06.501Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-16T21:58:06.501Z",
+                    "currentModel": "claude-sonnet-4.6",
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 10,
+                                "outputTokens": 2,
+                                "cacheReadTokens": 8,
+                                "cacheWriteTokens": 0,
+                            },
+                            "requests": {"count": 1, "cost": 0},
+                        }
+                    },
+                },
+            },
+        ],
+    )
+
+    sessions = CopilotAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    assert sessions[0].provider_session_id == "fallback-dir-id"
+
+
+def test_copilot_detect_keeps_jetbrains_state_unscannable(sample_home: Path) -> None:
+    plugin_dir = sample_home / ".config" / "github-copilot"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "copilot-intellij.db").write_text("", encoding="utf-8")
+
+    status = CopilotAdapter(home=sample_home).detect()
+
+    assert status.status.value == "unsupported"

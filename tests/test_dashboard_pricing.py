@@ -464,6 +464,16 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
                 effective_date="2026-03-15",
                 source_url="https://example.test/pricing",
             ),
+            (ProviderName.GEMINI, "gemini-2.5-pro"): PricingEntry(
+                provider=ProviderName.GEMINI,
+                model="gemini-2.5-pro",
+                input_per_1m=1.25,
+                output_per_1m=10.0,
+                cached_input_per_1m=0.125,
+                currency="USD",
+                effective_date="2026-03-15",
+                source_url="https://example.test/pricing",
+            ),
         },
     )
     alias_record = SessionRecord(
@@ -511,8 +521,63 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
             )
         },
     )
+    copilot_codex_record = SessionRecord(
+        provider=ProviderName.COPILOT,
+        provider_session_id="copilot-codex-session",
+        anon_session_id="copilot-codex-session",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=2000, output=200, total=2200),
+        model_usage={
+            "copilot/gpt-5.3-codex": ModelUsage(
+                model="copilot/gpt-5.3-codex",
+                tokens=TokenTotals(input=2000, output=200, total=2200),
+                attribution_status="exact",
+            )
+        },
+    )
+    copilot_gemini_record = SessionRecord(
+        provider=ProviderName.COPILOT,
+        provider_session_id="copilot-gemini-session",
+        anon_session_id="copilot-gemini-session",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=800, output=80, total=880),
+        model_usage={
+            "copilot/gemini-2.5-pro": ModelUsage(
+                model="copilot/gemini-2.5-pro",
+                tokens=TokenTotals(input=800, output=80, total=880),
+                attribution_status="exact",
+            )
+        },
+    )
+    copilot_unknown_record = SessionRecord(
+        provider=ProviderName.COPILOT,
+        provider_session_id="copilot-unknown-session",
+        anon_session_id="copilot-unknown-session",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=900, output=90, total=990),
+        model_usage={
+            "copilot/claude-sonnet-4.5": ModelUsage(
+                model="copilot/claude-sonnet-4.5",
+                tokens=TokenTotals(input=900, output=90, total=990),
+                attribution_status="exact",
+            )
+        },
+    )
 
-    coverage = apply_pricing([alias_record, newer_alias_record, unknown_record], catalog)
+    coverage = apply_pricing(
+        [
+            alias_record,
+            newer_alias_record,
+            unknown_record,
+            copilot_codex_record,
+            copilot_gemini_record,
+            copilot_unknown_record,
+        ],
+        catalog,
+    )
 
     assert coverage is not None
     assert alias_record.model_usage["gpt-5-codex"].pricing_status == "fallback_priced"
@@ -520,8 +585,13 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
     assert newer_alias_record.model_usage["gpt-5.3-codex"].pricing_status == "fallback_priced"
     assert newer_alias_record.model_usage["gpt-5.3-codex"].pricing_model == "gpt-5.2-codex"
     assert unknown_record.model_usage["gpt-5.4"].pricing_status == "unknown_model"
-    assert coverage.unknown_models == ["gpt-5.4"]
-    assert coverage.unknown_model_tokens == 550
+    assert copilot_codex_record.model_usage["copilot/gpt-5.3-codex"].pricing_status == "fallback_priced"
+    assert copilot_codex_record.model_usage["copilot/gpt-5.3-codex"].pricing_model == "gpt-5.2-codex"
+    assert copilot_gemini_record.model_usage["copilot/gemini-2.5-pro"].pricing_status == "fallback_priced"
+    assert copilot_gemini_record.model_usage["copilot/gemini-2.5-pro"].pricing_model == "gemini-2.5-pro"
+    assert copilot_unknown_record.model_usage["copilot/claude-sonnet-4.5"].pricing_status == "unknown_model"
+    assert coverage.unknown_models == ["copilot/claude-sonnet-4.5", "gpt-5.4"]
+    assert coverage.unknown_model_tokens == 1540
 
 
 def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None:
