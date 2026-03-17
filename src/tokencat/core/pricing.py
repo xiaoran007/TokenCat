@@ -19,6 +19,7 @@ LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/mo
 SUPPORTED_PREFIXES = {
     ProviderName.CODEX: ("openai/", "azure/", "openrouter/openai/"),
     ProviderName.GEMINI: ("gemini/", "vertex_ai/", "google_ai_studio/"),
+    ProviderName.COPILOT: ("github_copilot/",),
 }
 PRICE_ALIASES = {
     ProviderName.CODEX: {
@@ -26,6 +27,7 @@ PRICE_ALIASES = {
         "gpt-5.3-codex": "gpt-5.2-codex",
     },
     ProviderName.GEMINI: {},
+    ProviderName.COPILOT: {},
 }
 
 
@@ -86,6 +88,11 @@ def lookup_pricing_entry(catalog: PricingCatalog, provider: ProviderName, model:
             return PricingLookupResult(entry=aliased, resolved_model=alias, is_fallback=True)
 
     if provider is ProviderName.COPILOT:
+        normalized_direct = _normalize_copilot_catalog_model_name(model)
+        if normalized_direct is not None:
+            direct_copilot = catalog.entries.get((provider, normalized_direct))
+            if direct_copilot is not None and _has_non_zero_pricing(direct_copilot):
+                return PricingLookupResult(entry=direct_copilot, resolved_model=normalized_direct, is_fallback=False)
         fallback = _lookup_copilot_pricing_entry(catalog, model)
         if fallback is not None:
             return fallback
@@ -297,6 +304,8 @@ def _normalize_litellm_dataset(dataset: dict[str, object]) -> list[PricingEntry]
         provider, canonical_model = _classify_model_name(raw_name)
         if provider is None or canonical_model is None:
             continue
+        if provider is ProviderName.COPILOT and not _has_explicit_price_fields(raw_payload):
+            continue
 
         entry = PricingEntry(
             provider=provider,
@@ -315,11 +324,18 @@ def _normalize_litellm_dataset(dataset: dict[str, object]) -> list[PricingEntry]
 
 def _classify_model_name(raw_name: str) -> tuple[ProviderName | None, str | None]:
     normalized = raw_name.strip()
+    matched_provider: ProviderName | None = None
     for provider, prefixes in SUPPORTED_PREFIXES.items():
         for prefix in prefixes:
             if normalized.startswith(prefix):
                 normalized = normalized[len(prefix) :]
+                matched_provider = provider
                 break
+        if matched_provider is not None:
+            break
+
+    if matched_provider is ProviderName.COPILOT:
+        return ProviderName.COPILOT, normalized
 
     lower = normalized.lower()
     if lower.startswith("gpt-") or "codex" in lower:
@@ -341,11 +357,9 @@ def _lookup_copilot_pricing_entry(catalog: PricingCatalog, model: str) -> Pricin
 
 
 def _resolve_copilot_backing_model(model: str) -> tuple[ProviderName, str] | None:
-    normalized = model.strip()
+    normalized = _normalize_copilot_catalog_model_name(model)
     if not normalized:
         return None
-    if normalized.startswith("copilot/"):
-        normalized = normalized.split("/", 1)[1]
 
     lower = normalized.lower()
     if lower.startswith("gpt-") or "codex" in lower:
@@ -353,6 +367,19 @@ def _resolve_copilot_backing_model(model: str) -> tuple[ProviderName, str] | Non
     if lower.startswith("gemini-"):
         return ProviderName.GEMINI, normalized
     return None
+
+
+def _normalize_copilot_catalog_model_name(model: str) -> str | None:
+    normalized = model.strip()
+    if not normalized:
+        return None
+    if normalized.startswith("copilot/"):
+        normalized = normalized.split("/", 1)[1]
+    return normalized or None
+
+
+def _has_explicit_price_fields(payload: dict[str, object]) -> bool:
+    return any(payload.get(field) is not None for field in ("input_cost_per_token", "output_cost_per_token", "cache_read_input_token_cost"))
 
 
 def _as_number(value: object) -> float:
