@@ -2,23 +2,32 @@
 
 ## Product Status
 
-- Current release line: `v0.1.1` is the latest tagged release.
-- Next planned development line: `v0.2.0`.
+- Current tagged release: `v0.2.0`.
+- Current working branch is typically `main` unless the user explicitly asks for a feature branch.
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
 - Supported in practice:
   - `Codex`: supported via local session JSONL and SQLite fallback.
   - `Gemini CLI`: supported via local chat/session files.
-  - `GitHub Copilot CLI`: detection-only, not full usage accounting.
+  - `GitHub Copilot`: supported via VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl`.
+  - `GitHub Copilot CLI`: supported via `~/.copilot/session-state/*/events.jsonl` shutdown summaries.
+  - Active Copilot CLI sessions without a `session.shutdown` summary still show as `partial` in `doctor`.
 
 ## Privacy / Pricing Behavior
 
 - TokenCat is read-only with respect to provider data.
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
-- Pricing behavior in `v0.1.1`:
+- Pricing behavior in `v0.2.0`:
   - package builds refresh the bundled pricing catalog before packaging;
   - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
   - silent bootstrap failure falls back to the bundled catalog without surfacing an error.
+  - pricing resolution order is:
+    1. direct source price when that source has explicit pricing;
+    2. official API pricing for the model family;
+    3. OpenRouter pricing as the marketplace fallback;
+    4. otherwise `unknown_model`.
+  - pricing catalog entries are keyed by pricing source, not scan provider;
+  - session/model JSON can include `pricing_source` in addition to `pricing_model`.
 
 ## Release / Versioning Workflow
 
@@ -45,4 +54,9 @@
 ## Local Workflow Preferences
 
 - The user prefers to run `build`, `make`, and publish commands manually to avoid local path, network, or permission issues.
+- Use the repository virtualenv for Python commands in this repo:
+  - prefer `.venv/bin/python`
+  - prefer `.venv/bin/pytest`
+  - avoid falling back to system `python`, `python3`, or global `pytest` unless the user explicitly asks
+- If a future thread needs to inspect pricing/test behavior, assume the local `.venv` is the correct interpreter first.
 - Generated files that may legitimately change during release work include the bundled pricing catalog at `src/tokencat/pricing/catalog.json`.
