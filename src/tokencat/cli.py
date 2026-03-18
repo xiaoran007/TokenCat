@@ -76,7 +76,7 @@ def main(
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of styled dashboard output.")] = False,
 ) -> None:
     if ctx.invoked_subcommand is None:
-        dashboard(providers=providers, since=since, until=until, no_price=no_price, json_output=json_output)
+        _run_dashboard(providers=providers, since=since, until=until, no_price=no_price, json_output=json_output, show_recent_sessions=False)
 
 
 @app.command()
@@ -86,6 +86,18 @@ def dashboard(
     until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of the dashboard.")] = False,
+) -> None:
+    _run_dashboard(providers=providers, since=since, until=until, no_price=no_price, json_output=json_output, show_recent_sessions=True)
+
+
+def _run_dashboard(
+    *,
+    providers: list[ProviderName] | None,
+    since: str | None,
+    until: str | None,
+    no_price: bool,
+    json_output: bool,
+    show_recent_sessions: bool,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price)
@@ -126,6 +138,7 @@ def dashboard(
         pricing_catalog=catalog,
         pricing_coverage=coverage,
         warnings=result.warnings,
+        show_recent_sessions=show_recent_sessions,
     )
 
 

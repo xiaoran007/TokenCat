@@ -36,6 +36,7 @@ def render_dashboard(
     pricing_catalog: PricingCatalog | None,
     pricing_coverage: PricingCoverage | None,
     warnings: list[str],
+    show_recent_sessions: bool = True,
 ) -> None:
     visible_daily = filter_displayable_daily_records(daily)
     visible_sessions = filter_displayable_sessions(sessions[:6])
@@ -43,8 +44,11 @@ def render_dashboard(
         _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
         _hero_panel(overview),
         _daily_panel(visible_daily),
-        Panel(_recent_sessions_renderable(visible_sessions), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED, style=SURFACE),
     ]
+    if show_recent_sessions:
+        renderables.append(
+            Panel(_recent_sessions_renderable(visible_sessions), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED, style=SURFACE)
+        )
     if warnings:
         warning_text = Text("\n".join(f"- {warning}" for warning in warnings), style=WARN)
         renderables.append(Panel(warning_text, title="Warnings", border_style=WARN, box=box.ROUNDED, style=SURFACE))

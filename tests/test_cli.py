@@ -61,6 +61,53 @@ def seed_pricing_cache(home: Path) -> None:
     )
 
 
+def seed_codex_session(home: Path, *, session_id: str = "session", title: str = "Test Session") -> None:
+    codex_dir = home / ".codex"
+    write_jsonl(
+        codex_dir / "archived_sessions" / f"rollout-2026-03-15T16-07-41-{session_id}.jsonl",
+        [
+            {
+                "timestamp": "2026-03-15T16:07:41.000Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": session_id,
+                    "timestamp": "2026-03-15T16:07:41.000Z",
+                    "cwd": "/repo/project",
+                    "source": "vscode",
+                    "model_provider": "openai",
+                    "cli_version": "0.115.0-alpha.4",
+                },
+            },
+            {
+                "timestamp": "2026-03-15T16:08:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5-codex"},
+            },
+            {
+                "timestamp": "2026-03-15T16:08:02.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "last_token_usage": {
+                            "input_tokens": 120,
+                            "cached_input_tokens": 20,
+                            "output_tokens": 30,
+                            "reasoning_output_tokens": 10,
+                            "total_tokens": 180,
+                        }
+                    },
+                },
+            },
+        ],
+    )
+    write_jsonl(codex_dir / "session_index.jsonl", [{"id": session_id, "thread_name": title}])
+    create_codex_state_db(
+        codex_dir / "state_5.sqlite",
+        [(session_id, 1773590861, 1773590961, "vscode", "openai", "/repo/project", title, 180, "0.115.0-alpha.4")],
+    )
+
+
 def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monkeypatch) -> None:
     codex_dir = sample_home / ".codex"
     write_jsonl(
@@ -148,50 +195,7 @@ def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monk
 
 def test_sessions_and_models_json_include_pricing_source(sample_home: Path, monkeypatch) -> None:
     seed_pricing_cache(sample_home)
-    codex_dir = sample_home / ".codex"
-    write_jsonl(
-        codex_dir / "archived_sessions" / "rollout-2026-03-15T16-07-41-session.jsonl",
-        [
-            {
-                "timestamp": "2026-03-15T16:07:41.000Z",
-                "type": "session_meta",
-                "payload": {
-                    "id": "session",
-                    "timestamp": "2026-03-15T16:07:41.000Z",
-                    "cwd": "/repo/project",
-                    "source": "vscode",
-                    "model_provider": "openai",
-                    "cli_version": "0.115.0-alpha.4",
-                },
-            },
-            {
-                "timestamp": "2026-03-15T16:08:00.000Z",
-                "type": "turn_context",
-                "payload": {"turn_id": "turn-1", "model": "gpt-5-codex"},
-            },
-            {
-                "timestamp": "2026-03-15T16:08:02.000Z",
-                "type": "event_msg",
-                "payload": {
-                    "type": "token_count",
-                    "info": {
-                        "last_token_usage": {
-                            "input_tokens": 120,
-                            "cached_input_tokens": 20,
-                            "output_tokens": 30,
-                            "reasoning_output_tokens": 10,
-                            "total_tokens": 180,
-                        }
-                    },
-                },
-            },
-        ],
-    )
-    write_jsonl(codex_dir / "session_index.jsonl", [{"id": "session", "thread_name": "Pricing Session"}])
-    create_codex_state_db(
-        codex_dir / "state_5.sqlite",
-        [("session", 1773590861, 1773590961, "vscode", "openai", "/repo/project", "Pricing Session", 180, "0.115.0-alpha.4")],
-    )
+    seed_codex_session(sample_home, session_id="session", title="Pricing Session")
 
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
@@ -207,6 +211,21 @@ def test_sessions_and_models_json_include_pricing_source(sample_home: Path, monk
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["pricing_source"] == "openai"
     assert models_payload["items"][0]["pricing_model"] == "gpt-5"
+
+
+def test_default_dashboard_hides_recent_sessions_but_dashboard_command_keeps_it(sample_home: Path, monkeypatch) -> None:
+    seed_pricing_cache(sample_home)
+    seed_codex_session(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    default_result = runner.invoke(app, [])
+    assert default_result.exit_code == 0
+    assert "Recent Sessions" not in default_result.stdout
+
+    dashboard_result = runner.invoke(app, ["dashboard"])
+    assert dashboard_result.exit_code == 0
+    assert "Recent Sessions" in dashboard_result.stdout
 
 
 def test_doctor_and_models_commands_report_provider_status_and_model_usage(sample_home: Path, monkeypatch) -> None:
