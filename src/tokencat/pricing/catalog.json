@@ -1,6 +1,6 @@
 {
   "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-  "refreshed_at": "2026-03-15T15:12:21.560773-04:00",
+  "refreshed_at": "2026-03-16T13:29:58.212067-04:00",
   "entries": [
     {
       "provider": "codex",
@@ -9,7 +9,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -20,7 +20,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -31,7 +31,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -42,7 +42,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -53,7 +53,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -64,7 +64,7 @@
       "output_per_1m": 6.0,
       "cached_input_per_1m": 0.375,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -75,7 +75,7 @@
       "output_per_1m": 6.0,
       "cached_input_per_1m": 0.375,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -86,7 +86,7 @@
       "output_per_1m": 11.0,
       "cached_input_per_1m": 0.14,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -97,7 +97,7 @@
       "output_per_1m": 2.2,
       "cached_input_per_1m": 0.028,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -108,7 +108,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -119,7 +119,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -130,7 +130,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -141,7 +141,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -152,7 +152,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -163,7 +163,7 @@
       "output_per_1m": 1.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -174,7 +174,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -185,7 +185,7 @@
       "output_per_1m": 4.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -196,7 +196,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -207,7 +207,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -218,7 +218,7 @@
       "output_per_1m": 1.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -229,7 +229,7 @@
       "output_per_1m": 1.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -240,7 +240,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -251,7 +251,7 @@
       "output_per_1m": 4.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -262,7 +262,7 @@
       "output_per_1m": 4.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -273,7 +273,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -284,7 +284,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -295,7 +295,7 @@
       "output_per_1m": 60.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -306,7 +306,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -317,7 +317,7 @@
       "output_per_1m": 60.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -328,7 +328,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -339,7 +339,7 @@
       "output_per_1m": 120.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -350,7 +350,7 @@
       "output_per_1m": 120.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -361,7 +361,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -372,7 +372,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -383,7 +383,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -394,7 +394,7 @@
       "output_per_1m": 30.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -405,7 +405,7 @@
       "output_per_1m": 8.0,
       "cached_input_per_1m": 0.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -416,7 +416,7 @@
       "output_per_1m": 8.0,
       "cached_input_per_1m": 0.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -427,7 +427,7 @@
       "output_per_1m": 1.5999999999999999,
       "cached_input_per_1m": 0.09999999999999999,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -438,7 +438,7 @@
       "output_per_1m": 1.5999999999999999,
       "cached_input_per_1m": 0.09999999999999999,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -449,7 +449,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -460,7 +460,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -471,7 +471,7 @@
       "output_per_1m": 150.0,
       "cached_input_per_1m": 37.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -482,7 +482,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -493,7 +493,7 @@
       "output_per_1m": 15.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -504,7 +504,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -515,7 +515,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -526,7 +526,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -537,7 +537,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -548,7 +548,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -559,7 +559,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -570,7 +570,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -581,7 +581,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -592,7 +592,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -603,7 +603,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.3,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -614,7 +614,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.3,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -625,7 +625,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -636,7 +636,7 @@
       "output_per_1m": 0.6,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -647,7 +647,7 @@
       "output_per_1m": 5.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -658,7 +658,7 @@
       "output_per_1m": 5.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -669,7 +669,7 @@
       "output_per_1m": 5.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -680,7 +680,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -691,7 +691,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -702,7 +702,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -713,7 +713,7 @@
       "output_per_1m": 20.0,
       "cached_input_per_1m": 2.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -724,7 +724,7 @@
       "output_per_1m": 20.0,
       "cached_input_per_1m": 2.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -735,7 +735,7 @@
       "output_per_1m": 20.0,
       "cached_input_per_1m": 2.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -746,7 +746,7 @@
       "output_per_1m": 20.0,
       "cached_input_per_1m": 2.5,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -757,7 +757,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -768,7 +768,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -779,7 +779,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -790,7 +790,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -801,7 +801,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -812,7 +812,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -823,7 +823,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -834,7 +834,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -845,7 +845,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -856,7 +856,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -867,7 +867,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -878,7 +878,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.005,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -889,7 +889,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.005,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -900,7 +900,7 @@
       "output_per_1m": 120.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -911,7 +911,7 @@
       "output_per_1m": 120.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -922,7 +922,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -933,7 +933,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -944,7 +944,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -955,7 +955,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -966,7 +966,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -977,7 +977,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -988,7 +988,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -999,7 +999,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1010,7 +1010,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1021,7 +1021,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1032,7 +1032,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1043,7 +1043,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1054,7 +1054,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1065,7 +1065,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1076,7 +1076,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1087,7 +1087,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1098,7 +1098,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1109,7 +1109,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1120,7 +1120,7 @@
       "output_per_1m": 168.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1131,7 +1131,7 @@
       "output_per_1m": 168.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1142,7 +1142,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1153,7 +1153,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1164,7 +1164,7 @@
       "output_per_1m": 14.0,
       "cached_input_per_1m": 0.175,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1175,7 +1175,7 @@
       "output_per_1m": 15.0,
       "cached_input_per_1m": 0.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1186,7 +1186,7 @@
       "output_per_1m": 15.0,
       "cached_input_per_1m": 0.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1197,7 +1197,7 @@
       "output_per_1m": 180.0,
       "cached_input_per_1m": 3.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1208,7 +1208,7 @@
       "output_per_1m": 180.0,
       "cached_input_per_1m": 3.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1219,7 +1219,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1230,7 +1230,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1241,7 +1241,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1252,7 +1252,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1263,7 +1263,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1274,7 +1274,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1285,7 +1285,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1296,7 +1296,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1307,7 +1307,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.19999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1318,7 +1318,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1329,7 +1329,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 1.25,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1340,7 +1340,7 @@
       "output_per_1m": 0.7999999999999999,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1351,7 +1351,7 @@
       "output_per_1m": 0.09999999999999999,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1362,7 +1362,7 @@
       "output_per_1m": 16.0,
       "cached_input_per_1m": 0.39999999999999997,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1373,7 +1373,7 @@
       "output_per_1m": 16.0,
       "cached_input_per_1m": 0.39999999999999997,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1384,7 +1384,7 @@
       "output_per_1m": 16.0,
       "cached_input_per_1m": 4.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1395,7 +1395,7 @@
       "output_per_1m": 16.0,
       "cached_input_per_1m": 0.39999999999999997,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1406,7 +1406,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1417,7 +1417,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.06,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1428,7 +1428,7 @@
       "output_per_1m": 2.4,
       "cached_input_per_1m": 0.06,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1439,7 +1439,7 @@
       "output_per_1m": 11.0,
       "cached_input_per_1m": 0.14,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1450,7 +1450,7 @@
       "output_per_1m": 2.2,
       "cached_input_per_1m": 0.028,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1461,7 +1461,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1472,7 +1472,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1483,7 +1483,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1494,7 +1494,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1505,7 +1505,7 @@
       "output_per_1m": 0.3,
       "cached_input_per_1m": 0.01875,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1516,7 +1516,7 @@
       "output_per_1m": 0.3,
       "cached_input_per_1m": 0.01875,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1527,7 +1527,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1538,7 +1538,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.03,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1549,7 +1549,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.03,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1560,7 +1560,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.01,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1571,7 +1571,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1582,7 +1582,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.01,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1593,7 +1593,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1604,7 +1604,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1615,7 +1615,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1626,7 +1626,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1637,7 +1637,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1648,7 +1648,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1659,7 +1659,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1670,7 +1670,7 @@
       "output_per_1m": 3.0,
       "cached_input_per_1m": 0.049999999999999996,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1681,7 +1681,7 @@
       "output_per_1m": 12.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1692,7 +1692,7 @@
       "output_per_1m": 12.0,
       "cached_input_per_1m": 0.19999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1703,7 +1703,7 @@
       "output_per_1m": 3.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1714,7 +1714,7 @@
       "output_per_1m": 1.5,
       "cached_input_per_1m": 0.024999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1725,7 +1725,7 @@
       "output_per_1m": 12.0,
       "cached_input_per_1m": 0.19999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1736,7 +1736,7 @@
       "output_per_1m": 12.0,
       "cached_input_per_1m": 0.19999999999999998,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1747,7 +1747,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1758,7 +1758,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1769,7 +1769,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1780,7 +1780,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.03,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1791,7 +1791,7 @@
       "output_per_1m": 0.0,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1802,7 +1802,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.03,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1813,7 +1813,7 @@
       "output_per_1m": 0.39999999999999997,
       "cached_input_per_1m": 0.01,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1824,7 +1824,7 @@
       "output_per_1m": 1.0499999999999998,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1835,7 +1835,7 @@
       "output_per_1m": 1.0499999999999998,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1846,7 +1846,7 @@
       "output_per_1m": 2.0,
       "cached_input_per_1m": 0.075,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1857,7 +1857,7 @@
       "output_per_1m": 10.0,
       "cached_input_per_1m": 0.125,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     },
@@ -1868,7 +1868,7 @@
       "output_per_1m": 2.5,
       "cached_input_per_1m": 0.0,
       "currency": "USD",
-      "effective_date": "2026-03-15",
+      "effective_date": "2026-03-16",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
       "notes": []
     }
