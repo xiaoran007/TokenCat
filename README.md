@@ -110,6 +110,9 @@ TokenCat can estimate API-equivalent cost for models with known pricing data.
 - On first pricing use, TokenCat silently tries to refresh its own cache under `~/.tokencat/pricing/`.
 - If that refresh fails, it quietly falls back to the bundled catalog.
 - `tokencat pricing refresh` manually refreshes the local cache.
+- Pricing resolution is source-aware: direct source price first, then official API price, then OpenRouter as the marketplace fallback.
+- JSON output includes `pricing_source` so you can see whether a session or model was priced from the direct source, an official vendor catalog, or OpenRouter.
+- Metadata-only rows in the upstream dataset are ignored; TokenCat only treats entries with explicit price fields as priced.
 - Unknown or historically renamed models are shown clearly instead of being guessed.
 
 Current pricing references:
@@ -117,6 +120,9 @@ Current pricing references:
 - [OpenAI API pricing](https://openai.com/api/pricing/)
 - [OpenAI Codex pricing](https://developers.openai.com/codex/pricing/)
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)
+- [Anthropic models and pricing](https://docs.anthropic.com/en/docs/models-overview)
+- [xAI models](https://docs.x.ai/docs/models)
+- [OpenRouter pricing](https://openrouter.ai/pricing)
 - [GitHub Copilot plans](https://docs.github.com/en/copilot/about-github-copilot/subscription-plans-for-github-copilot)
 
 ## Privacy

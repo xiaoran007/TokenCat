@@ -52,6 +52,8 @@ def serialize_session(record: SessionRecord, *, show_title: bool, show_path: boo
         data["pricing_status"] = record.pricing_status
     if record.pricing_model is not None:
         data["pricing_model"] = record.pricing_model
+    if record.pricing_source is not None:
+        data["pricing_source"] = record.pricing_source
     if record.is_fallback_model:
         data["is_fallback_model"] = True
 
@@ -87,7 +89,7 @@ def serialize_pricing_catalog(catalog: PricingCatalog | None) -> dict[str, objec
         "refreshed_at": catalog.refreshed_at,
         "cache_path": str(catalog.cache_path) if catalog.cache_path else None,
         "model_count": catalog.model_count,
-        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.provider.value, item.model))],
+        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.pricing_source, item.model))],
     }
 
 

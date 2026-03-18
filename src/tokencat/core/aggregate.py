@@ -62,6 +62,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
     sessions_per_model: dict[tuple[str, str], set[str]] = defaultdict(set)
     attribution_statuses: dict[tuple[str, str], set[str]] = defaultdict(set)
     pricing_models: dict[tuple[str, str], set[str]] = defaultdict(set)
+    pricing_sources: dict[tuple[str, str], set[str]] = defaultdict(set)
     fallback_flags: dict[tuple[str, str], bool] = defaultdict(bool)
 
     for record in records:
@@ -75,6 +76,8 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
                 attribution_statuses[key].add(usage.attribution_status)
             if usage.pricing_model is not None:
                 pricing_models[key].add(usage.pricing_model)
+            if usage.pricing_source is not None:
+                pricing_sources[key].add(usage.pricing_source)
             fallback_flags[key] = fallback_flags[key] or usage.is_fallback_model
             sessions_per_model[key].add(record.anon_session_id)
 
@@ -85,6 +88,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
         statuses = attribution_statuses[(provider, model)]
         attribution_status = "fallback" if "fallback" in statuses or fallback_flags[(provider, model)] else "exact" if statuses else None
         resolved_pricing_models = sorted(pricing_models[(provider, model)])
+        resolved_pricing_sources = sorted(pricing_sources[(provider, model)])
         items.append(
             {
                 "provider": provider,
@@ -96,6 +100,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
                 "priced_token_coverage": round((priced_tokens or 0) / total_tokens, 4) if total_tokens else 0.0,
                 "attribution_status": attribution_status,
                 "pricing_model": resolved_pricing_models[0] if len(resolved_pricing_models) == 1 else None,
+                "pricing_source": resolved_pricing_sources[0] if len(resolved_pricing_sources) == 1 else None,
                 "is_fallback_model": fallback_flags[(provider, model)],
             }
         )

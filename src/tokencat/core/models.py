@@ -5,6 +5,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from pathlib import Path
 
+PricingSourceName = str
+
 
 class ProviderName(StrEnum):
     CODEX = "codex"
@@ -101,6 +103,7 @@ class ModelUsage:
     attribution_status: str | None = None
     pricing_status: str | None = None
     pricing_model: str | None = None
+    pricing_source: PricingSourceName | None = None
     is_fallback_model: bool = False
 
     def add(self, tokens: TokenTotals, message_count: int = 0) -> None:
@@ -126,6 +129,7 @@ class SessionRecord:
     attribution_status: str | None = None
     pricing_status: str | None = None
     pricing_model: str | None = None
+    pricing_source: PricingSourceName | None = None
     is_fallback_model: bool = False
 
     @property
@@ -178,7 +182,7 @@ class ScanResult:
 
 @dataclass(slots=True)
 class PricingEntry:
-    provider: ProviderName
+    pricing_source: PricingSourceName
     model: str
     input_per_1m: float
     output_per_1m: float
@@ -190,7 +194,7 @@ class PricingEntry:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "provider": self.provider.value,
+            "pricing_source": self.pricing_source,
             "model": self.model,
             "input_per_1m": self.input_per_1m,
             "output_per_1m": self.output_per_1m,
@@ -206,7 +210,7 @@ class PricingEntry:
 class PricingCatalog:
     source: str
     loaded_at: datetime
-    entries: dict[tuple[ProviderName, str], PricingEntry]
+    entries: dict[tuple[PricingSourceName, str], PricingEntry]
     source_url: str | None = None
     refreshed_at: str | None = None
     cache_path: Path | None = None

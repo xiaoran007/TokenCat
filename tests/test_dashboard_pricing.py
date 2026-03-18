@@ -231,6 +231,20 @@ def test_pricing_show_reports_unknown_models(sample_home: Path, monkeypatch) -> 
     assert payload["summary"]["pricing"]["coverage"]["priced_tokens"] == 180
 
 
+def test_pricing_show_json_includes_pricing_source(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["pricing", "show", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    entries = payload["summary"]["pricing"]["catalog"]["entries"]
+    assert any(entry["pricing_source"] == "openai" and entry["model"] == "gpt-5" for entry in entries)
+    assert any(entry["pricing_source"] == "gemini" and entry["model"] == "gemini-2.5-pro" for entry in entries)
+
+
 def test_refresh_builtin_pricing_writes_cache(sample_home: Path) -> None:
     raw_dataset = {
         "gpt-5": {
@@ -304,13 +318,52 @@ def test_refresh_bundled_pricing_catalog_includes_only_priced_github_copilot_ent
 
     catalog = refresh_bundled_pricing_catalog(raw_dataset=raw_dataset, target_path=target)
 
-    assert (ProviderName.COPILOT, "gpt-5.3-codex") in catalog.entries
-    assert (ProviderName.COPILOT, "claude-sonnet-4.5") not in catalog.entries
+    assert ("github_copilot", "gpt-5.3-codex") in catalog.entries
+    assert ("github_copilot", "claude-sonnet-4.5") not in catalog.entries
     payload = json.loads(target.read_text(encoding="utf-8"))
-    copilot_entries = [entry for entry in payload["entries"] if entry["provider"] == "copilot"]
+    copilot_entries = [entry for entry in payload["entries"] if entry["pricing_source"] == "github_copilot"]
     assert len(copilot_entries) == 1
     assert copilot_entries[0]["model"] == "gpt-5.3-codex"
     assert copilot_entries[0]["input_per_1m"] == 2.0
+
+
+def test_load_pricing_catalog_migrates_legacy_provider_entries(sample_home: Path) -> None:
+    write_json(
+        sample_home / ".tokencat" / "pricing" / "catalog.json",
+        {
+            "source_url": "https://example.test/pricing",
+            "refreshed_at": "2026-03-15T00:00:00+00:00",
+            "entries": [
+                {
+                    "provider": "codex",
+                    "model": "gpt-5",
+                    "input_per_1m": 1.25,
+                    "output_per_1m": 10.0,
+                    "cached_input_per_1m": 0.125,
+                    "currency": "USD",
+                    "effective_date": "2026-03-15",
+                    "source_url": "https://example.test/pricing",
+                    "notes": [],
+                },
+                {
+                    "provider": "copilot",
+                    "model": "gpt-5.3-codex",
+                    "input_per_1m": 2.0,
+                    "output_per_1m": 16.0,
+                    "cached_input_per_1m": 0.2,
+                    "currency": "USD",
+                    "effective_date": "2026-03-16",
+                    "source_url": "https://example.test/pricing",
+                    "notes": [],
+                },
+            ],
+        },
+    )
+
+    catalog = load_pricing_catalog(sample_home)
+
+    assert ("openai", "gpt-5") in catalog.entries
+    assert ("github_copilot", "gpt-5.3-codex") in catalog.entries
 
 
 def test_refresh_bundled_pricing_catalog_fails_when_dataset_has_no_supported_entries(sample_home: Path) -> None:
@@ -474,8 +527,8 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
         source="builtin",
         loaded_at=loaded_at,
         entries={
-            (ProviderName.CODEX, "gpt-5"): PricingEntry(
-                provider=ProviderName.CODEX,
+            ("openai", "gpt-5"): PricingEntry(
+                pricing_source="openai",
                 model="gpt-5",
                 input_per_1m=1.25,
                 output_per_1m=10.0,
@@ -484,8 +537,8 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
                 effective_date="2026-03-15",
                 source_url="https://example.test/pricing",
             ),
-            (ProviderName.CODEX, "gpt-5.2-codex"): PricingEntry(
-                provider=ProviderName.CODEX,
+            ("openai", "gpt-5.2-codex"): PricingEntry(
+                pricing_source="openai",
                 model="gpt-5.2-codex",
                 input_per_1m=1.75,
                 output_per_1m=14.0,
@@ -494,8 +547,8 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
                 effective_date="2026-03-15",
                 source_url="https://example.test/pricing",
             ),
-            (ProviderName.GEMINI, "gemini-2.5-pro"): PricingEntry(
-                provider=ProviderName.GEMINI,
+            ("gemini", "gemini-2.5-pro"): PricingEntry(
+                pricing_source="gemini",
                 model="gemini-2.5-pro",
                 input_per_1m=1.25,
                 output_per_1m=10.0,
@@ -612,13 +665,17 @@ def test_apply_pricing_uses_aliases_and_leaves_unknown_models_unpriced() -> None
     assert coverage is not None
     assert alias_record.model_usage["gpt-5-codex"].pricing_status == "fallback_priced"
     assert alias_record.model_usage["gpt-5-codex"].pricing_model == "gpt-5"
+    assert alias_record.model_usage["gpt-5-codex"].pricing_source == "openai"
     assert newer_alias_record.model_usage["gpt-5.3-codex"].pricing_status == "fallback_priced"
     assert newer_alias_record.model_usage["gpt-5.3-codex"].pricing_model == "gpt-5.2-codex"
+    assert newer_alias_record.model_usage["gpt-5.3-codex"].pricing_source == "openai"
     assert unknown_record.model_usage["gpt-5.4"].pricing_status == "unknown_model"
     assert copilot_codex_record.model_usage["copilot/gpt-5.3-codex"].pricing_status == "fallback_priced"
     assert copilot_codex_record.model_usage["copilot/gpt-5.3-codex"].pricing_model == "gpt-5.2-codex"
+    assert copilot_codex_record.model_usage["copilot/gpt-5.3-codex"].pricing_source == "openai"
     assert copilot_gemini_record.model_usage["copilot/gemini-2.5-pro"].pricing_status == "fallback_priced"
     assert copilot_gemini_record.model_usage["copilot/gemini-2.5-pro"].pricing_model == "gemini-2.5-pro"
+    assert copilot_gemini_record.model_usage["copilot/gemini-2.5-pro"].pricing_source == "gemini"
     assert copilot_unknown_record.model_usage["copilot/claude-sonnet-4.5"].pricing_status == "unknown_model"
     assert coverage.unknown_models == ["copilot/claude-sonnet-4.5", "gpt-5.4"]
     assert coverage.unknown_model_tokens == 1540
@@ -630,8 +687,8 @@ def test_apply_pricing_prefers_direct_copilot_catalog_entries() -> None:
         source="builtin",
         loaded_at=loaded_at,
         entries={
-            (ProviderName.COPILOT, "gpt-5.3-codex"): PricingEntry(
-                provider=ProviderName.COPILOT,
+            ("github_copilot", "gpt-5.3-codex"): PricingEntry(
+                pricing_source="github_copilot",
                 model="gpt-5.3-codex",
                 input_per_1m=2.0,
                 output_per_1m=16.0,
@@ -640,8 +697,8 @@ def test_apply_pricing_prefers_direct_copilot_catalog_entries() -> None:
                 effective_date="2026-03-16",
                 source_url="https://example.test/pricing",
             ),
-            (ProviderName.CODEX, "gpt-5.2-codex"): PricingEntry(
-                provider=ProviderName.CODEX,
+            ("openai", "gpt-5.2-codex"): PricingEntry(
+                pricing_source="openai",
                 model="gpt-5.2-codex",
                 input_per_1m=1.75,
                 output_per_1m=14.0,
@@ -673,16 +730,88 @@ def test_apply_pricing_prefers_direct_copilot_catalog_entries() -> None:
     assert coverage is not None
     assert record.model_usage["copilot/gpt-5.3-codex"].pricing_status == "priced"
     assert record.model_usage["copilot/gpt-5.3-codex"].pricing_model == "gpt-5.3-codex"
+    assert record.model_usage["copilot/gpt-5.3-codex"].pricing_source == "github_copilot"
     assert record.pricing_status == "priced"
+    assert record.pricing_source == "github_copilot"
     assert record.estimated_cost is not None
     assert record.estimated_cost.input_cost == 0.0016
     assert record.estimated_cost.cached_input_cost == 0.00004
     assert record.estimated_cost.output_cost == 0.0016
 
 
+def test_apply_pricing_falls_back_to_official_source_then_openrouter() -> None:
+    loaded_at = datetime.now().astimezone()
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=loaded_at,
+        entries={
+            ("xai", "grok-4"): PricingEntry(
+                pricing_source="xai",
+                model="grok-4",
+                input_per_1m=3.0,
+                output_per_1m=15.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/xai",
+            ),
+            ("openrouter", "anthropic/claude-sonnet-4.5"): PricingEntry(
+                pricing_source="openrouter",
+                model="anthropic/claude-sonnet-4.5",
+                input_per_1m=3.0,
+                output_per_1m=15.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/openrouter",
+            ),
+        },
+    )
+    grok_record = SessionRecord(
+        provider=ProviderName.COPILOT,
+        provider_session_id="copilot-grok-session",
+        anon_session_id="copilot-grok-session",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=1000, output=100, total=1100),
+        model_usage={
+            "copilot/grok-4": ModelUsage(
+                model="copilot/grok-4",
+                tokens=TokenTotals(input=1000, output=100, total=1100),
+                attribution_status="exact",
+            )
+        },
+    )
+    claude_record = SessionRecord(
+        provider=ProviderName.COPILOT,
+        provider_session_id="copilot-claude-session",
+        anon_session_id="copilot-claude-session",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=1000, output=100, total=1100),
+        model_usage={
+            "copilot/claude-sonnet-4.5": ModelUsage(
+                model="copilot/claude-sonnet-4.5",
+                tokens=TokenTotals(input=1000, output=100, total=1100),
+                attribution_status="exact",
+            )
+        },
+    )
+
+    coverage = apply_pricing([grok_record, claude_record], catalog)
+
+    assert coverage is not None
+    assert grok_record.model_usage["copilot/grok-4"].pricing_status == "fallback_priced"
+    assert grok_record.model_usage["copilot/grok-4"].pricing_source == "xai"
+    assert grok_record.model_usage["copilot/grok-4"].pricing_model == "grok-4"
+    assert claude_record.model_usage["copilot/claude-sonnet-4.5"].pricing_status == "fallback_priced"
+    assert claude_record.model_usage["copilot/claude-sonnet-4.5"].pricing_source == "openrouter"
+    assert claude_record.model_usage["copilot/claude-sonnet-4.5"].pricing_model == "anthropic/claude-sonnet-4.5"
+
+
 def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None:
     entry = PricingEntry(
-        provider=ProviderName.CODEX,
+        pricing_source="openai",
         model="gpt-5",
         input_per_1m=1.0,
         output_per_1m=2.0,

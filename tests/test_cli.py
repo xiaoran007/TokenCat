@@ -38,6 +38,29 @@ def seed_bootstrap_marker(home: Path) -> None:
     )
 
 
+def seed_pricing_cache(home: Path) -> None:
+    write_json(
+        home / ".tokencat" / "pricing" / "catalog.json",
+        {
+            "source_url": "https://example.test/pricing",
+            "refreshed_at": "2026-03-15T00:00:00+00:00",
+            "entries": [
+                {
+                    "provider": "codex",
+                    "model": "gpt-5",
+                    "input_per_1m": 1.25,
+                    "output_per_1m": 10.0,
+                    "cached_input_per_1m": 0.125,
+                    "currency": "USD",
+                    "effective_date": "2026-03-15",
+                    "source_url": "https://example.test/pricing",
+                    "notes": [],
+                }
+            ],
+        },
+    )
+
+
 def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monkeypatch) -> None:
     codex_dir = sample_home / ".codex"
     write_jsonl(
@@ -121,6 +144,69 @@ def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monk
     assert revealed_payload["items"][0]["provider_session_id"] == "019cf23f-a38c-7c21-b2f2-ecbb145c1652"
     assert revealed_payload["items"][0]["title"] == "Sensitive Title"
     assert revealed_payload["items"][0]["cwd"] == "/repo/project"
+
+
+def test_sessions_and_models_json_include_pricing_source(sample_home: Path, monkeypatch) -> None:
+    seed_pricing_cache(sample_home)
+    codex_dir = sample_home / ".codex"
+    write_jsonl(
+        codex_dir / "archived_sessions" / "rollout-2026-03-15T16-07-41-session.jsonl",
+        [
+            {
+                "timestamp": "2026-03-15T16:07:41.000Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": "session",
+                    "timestamp": "2026-03-15T16:07:41.000Z",
+                    "cwd": "/repo/project",
+                    "source": "vscode",
+                    "model_provider": "openai",
+                    "cli_version": "0.115.0-alpha.4",
+                },
+            },
+            {
+                "timestamp": "2026-03-15T16:08:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5-codex"},
+            },
+            {
+                "timestamp": "2026-03-15T16:08:02.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "last_token_usage": {
+                            "input_tokens": 120,
+                            "cached_input_tokens": 20,
+                            "output_tokens": 30,
+                            "reasoning_output_tokens": 10,
+                            "total_tokens": 180,
+                        }
+                    },
+                },
+            },
+        ],
+    )
+    write_jsonl(codex_dir / "session_index.jsonl", [{"id": "session", "thread_name": "Pricing Session"}])
+    create_codex_state_db(
+        codex_dir / "state_5.sqlite",
+        [("session", 1773590861, 1773590961, "vscode", "openai", "/repo/project", "Pricing Session", 180, "0.115.0-alpha.4")],
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    sessions_result = runner.invoke(app, ["sessions", "--provider", "codex", "--json"])
+    assert sessions_result.exit_code == 0
+    sessions_payload = json.loads(sessions_result.stdout)
+    assert sessions_payload["items"][0]["pricing_source"] == "openai"
+    assert sessions_payload["items"][0]["pricing_model"] == "gpt-5"
+
+    models_result = runner.invoke(app, ["models", "--provider", "codex", "--json"])
+    assert models_result.exit_code == 0
+    models_payload = json.loads(models_result.stdout)
+    assert models_payload["items"][0]["pricing_source"] == "openai"
+    assert models_payload["items"][0]["pricing_model"] == "gpt-5"
 
 
 def test_doctor_and_models_commands_report_provider_status_and_model_usage(sample_home: Path, monkeypatch) -> None:
