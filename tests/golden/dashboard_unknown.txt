@@ -39,6 +39,6 @@
 │  Session           Provider        Model                       Attr              Tokens    Cost  │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
 │  fb80706ebca0      Codex           gpt-5.3-codex               exact                180   $0.00  │
-│  3dc849ed60bc      Gemini CLI      gemini-3-pro-preview        -           1,350 (1.4K)   $0.00  │
+│  3dc849ed60bc      Gemini CLI      gemini-3-pro-preview        exact       1,350 (1.4K)   $0.00  │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

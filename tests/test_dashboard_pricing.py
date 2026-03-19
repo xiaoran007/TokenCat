@@ -23,7 +23,7 @@ from tokencat.core.render import render_dashboard
 from tokencat.core.time import parse_datetime_value
 from tokencat.providers.registry import scan_providers
 
-from conftest import create_codex_state_db, write_json, write_jsonl
+from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
 
 
 def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> None:
@@ -165,6 +165,22 @@ def seed_dashboard_sample(home: Path, *, unknown_gemini: bool = False) -> None:
             ],
         },
     )
+
+
+def write_copilot_session_json(home: Path, workspace_id: str, session_id: str, payload: dict[str, object]) -> Path:
+    path = (
+        home
+        / "Library"
+        / "Application Support"
+        / "Code"
+        / "User"
+        / "workspaceStorage"
+        / workspace_id
+        / "chatSessions"
+        / f"{session_id}.json"
+    )
+    write_json(path, payload)
+    return path
 
 
 def build_dashboard_render_output(home: Path) -> str:
@@ -498,6 +514,233 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
     rendered = console.export_text()
     expected = (Path(__file__).parent / "golden" / "dashboard_no_price.txt").read_text(encoding="utf-8")
     assert rendered == expected
+
+
+def test_codex_cross_day_usage_splits_daily_and_since_window(sample_home: Path, monkeypatch) -> None:
+    codex_dir = sample_home / ".codex"
+    write_jsonl(
+        codex_dir / "sessions" / "2026" / "03" / "03" / "rollout-2026-03-03T09-00-00-session.jsonl",
+        [
+            {
+                "timestamp": "2026-03-01T10:00:00.000Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": "cross-day-codex",
+                    "timestamp": "2026-03-01T10:00:00.000Z",
+                    "cwd": "/repo/project",
+                    "source": "vscode",
+                    "model_provider": "openai",
+                    "cli_version": "0.115.0-alpha.4",
+                },
+            },
+            {
+                "timestamp": "2026-03-01T10:01:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5.4"},
+            },
+            {
+                "timestamp": "2026-03-01T10:01:05.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 4900000,
+                            "cached_input_tokens": 0,
+                            "output_tokens": 100000,
+                            "reasoning_output_tokens": 0,
+                            "total_tokens": 5000000,
+                        }
+                    },
+                },
+            },
+            {
+                "timestamp": "2026-03-03T09:00:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-2", "model": "gpt-5.4"},
+            },
+            {
+                "timestamp": "2026-03-03T09:00:05.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 5880000,
+                            "cached_input_tokens": 0,
+                            "output_tokens": 120000,
+                            "reasoning_output_tokens": 0,
+                            "total_tokens": 6000000,
+                        }
+                    },
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    full_result = scan_providers(ScanFilters(providers={ProviderName.CODEX}))
+    assert len(full_result.sessions) == 1
+    assert full_result.sessions[0].token_totals.total == 6000000
+
+    daily = aggregate_daily(full_result.sessions)
+    day_totals = {item.date.isoformat(): item.token_totals.total for item in daily}
+    assert day_totals["2026-03-01"] == 5000000
+    assert day_totals["2026-03-03"] == 1000000
+
+    march_3 = scan_providers(
+        ScanFilters(
+            providers={ProviderName.CODEX},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+        )
+    )
+    assert len(march_3.sessions) == 1
+    assert march_3.sessions[0].token_totals.total == 1000000
+    assert march_3.sessions[0].started_at.isoformat().startswith("2026-03-03")
+
+    summary = aggregate_summary(march_3.sessions)
+    models = aggregate_models(march_3.sessions)
+    assert summary["token_totals"]["total"] == 1000000
+    assert models[0]["token_totals"]["total"] == 1000000
+
+
+def test_gemini_cross_day_window_projection_uses_message_timestamps(sample_home: Path, monkeypatch) -> None:
+    write_json(sample_home / ".gemini" / "settings.json", {"model": {"name": "gemini-3.1-pro-preview"}})
+    write_json(
+        sample_home / ".gemini" / "tmp" / "temp" / "chats" / "session-cross-day.json",
+        {
+            "sessionId": "cross-day-gemini",
+            "startTime": "2026-03-01T12:00:00.000Z",
+            "lastUpdated": "2026-03-03T12:00:30.000Z",
+            "projectHash": "project-hash",
+            "messages": [
+                {
+                    "timestamp": "2026-03-01T12:00:05.000Z",
+                    "model": "gemini-2.5-pro",
+                    "tokens": {"input": 400, "output": 100, "cached": 50, "thoughts": 0, "tool": 0, "total": 500},
+                },
+                {
+                    "timestamp": "2026-03-03T12:00:10.000Z",
+                    "model": "gemini-2.5-pro",
+                    "tokens": {"input": 80, "output": 20, "cached": 10, "thoughts": 0, "tool": 0, "total": 100},
+                },
+            ],
+        },
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    full_result = scan_providers(ScanFilters(providers={ProviderName.GEMINI}))
+    daily = aggregate_daily(full_result.sessions)
+    day_totals = {item.date.isoformat(): item.token_totals.total for item in daily}
+    assert day_totals["2026-03-01"] == 500
+    assert day_totals["2026-03-03"] == 100
+
+    march_3 = scan_providers(
+        ScanFilters(
+            providers={ProviderName.GEMINI},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+        )
+    )
+    assert len(march_3.sessions) == 1
+    assert march_3.sessions[0].token_totals.total == 100
+    assert march_3.sessions[0].updated_at.isoformat().startswith("2026-03-03")
+
+
+def test_copilot_vscode_cross_day_window_projection_uses_requests_and_model_filter(sample_home: Path, monkeypatch) -> None:
+    write_copilot_session_json(
+        sample_home,
+        "workspace-cross-day",
+        "copilot-cross-day",
+        {
+            "sessionId": "copilot-cross-day",
+            "creationDate": 1772362800000,
+            "requests": [
+                {
+                    "timestamp": "2026-03-01T09:00:05.000Z",
+                    "modelId": "copilot/gpt-5.3-codex",
+                    "result": {"usage": {"promptTokens": 450, "completionTokens": 50}},
+                },
+                {
+                    "timestamp": "2026-03-03T09:00:05.000Z",
+                    "modelId": "copilot/gemini-2.5-pro",
+                    "result": {"usage": {"promptTokens": 90, "completionTokens": 10}},
+                },
+            ],
+        },
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    full_result = scan_providers(ScanFilters(providers={ProviderName.COPILOT}))
+    daily = aggregate_daily(full_result.sessions)
+    day_totals = {item.date.isoformat(): item.token_totals.total for item in daily}
+    assert day_totals["2026-03-01"] == 500
+    assert day_totals["2026-03-03"] == 100
+
+    march_3 = scan_providers(
+        ScanFilters(
+            providers={ProviderName.COPILOT},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+        )
+    )
+    assert len(march_3.sessions) == 1
+    assert march_3.sessions[0].token_totals.total == 100
+    assert set(march_3.sessions[0].model_usage) == {"copilot/gemini-2.5-pro"}
+
+    filtered = scan_providers(
+        ScanFilters(
+            providers={ProviderName.COPILOT},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+            model="copilot/gpt-5.3-codex",
+        )
+    )
+    assert filtered.sessions == []
+
+
+def test_copilot_cli_shutdown_windowing_remains_coarse(sample_home: Path, monkeypatch) -> None:
+    write_copilot_cli_session_state(
+        sample_home,
+        "coarse-cli-session",
+        [
+            {
+                "timestamp": "2026-03-01T09:00:00.000Z",
+                "type": "session.start",
+                "data": {
+                    "sessionId": "coarse-cli-session",
+                    "startTime": "2026-03-01T09:00:00.000Z",
+                },
+            },
+            {
+                "timestamp": "2026-03-03T09:10:00.000Z",
+                "type": "session.shutdown",
+                "data": {
+                    "sessionStartTime": "2026-03-01T09:00:00.000Z",
+                    "currentModel": "claude-sonnet-4.6",
+                    "modelMetrics": {
+                        "claude-sonnet-4.6": {
+                            "usage": {
+                                "inputTokens": 590,
+                                "outputTokens": 10,
+                                "cacheReadTokens": 0,
+                                "cacheWriteTokens": 0,
+                            },
+                            "requests": {"count": 2, "cost": 1},
+                        }
+                    },
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    march_3 = scan_providers(
+        ScanFilters(
+            providers={ProviderName.COPILOT},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+        )
+    )
+    assert len(march_3.sessions) == 1
+    assert march_3.sessions[0].token_totals.total == 600
+    assert march_3.sessions[0].usage_slices == []
 
 
 def test_codex_dashboard_and_models_agree_for_recent_active_sessions(sample_home: Path, monkeypatch) -> None:
