@@ -8,8 +8,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
-from tokencat.core.models import PricingCatalog, PricingCoverage, ProviderName, ScanFilters
+from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
+from tokencat.core.models import DashboardUsageGranularity, PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
 from tokencat.core.presentation import filter_displayable_model_items, filter_displayable_sessions, provider_display_name
 from tokencat.core.render import render_dashboard, render_pricing_summary
@@ -72,11 +72,24 @@ def main(
     providers: ProviderOption = None,
     since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
     until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the terminal dashboard.")] = False,
+    weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the terminal dashboard.")] = False,
+    monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the terminal dashboard.")] = False,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of styled dashboard output.")] = False,
 ) -> None:
     if ctx.invoked_subcommand is None:
-        _run_dashboard(providers=providers, since=since, until=until, no_price=no_price, json_output=json_output, show_recent_sessions=False)
+        _run_dashboard(
+            providers=providers,
+            since=since,
+            until=until,
+            daily_view=daily_view,
+            weekly_view=weekly_view,
+            monthly_view=monthly_view,
+            no_price=no_price,
+            json_output=json_output,
+            show_recent_sessions=False,
+        )
 
 
 @app.command()
@@ -84,10 +97,23 @@ def dashboard(
     providers: ProviderOption = None,
     since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
     until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the dashboard.")] = False,
+    weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the dashboard.")] = False,
+    monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the dashboard.")] = False,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of the dashboard.")] = False,
 ) -> None:
-    _run_dashboard(providers=providers, since=since, until=until, no_price=no_price, json_output=json_output, show_recent_sessions=True)
+    _run_dashboard(
+        providers=providers,
+        since=since,
+        until=until,
+        daily_view=daily_view,
+        weekly_view=weekly_view,
+        monthly_view=monthly_view,
+        no_price=no_price,
+        json_output=json_output,
+        show_recent_sessions=True,
+    )
 
 
 def _run_dashboard(
@@ -95,14 +121,24 @@ def _run_dashboard(
     providers: list[ProviderName] | None,
     since: str | None,
     until: str | None,
+    daily_view: bool,
+    weekly_view: bool,
+    monthly_view: bool,
     no_price: bool,
     json_output: bool,
     show_recent_sessions: bool,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
+    usage_granularity = _resolve_dashboard_usage_granularity(
+        filters,
+        daily_view=daily_view,
+        weekly_view=weekly_view,
+        monthly_view=monthly_view,
+    )
     result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price)
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
     daily = aggregate_daily(result.sessions)
+    dashboard_usage = aggregate_dashboard_usage(result.sessions, usage_granularity)
     top_models = aggregate_models(result.sessions)
     overview = build_dashboard_overview(summary_data, top_models, result.statuses)
     recent_sessions = filter_displayable_sessions(result.sessions)[:6]
@@ -133,12 +169,13 @@ def _run_dashboard(
         time_label=time_label,
         statuses=result.statuses,
         overview=overview,
-        daily=daily[-7:],
+        daily=dashboard_usage,
         sessions=recent_sessions,
         pricing_catalog=catalog,
         pricing_coverage=coverage,
         warnings=result.warnings,
         show_recent_sessions=show_recent_sessions,
+        usage_granularity=usage_granularity,
     )
 
 
@@ -433,6 +470,35 @@ def _scan_with_pricing(filters: ScanFilters, *, pricing_enabled: bool) -> tuple[
     catalog = load_pricing_catalog()
     coverage = apply_pricing(result.sessions, catalog)
     return result, catalog, coverage
+
+
+def _resolve_dashboard_usage_granularity(
+    filters: ScanFilters,
+    *,
+    daily_view: bool,
+    weekly_view: bool,
+    monthly_view: bool,
+) -> DashboardUsageGranularity:
+    explicit_flags = [daily_view, weekly_view, monthly_view]
+    if sum(1 for flag in explicit_flags if flag) > 1:
+        console.print("Choose at most one of --daily, --weekly, or --monthly.")
+        raise typer.Exit(code=2)
+    if daily_view:
+        return DashboardUsageGranularity.DAILY
+    if weekly_view:
+        return DashboardUsageGranularity.WEEKLY
+    if monthly_view:
+        return DashboardUsageGranularity.MONTHLY
+
+    if filters.since is None:
+        return DashboardUsageGranularity.DAILY
+    window_end = filters.until or local_now()
+    window_days = max((window_end - filters.since).total_seconds() / 86400, 0)
+    if window_days > 42:
+        return DashboardUsageGranularity.MONTHLY
+    if window_days > 14:
+        return DashboardUsageGranularity.WEEKLY
+    return DashboardUsageGranularity.DAILY
 
 
 def _token_rows(tokens: dict[str, int | None]) -> dict[str, str]:

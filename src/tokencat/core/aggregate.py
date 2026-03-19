@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from tokencat.core.models import (
     CostEstimate,
+    DashboardUsageGranularity,
     DailyModelUsageRecord,
     DailyUsageRecord,
     ModelUsage,
@@ -172,6 +173,63 @@ def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
     return items
 
 
+def aggregate_dashboard_usage(records: list[SessionRecord], granularity: DashboardUsageGranularity) -> list[DailyUsageRecord]:
+    daily_records = aggregate_daily(records)
+    if granularity is DashboardUsageGranularity.DAILY:
+        for record in daily_records:
+            record.label = record.date.isoformat()
+        return daily_records
+
+    buckets: dict[date, DailyUsageRecord] = {}
+    for record in daily_records:
+        bucket_start, label = _dashboard_bucket_key(record.date, granularity)
+        bucket = buckets.setdefault(
+            bucket_start,
+            DailyUsageRecord(
+                date=bucket_start,
+                label=label,
+            ),
+        )
+        bucket.providers.update(record.providers)
+        bucket.token_totals.add(record.token_totals)
+        bucket.session_count += record.session_count
+        bucket.estimated_cost.add(record.estimated_cost)
+        bucket.priced_tokens += record.priced_tokens
+        bucket.total_tokens += record.total_tokens
+
+        model_buckets: dict[tuple[ProviderName, str], DailyModelUsageRecord] = {
+            (item.provider, item.model): item for item in bucket.models
+        }
+        for model in record.models:
+            key = (model.provider, model.model)
+            model_bucket = model_buckets.get(key)
+            if model_bucket is None:
+                model_bucket = DailyModelUsageRecord(
+                    provider=model.provider,
+                    model=model.model,
+                    token_totals=TokenTotals.zero(),
+                    estimated_cost=CostEstimate(),
+                )
+                model_buckets[key] = model_bucket
+            model_bucket.token_totals.add(model.token_totals)
+            model_bucket.estimated_cost.add(model.estimated_cost)
+            model_bucket.session_count += model.session_count
+            model_bucket.priced_tokens += model.priced_tokens
+            model_bucket.attribution_status = _pick_attribution_status(model_bucket.attribution_status, model.attribution_status)
+            model_bucket.pricing_status = _pick_pricing_status(model_bucket.pricing_status, model.pricing_status)
+        bucket.models = sorted(
+            model_buckets.values(),
+            key=lambda item: (
+                _daily_model_sort_rank(item.pricing_status),
+                -(item.token_totals.total or 0),
+                item.provider.value,
+                item.model,
+            ),
+        )
+
+    return [buckets[key] for key in sorted(buckets)]
+
+
 def _accumulate_sliced_daily_record(
     record: SessionRecord,
     buckets: dict[date, DailyUsageRecord],
@@ -251,6 +309,16 @@ def _scale_cost_component(total_cost: float, slice_amount: int, aggregate_amount
     if total_cost == 0.0 or slice_amount <= 0 or aggregate_amount <= 0:
         return 0.0
     return total_cost * (slice_amount / aggregate_amount)
+
+
+def _dashboard_bucket_key(value: date, granularity: DashboardUsageGranularity) -> tuple[date, str]:
+    if granularity is DashboardUsageGranularity.WEEKLY:
+        bucket_start = value - timedelta(days=value.weekday())
+        return bucket_start, bucket_start.isoformat()
+    if granularity is DashboardUsageGranularity.MONTHLY:
+        bucket_start = value.replace(day=1)
+        return bucket_start, bucket_start.strftime("%Y-%m")
+    return value, value.isoformat()
 
 
 def build_dashboard_overview(summary: dict[str, object], top_models: list[dict[str, object]], statuses: list[object]) -> dict[str, object]:

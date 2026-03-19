@@ -29,6 +29,12 @@ class ProviderSupportLevel(StrEnum):
     NOT_FOUND = "not_found"
 
 
+class DashboardUsageGranularity(StrEnum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
 @dataclass(slots=True)
 class TokenTotals:
     input: int | None = None
@@ -292,6 +298,7 @@ class DailyModelUsageRecord:
 @dataclass(slots=True)
 class DailyUsageRecord:
     date: date
+    label: str | None = None
     providers: set[ProviderName] = field(default_factory=set)
     token_totals: TokenTotals = field(default_factory=TokenTotals.zero)
     session_count: int = 0
@@ -303,6 +310,7 @@ class DailyUsageRecord:
     def to_dict(self) -> dict[str, object]:
         return {
             "date": self.date.isoformat(),
+            "label": self.label or self.date.isoformat(),
             "providers": sorted(provider.value for provider in self.providers),
             "session_count": self.session_count,
             "token_totals": self.token_totals.to_dict(),

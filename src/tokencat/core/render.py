@@ -8,7 +8,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tokencat.core.models import DailyUsageRecord, PricingCatalog, PricingCoverage, ProviderStatus, SessionRecord
+from tokencat.core.models import DashboardUsageGranularity, DailyUsageRecord, PricingCatalog, PricingCoverage, ProviderStatus, SessionRecord
 from tokencat.core.presentation import (
     filter_displayable_daily_records,
     filter_displayable_model_items,
@@ -37,13 +37,14 @@ def render_dashboard(
     pricing_coverage: PricingCoverage | None,
     warnings: list[str],
     show_recent_sessions: bool = True,
+    usage_granularity: DashboardUsageGranularity = DashboardUsageGranularity.DAILY,
 ) -> None:
     visible_daily = filter_displayable_daily_records(daily)
     visible_sessions = filter_displayable_sessions(sessions[:6])
     renderables = [
         _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
         _hero_panel(overview),
-        _daily_panel(visible_daily),
+        _daily_panel(visible_daily, granularity=usage_granularity),
     ]
     if show_recent_sessions:
         renderables.append(
@@ -164,21 +165,26 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
     )
 
 
-def _daily_panel(records: list[DailyUsageRecord]) -> Panel:
+def _daily_panel(records: list[DailyUsageRecord], *, granularity: DashboardUsageGranularity) -> Panel:
+    title = {
+        DashboardUsageGranularity.DAILY: "Daily Usage",
+        DashboardUsageGranularity.WEEKLY: "Weekly Usage",
+        DashboardUsageGranularity.MONTHLY: "Monthly Usage",
+    }[granularity]
     if not records:
-        return Panel(Text("No usage in this window.", style=MUTED), title="Daily Usage", border_style=MUTED, box=box.ROUNDED, style=SURFACE)
+        return Panel(Text("No usage in this window.", style=MUTED), title=title, border_style=MUTED, box=box.ROUNDED, style=SURFACE)
 
     sections: list[object] = []
     for index, record in enumerate(records):
         if index:
             sections.append(Rule(style=MUTED))
         sections.append(_daily_block(record))
-    return Panel(Group(*sections), title="Daily Usage", border_style=MUTED, box=box.ROUNDED, style=SURFACE)
+    return Panel(Group(*sections), title=title, border_style=MUTED, box=box.ROUNDED, style=SURFACE)
 
 
 def _daily_block(record: DailyUsageRecord) -> Group:
     header = Text()
-    header.append(record.date.isoformat(), style=f"bold {ACCENT}")
+    header.append(record.label or record.date.isoformat(), style=f"bold {ACCENT}")
     header.append("  ", style=MUTED)
     header.append(f"{_format_int(record.token_totals.total)} total", style=COOL)
     header.append("  ", style=MUTED)
