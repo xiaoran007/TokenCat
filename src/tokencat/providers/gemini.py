@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tokencat.core.models import ModelUsage, ProviderName, ProviderStatus, ProviderSupportLevel, ScanFilters, SessionRecord, TokenTotals
+from tokencat.core.models import ModelUsage, ProviderName, ProviderStatus, ProviderSupportLevel, ScanFilters, SessionRecord, TokenTotals, UsageSlice
 from tokencat.core.privacy import anonymize_session_id
 from tokencat.core.time import parse_iso_datetime
 from tokencat.providers.base import ProviderAdapter
@@ -86,6 +86,7 @@ class GeminiAdapter(ProviderAdapter):
             token_payload = message.get("tokens")
             if not model or not isinstance(token_payload, dict):
                 continue
+            message_timestamp = parse_iso_datetime(message.get("timestamp"))
             tokens = TokenTotals(
                 input=token_payload.get("input"),
                 output=token_payload.get("output"),
@@ -97,6 +98,16 @@ class GeminiAdapter(ProviderAdapter):
             record.token_totals.add(tokens)
             usage = record.model_usage.setdefault(model, ModelUsage(model=model, tokens=TokenTotals.zero()))
             usage.add(tokens, message_count=1)
+            if message_timestamp is not None:
+                record.usage_slices.append(
+                    UsageSlice(
+                        timestamp=message_timestamp,
+                        model=model,
+                        tokens=tokens,
+                        message_count=1,
+                        attribution_status="exact",
+                    )
+                )
 
         return record
 

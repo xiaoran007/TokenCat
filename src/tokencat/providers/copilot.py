@@ -13,6 +13,7 @@ from tokencat.core.models import (
     ScanFilters,
     SessionRecord,
     TokenTotals,
+    UsageSlice,
 )
 from tokencat.core.privacy import anonymize_session_id
 from tokencat.core.time import parse_iso_datetime
@@ -199,6 +200,16 @@ class CopilotAdapter(ProviderAdapter):
 
             if tokens is not None:
                 record.token_totals.add(tokens)
+                if request_at is not None:
+                    record.usage_slices.append(
+                        UsageSlice(
+                            timestamp=request_at,
+                            model=model_name,
+                            tokens=tokens,
+                            message_count=1,
+                            attribution_status="exact" if model_name is not None else None,
+                        )
+                    )
 
             if model_name is None:
                 saw_missing_model_usage = saw_missing_model_usage or tokens is not None
@@ -712,6 +723,29 @@ def _prefer_richer_session(existing: SessionRecord, candidate: SessionRecord) ->
         preferred.source_refs = fallback.source_refs
     for key, value in fallback.metadata.items():
         preferred.metadata.setdefault(key, value)
+    if not preferred.usage_slices and fallback.usage_slices:
+        preferred.usage_slices = list(fallback.usage_slices)
+    elif fallback.usage_slices:
+        existing_keys = {
+            (
+                slice_record.timestamp,
+                slice_record.model,
+                slice_record.tokens.total,
+                slice_record.message_count,
+            )
+            for slice_record in preferred.usage_slices
+        }
+        for slice_record in fallback.usage_slices:
+            key = (
+                slice_record.timestamp,
+                slice_record.model,
+                slice_record.tokens.total,
+                slice_record.message_count,
+            )
+            if key not in existing_keys:
+                preferred.usage_slices.append(slice_record)
+                existing_keys.add(key)
+        preferred.usage_slices.sort(key=lambda item: item.timestamp)
     return preferred
 
 

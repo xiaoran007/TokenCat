@@ -112,6 +112,16 @@ class ModelUsage:
 
 
 @dataclass(slots=True)
+class UsageSlice:
+    timestamp: datetime
+    model: str | None
+    tokens: TokenTotals
+    message_count: int = 0
+    attribution_status: str | None = None
+    is_fallback_model: bool = False
+
+
+@dataclass(slots=True)
 class SessionRecord:
     provider: ProviderName
     provider_session_id: str
@@ -121,6 +131,7 @@ class SessionRecord:
     token_totals: TokenTotals
     source_refs: list[Path] = field(default_factory=list)
     model_usage: dict[str, ModelUsage] = field(default_factory=dict)
+    usage_slices: list[UsageSlice] = field(default_factory=list)
     primary_model_override: str | None = None
     title: str | None = None
     cwd: str | None = None

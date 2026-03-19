@@ -14,6 +14,7 @@ from tokencat.core.models import (
     ScanFilters,
     SessionRecord,
     TokenTotals,
+    UsageSlice,
 )
 from tokencat.core.privacy import anonymize_session_id
 from tokencat.core.time import parse_iso_datetime, parse_unix_timestamp
@@ -234,6 +235,17 @@ class CodexAdapter(ProviderAdapter):
                 usage.add(tokens, message_count=1)
                 usage.is_fallback_model = usage.is_fallback_model or is_fallback_model
                 usage.attribution_status = "fallback" if usage.is_fallback_model else "exact"
+                if timestamp is not None:
+                    record.usage_slices.append(
+                        UsageSlice(
+                            timestamp=timestamp,
+                            model=model,
+                            tokens=tokens,
+                            message_count=1,
+                            attribution_status="fallback" if is_fallback_model else "exact",
+                            is_fallback_model=is_fallback_model,
+                        )
+                    )
 
         if record is None and session_id is not None:
             record = self._new_record(session_id)
@@ -464,4 +476,27 @@ def _prefer_richer_record(left: SessionRecord, right: SessionRecord) -> SessionR
     for source_ref in other.source_refs:
         if source_ref not in winner.source_refs:
             winner.source_refs.append(source_ref)
+    if not winner.usage_slices and other.usage_slices:
+        winner.usage_slices = list(other.usage_slices)
+    elif other.usage_slices:
+        existing_keys = {
+            (
+                slice_record.timestamp,
+                slice_record.model,
+                slice_record.tokens.to_dict()["total"],
+                slice_record.message_count,
+            )
+            for slice_record in winner.usage_slices
+        }
+        for slice_record in other.usage_slices:
+            key = (
+                slice_record.timestamp,
+                slice_record.model,
+                slice_record.tokens.to_dict()["total"],
+                slice_record.message_count,
+            )
+            if key not in existing_keys:
+                winner.usage_slices.append(slice_record)
+                existing_keys.add(key)
+        winner.usage_slices.sort(key=lambda item: item.timestamp)
     return winner
