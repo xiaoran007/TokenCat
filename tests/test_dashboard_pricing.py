@@ -8,8 +8,8 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from tokencat.cli import app
-from tokencat.core.aggregate import aggregate_daily, aggregate_models, aggregate_summary, build_dashboard_overview
-from tokencat.core.models import ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
+from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
+from tokencat.core.models import DashboardUsageGranularity, ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
 from tokencat.core.pricing import (
     apply_pricing,
     estimate_cost,
@@ -167,6 +167,78 @@ def seed_dashboard_sample(home: Path, *, unknown_gemini: bool = False) -> None:
     )
 
 
+def seed_long_window_dashboard_sample(home: Path) -> None:
+    codex_dir = home / ".codex"
+    write_jsonl(
+        codex_dir / "session_index.jsonl",
+        [
+            {"id": "jan-session", "thread_name": "January"},
+            {"id": "feb-session", "thread_name": "February"},
+            {"id": "mar-session", "thread_name": "March"},
+        ],
+    )
+    write_jsonl(
+        codex_dir / "sessions" / "2026" / "01" / "10" / "rollout-jan-session.jsonl",
+        [
+            {
+                "timestamp": "2026-01-10T10:00:00.000Z",
+                "type": "session_meta",
+                "payload": {"id": "jan-session", "timestamp": "2026-01-10T10:00:00.000Z", "cwd": "/repo/project", "source": "vscode", "model_provider": "openai"},
+            },
+            {
+                "timestamp": "2026-01-10T10:01:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5.3-codex"},
+            },
+            {
+                "timestamp": "2026-01-10T10:01:05.000Z",
+                "type": "event_msg",
+                "payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 120, "cached_input_tokens": 20, "output_tokens": 30, "reasoning_output_tokens": 10, "total_tokens": 180}}},
+            },
+        ],
+    )
+    write_jsonl(
+        codex_dir / "sessions" / "2026" / "02" / "17" / "rollout-feb-session.jsonl",
+        [
+            {
+                "timestamp": "2026-02-17T10:00:00.000Z",
+                "type": "session_meta",
+                "payload": {"id": "feb-session", "timestamp": "2026-02-17T10:00:00.000Z", "cwd": "/repo/project", "source": "vscode", "model_provider": "openai"},
+            },
+            {
+                "timestamp": "2026-02-17T10:01:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5.3-codex"},
+            },
+            {
+                "timestamp": "2026-02-17T10:01:05.000Z",
+                "type": "event_msg",
+                "payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 240, "cached_input_tokens": 40, "output_tokens": 60, "reasoning_output_tokens": 20, "total_tokens": 360}}},
+            },
+        ],
+    )
+    write_jsonl(
+        codex_dir / "sessions" / "2026" / "03" / "10" / "rollout-mar-session.jsonl",
+        [
+            {
+                "timestamp": "2026-03-10T10:00:00.000Z",
+                "type": "session_meta",
+                "payload": {"id": "mar-session", "timestamp": "2026-03-10T10:00:00.000Z", "cwd": "/repo/project", "source": "vscode", "model_provider": "openai"},
+            },
+            {
+                "timestamp": "2026-03-10T10:01:00.000Z",
+                "type": "turn_context",
+                "payload": {"turn_id": "turn-1", "model": "gpt-5.3-codex"},
+            },
+            {
+                "timestamp": "2026-03-10T10:01:05.000Z",
+                "type": "event_msg",
+                "payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 360, "cached_input_tokens": 60, "output_tokens": 90, "reasoning_output_tokens": 30, "total_tokens": 540}}},
+            },
+        ],
+    )
+
+
 def write_copilot_session_json(home: Path, workspace_id: str, session_id: str, payload: dict[str, object]) -> Path:
     path = (
         home
@@ -202,6 +274,35 @@ def build_dashboard_render_output(home: Path) -> str:
         pricing_catalog=catalog,
         pricing_coverage=coverage,
         warnings=result.warnings,
+    )
+    return console.export_text()
+
+
+def build_dashboard_render_output_for_granularity(
+    home: Path,
+    *,
+    since: str,
+    granularity: DashboardUsageGranularity,
+) -> str:
+    result = scan_providers(ScanFilters(since=parse_datetime_value(since, bound="since")))
+    catalog = load_pricing_catalog(home)
+    coverage = apply_pricing(result.sessions, catalog)
+    summary = aggregate_summary(result.sessions, pricing_coverage=coverage)
+    usage = aggregate_dashboard_usage(result.sessions, granularity)
+    models = aggregate_models(result.sessions)
+    overview = build_dashboard_overview(summary, models, result.statuses)
+    console = Console(width=100, force_terminal=False, color_system=None, record=True)
+    render_dashboard(
+        console,
+        time_label=since,
+        statuses=result.statuses,
+        overview=overview,
+        daily=usage,
+        sessions=result.sessions[:6],
+        pricing_catalog=catalog,
+        pricing_coverage=coverage,
+        warnings=result.warnings,
+        usage_granularity=granularity,
     )
     return console.export_text()
 
@@ -513,6 +614,79 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
     )
     rendered = console.export_text()
     expected = (Path(__file__).parent / "golden" / "dashboard_no_price.txt").read_text(encoding="utf-8")
+    assert rendered == expected
+
+
+def test_dashboard_adapts_to_weekly_and_monthly_terminal_usage(sample_home: Path, monkeypatch) -> None:
+    seed_long_window_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    weekly = runner.invoke(app, ["dashboard", "--since", "30d"])
+    assert weekly.exit_code == 0
+    assert "Weekly Usage" in weekly.stdout
+    assert "Daily Usage" not in weekly.stdout
+
+    monthly = runner.invoke(app, ["dashboard", "--since", "90d"])
+    assert monthly.exit_code == 0
+    assert "Monthly Usage" in monthly.stdout
+    assert "Weekly Usage" not in monthly.stdout
+
+
+def test_dashboard_granularity_flags_override_adaptive_behavior(sample_home: Path, monkeypatch) -> None:
+    seed_long_window_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    daily = runner.invoke(app, ["dashboard", "--since", "90d", "--daily"])
+    assert daily.exit_code == 0
+    assert "Daily Usage" in daily.stdout
+
+    weekly = runner.invoke(app, ["dashboard", "--since", "7d", "--weekly"])
+    assert weekly.exit_code == 0
+    assert "Weekly Usage" in weekly.stdout
+
+    monthly = runner.invoke(app, ["dashboard", "--since", "7d", "--monthly"])
+    assert monthly.exit_code == 0
+    assert "Monthly Usage" in monthly.stdout
+
+
+def test_dashboard_granularity_flags_conflict(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["dashboard", "--daily", "--monthly"])
+    assert result.exit_code != 0
+    assert "Choose at most one of --daily, --weekly, or --monthly." in result.stdout
+
+
+def test_dashboard_weekly_render_matches_golden(sample_home: Path, monkeypatch) -> None:
+    seed_long_window_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    rendered = build_dashboard_render_output_for_granularity(
+        sample_home,
+        since="30d",
+        granularity=DashboardUsageGranularity.WEEKLY,
+    )
+    expected = (Path(__file__).parent / "golden" / "dashboard_weekly.txt").read_text(encoding="utf-8")
+    assert rendered == expected
+
+
+def test_dashboard_monthly_render_matches_golden(sample_home: Path, monkeypatch) -> None:
+    seed_long_window_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    rendered = build_dashboard_render_output_for_granularity(
+        sample_home,
+        since="90d",
+        granularity=DashboardUsageGranularity.MONTHLY,
+    )
+    expected = (Path(__file__).parent / "golden" / "dashboard_monthly.txt").read_text(encoding="utf-8")
     assert rendered == expected
 
 
