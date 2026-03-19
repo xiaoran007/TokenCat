@@ -2,7 +2,7 @@
 
 ## Product Status
 
-- Current tagged release: `v0.3.0`.
+- Current tagged release: `v0.4.0`.
 - Current working branch is typically `main` unless the user explicitly asks for a feature branch.
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
 - Supported in practice:
@@ -17,7 +17,7 @@
 - TokenCat is read-only with respect to provider data.
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
-- Pricing behavior in `v0.3.0`:
+- Pricing behavior in `v0.4.0`:
   - package builds refresh the bundled pricing catalog before packaging;
   - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
   - silent bootstrap failure falls back to the bundled catalog without surfacing an error.
@@ -29,6 +29,8 @@
   - pricing catalog entries are keyed by pricing source, not scan provider;
   - session/model JSON can include `pricing_source` in addition to `pricing_model`.
   - time-windowed `sessions`, `summary`, `models`, and `daily` views now use event/message/request timestamps when local telemetry supports it, instead of assigning whole sessions to `updated_at`.
+  - terminal dashboard usage buckets can adapt between daily, weekly, and monthly views based on the selected time window, with explicit `--daily`, `--weekly`, and `--monthly` overrides.
+  - terminal dashboard hides zero-token model rows so metadata-only Copilot VS Code sessions do not show misleading `0` token lines by default.
 
 ## Release / Versioning Workflow
 
