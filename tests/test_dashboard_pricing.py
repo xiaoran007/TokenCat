@@ -690,6 +690,37 @@ def test_dashboard_monthly_render_matches_golden(sample_home: Path, monkeypatch)
     assert rendered == expected
 
 
+def test_default_dashboard_hides_zero_token_copilot_metadata_only_models(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    write_copilot_session_json(
+        sample_home,
+        "workspace-metadata-only",
+        "session-metadata-only",
+        {
+            "sessionId": "session-metadata-only",
+            "creationDate": 1771964962718,
+            "requests": [
+                {
+                    "timestamp": 1771964963718,
+                    "modelId": "copilot/claude-sonnet-4.6",
+                },
+                {
+                    "timestamp": 1771964964718,
+                    "modelId": "copilot/gpt-5.4",
+                },
+            ],
+        },
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "copilot/claude-sonnet-4.6" not in result.stdout
+    assert "copilot/gpt-5.4" not in result.stdout
+
+
 def test_codex_cross_day_usage_splits_daily_and_since_window(sample_home: Path, monkeypatch) -> None:
     codex_dir = sample_home / ".codex"
     write_jsonl(
