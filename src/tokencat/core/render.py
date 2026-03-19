@@ -39,7 +39,7 @@ def render_dashboard(
     show_recent_sessions: bool = True,
     usage_granularity: DashboardUsageGranularity = DashboardUsageGranularity.DAILY,
 ) -> None:
-    visible_daily = filter_displayable_daily_records(daily)
+    visible_daily = _filter_dashboard_daily_records(daily)
     visible_sessions = filter_displayable_sessions(sessions[:6])
     renderables = [
         _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
@@ -108,7 +108,9 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
     totals = overview["token_totals"]
     cost = overview["estimated_cost"]
     secondary = overview.get("secondary_metrics") or {}
-    top_models = filter_displayable_model_items(overview.get("top_models") or [])
+    top_models = [
+        item for item in filter_displayable_model_items(overview.get("top_models") or []) if _model_item_total(item) > 0
+    ]
 
     primary = Text()
     primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {ACCENT}")
@@ -223,6 +225,44 @@ def _daily_block(record: DailyUsageRecord) -> Group:
         )
 
     return Group(header, table)
+
+
+def _filter_dashboard_daily_records(records: list[DailyUsageRecord]) -> list[DailyUsageRecord]:
+    visible: list[DailyUsageRecord] = []
+    for record in filter_displayable_daily_records(records):
+        models = [model for model in record.models if _token_total(model.token_totals) > 0]
+        if not models and _token_total(record.token_totals) == 0:
+            continue
+        visible.append(record if len(models) == len(record.models) else DailyUsageRecord(
+            date=record.date,
+            label=record.label,
+            providers=set(record.providers),
+            token_totals=record.token_totals,
+            session_count=record.session_count,
+            estimated_cost=record.estimated_cost,
+            priced_tokens=record.priced_tokens,
+            total_tokens=record.total_tokens,
+            models=models,
+        ))
+    return visible
+
+
+def _model_item_total(item: dict[str, object]) -> int:
+    token_totals = item.get("token_totals")
+    if not isinstance(token_totals, dict):
+        return 0
+    total = token_totals.get("total")
+    if isinstance(total, int):
+        return total
+    return sum(value for value in token_totals.values() if isinstance(value, int))
+
+
+def _token_total(tokens) -> int:
+    total = tokens.total if hasattr(tokens, "total") else None
+    if isinstance(total, int):
+        return total
+    values = tokens.to_dict().values() if hasattr(tokens, "to_dict") else []
+    return sum(value for value in values if isinstance(value, int))
 
 
 def _recent_sessions_renderable(records: list[SessionRecord]) -> Table | Text:
