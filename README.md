@@ -11,7 +11,7 @@ TokenCat is a local-first, read-only CLI for understanding how AI coding agents 
 
 If you jump between Codex, Gemini CLI, and Copilot CLI, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
 
-![TokenCat dashboard demo](https://files.catbox.moe/tf9mur.png)
+![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png)
 
 ## Why TokenCat
 
