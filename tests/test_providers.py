@@ -7,50 +7,18 @@ from tokencat.core.models import ScanFilters
 from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
+from tokencat.providers.opencode import OpenCodeAdapter
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
-
-
-def write_copilot_session_json(
-    home: Path,
-    workspace_id: str,
-    session_id: str,
-    payload: dict[str, object],
-) -> Path:
-    path = (
-        home
-        / "Library"
-        / "Application Support"
-        / "Code"
-        / "User"
-        / "workspaceStorage"
-        / workspace_id
-        / "chatSessions"
-        / f"{session_id}.json"
-    )
-    write_json(path, payload)
-    return path
-
-
-def write_copilot_session_jsonl(
-    home: Path,
-    workspace_id: str,
-    session_id: str,
-    rows: list[dict[str, object]],
-) -> Path:
-    path = (
-        home
-        / "Library"
-        / "Application Support"
-        / "Code"
-        / "User"
-        / "workspaceStorage"
-        / workspace_id
-        / "chatSessions"
-        / f"{session_id}.jsonl"
-    )
-    write_jsonl(path, rows)
-    return path
+from conftest import (
+    create_codex_state_db,
+    write_copilot_cli_session_state,
+    write_copilot_session_json,
+    write_copilot_session_jsonl,
+    write_json,
+    write_opencode_message,
+    write_opencode_session,
+    write_jsonl,
+)
 
 
 def test_codex_adapter_aggregates_archived_sessions_and_sqlite_fallback(sample_home: Path) -> None:
@@ -300,6 +268,31 @@ def test_copilot_detect_marks_vscode_chat_sessions_as_supported(sample_home: Pat
 
     assert status.status.value == "supported"
     assert any("workspaceStorage" in str(path) for path in status.found_paths)
+
+
+def test_copilot_detect_marks_linux_vscode_chat_sessions_as_supported(sample_home: Path) -> None:
+    write_copilot_session_json(
+        sample_home,
+        "workspace-linux",
+        "session-linux",
+        {
+            "sessionId": "session-linux",
+            "creationDate": 1771433087111,
+            "requests": [
+                {
+                    "timestamp": 1771433108061,
+                    "modelId": "copilot/gpt-5.3-codex",
+                    "result": {"usage": {"promptTokens": 100, "completionTokens": 20}},
+                }
+            ],
+        },
+        platform="linux",
+    )
+
+    status = CopilotAdapter(home=sample_home).detect()
+
+    assert status.status.value == "supported"
+    assert any(".config/Code/User/workspaceStorage" in str(path) for path in status.found_paths)
 
 
 def test_copilot_detect_marks_cli_session_state_as_supported(sample_home: Path) -> None:
@@ -682,3 +675,139 @@ def test_copilot_detect_keeps_jetbrains_state_unscannable(sample_home: Path) -> 
     status = CopilotAdapter(home=sample_home).detect()
 
     assert status.status.value == "unsupported"
+
+
+def test_opencode_detect_marks_message_store_as_supported(sample_home: Path) -> None:
+    write_opencode_session(
+        sample_home,
+        "session-a",
+        {
+            "id": "session-a",
+            "title": "OpenCode Pairing",
+            "time": {"created": 1773340000000, "updated": 1773340500000},
+        },
+        project_id="project-a",
+    )
+    write_opencode_message(
+        sample_home,
+        "session-a",
+        "msg-1",
+        {
+            "id": "msg-1",
+            "sessionID": "session-a",
+            "role": "assistant",
+            "providerID": "anthropic",
+            "modelID": "claude-sonnet-4.6",
+            "tokens": {"input": 1200, "output": 200, "reasoning": 50, "cache": {"read": 300, "write": 30}},
+            "time": {"created": 1773340400000},
+        },
+        project_id="project-a",
+    )
+
+    status = OpenCodeAdapter(home=sample_home).detect()
+
+    assert status.status.value == "supported"
+    assert any("opencode" in str(path) for path in status.found_paths)
+
+
+def test_opencode_detect_marks_config_only_state_as_partial(sample_home: Path) -> None:
+    write_json(sample_home / ".config" / "opencode" / "opencode.json", {"theme": "tokencat"})
+
+    status = OpenCodeAdapter(home=sample_home).detect()
+
+    assert status.status.value == "partial"
+    assert any("install/config" in reason for reason in status.reasons)
+
+
+def test_opencode_detect_marks_missing_state_as_not_found(sample_home: Path) -> None:
+    status = OpenCodeAdapter(home=sample_home).detect()
+
+    assert status.status.value == "not_found"
+
+
+def test_opencode_adapter_aggregates_multi_model_usage_and_redacts_message_bodies(sample_home: Path) -> None:
+    write_opencode_session(
+        sample_home,
+        "session-multi",
+        {
+            "id": "session-multi",
+            "title": "OpenCode Pairing",
+            "cwd": "/repo/opencode-playground",
+            "projectID": "project-opencode",
+            "time": {"created": 1773340000000, "updated": 1773340700000},
+        },
+        project_id="project-opencode",
+    )
+    write_opencode_message(
+        sample_home,
+        "session-multi",
+        "msg-1",
+        {
+            "id": "msg-1",
+            "sessionID": "session-multi",
+            "role": "assistant",
+            "providerID": "anthropic",
+            "modelID": "claude-sonnet-4.6",
+            "body": "never expose this",
+            "tokens": {"input": 1200, "output": 200, "reasoning": 50, "cache": {"read": 300, "write": 30}},
+            "time": {"created": 1773340400000},
+        },
+        project_id="project-opencode",
+    )
+    write_opencode_message(
+        sample_home,
+        "session-multi",
+        "msg-2",
+        {
+            "id": "msg-2",
+            "sessionID": "session-multi",
+            "role": "assistant",
+            "providerID": "openai",
+            "modelID": "gpt-5.3-codex",
+            "system": "also never expose this",
+            "tokens": {"input": 500, "output": 100, "reasoning": 20, "cache": {"read": 50, "write": 10}},
+            "time": {"created": 1773340600000},
+        },
+        project_id="project-opencode",
+    )
+
+    sessions = OpenCodeAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.title == "OpenCode Pairing"
+    assert record.cwd == "/repo/opencode-playground"
+    assert record.primary_model == "anthropic/claude-sonnet-4.6"
+    assert set(record.model_usage) == {"anthropic/claude-sonnet-4.6", "openai/gpt-5.3-codex"}
+    assert record.token_totals.input == 1700
+    assert record.token_totals.output == 300
+    assert record.token_totals.cached == 350
+    assert record.token_totals.reasoning == 70
+    assert record.token_totals.total == 2420
+    assert record.metadata["project_id"] == "project-opencode"
+    assert record.metadata["request_count"] == 2
+    assert record.metadata["cache_write_tokens"] == 40
+    assert record.attribution_status == "exact"
+    assert "never expose this" not in json.dumps(record.metadata, ensure_ascii=False)
+
+
+def test_opencode_adapter_marks_unattributed_token_messages_as_partial(sample_home: Path) -> None:
+    write_opencode_message(
+        sample_home,
+        "session-unattributed",
+        "msg-1",
+        {
+            "id": "msg-1",
+            "sessionID": "session-unattributed",
+            "role": "assistant",
+            "tokens": {"input": 100, "output": 20, "cache": {"read": 10, "write": 0}},
+            "time": {"created": 1773340400000},
+        },
+    )
+
+    sessions = OpenCodeAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    assert sessions[0].model_usage == {}
+    assert sessions[0].token_totals.total == 130
+    assert sessions[0].attribution_status == "unattributed"

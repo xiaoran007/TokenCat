@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,69 @@ def write_copilot_cli_session_state(
         write_text(session_dir / "workspace.yaml", "\n".join(lines) + "\n")
 
     return events_path
+
+
+def write_copilot_session_json(
+    home: Path,
+    workspace_id: str,
+    session_id: str,
+    payload: dict[str, object],
+    *,
+    platform: str = "macos",
+) -> Path:
+    path = copilot_workspace_storage_dir(home, platform=platform) / workspace_id / "chatSessions" / f"{session_id}.json"
+    write_json(path, payload)
+    return path
+
+
+def write_copilot_session_jsonl(
+    home: Path,
+    workspace_id: str,
+    session_id: str,
+    rows: list[dict[str, object]],
+    *,
+    platform: str = "macos",
+) -> Path:
+    path = copilot_workspace_storage_dir(home, platform=platform) / workspace_id / "chatSessions" / f"{session_id}.jsonl"
+    write_jsonl(path, rows)
+    return path
+
+
+def copilot_workspace_storage_dir(home: Path, *, platform: str = "macos") -> Path:
+    if platform == "linux":
+        return home / ".config" / "Code" / "User" / "workspaceStorage"
+    return home / "Library" / "Application Support" / "Code" / "User" / "workspaceStorage"
+
+
+def write_opencode_session(
+    home: Path,
+    session_id: str,
+    payload: dict[str, object],
+    *,
+    project_id: str | None = None,
+) -> Path:
+    if project_id is None:
+        path = home / ".local" / "share" / "opencode" / "storage" / "session" / f"{session_id}.json"
+    else:
+        path = home / ".local" / "share" / "opencode" / "project" / project_id / "storage" / "session" / f"{session_id}.json"
+    write_json(path, payload)
+    return path
+
+
+def write_opencode_message(
+    home: Path,
+    session_id: str,
+    message_id: str,
+    payload: dict[str, object],
+    *,
+    project_id: str | None = None,
+) -> Path:
+    if project_id is None:
+        path = home / ".local" / "share" / "opencode" / "storage" / "message" / session_id / f"{message_id}.json"
+    else:
+        path = home / ".local" / "share" / "opencode" / "project" / project_id / "storage" / "message" / session_id / f"{message_id}.json"
+    write_json(path, payload)
+    return path
 
 
 def create_codex_state_db(path: Path, rows: list[tuple]) -> None:
@@ -96,3 +160,10 @@ def sample_home(tmp_path: Path) -> Path:
     home = tmp_path / "home"
     home.mkdir()
     return home
+
+
+@pytest.fixture(autouse=True)
+def fixed_now(monkeypatch) -> None:
+    now = datetime.fromisoformat("2026-03-16T12:00:00-04:00")
+    monkeypatch.setattr("tokencat.core.time.local_now", lambda: now)
+    monkeypatch.setattr("tokencat.cli.local_now", lambda: now)

@@ -23,7 +23,14 @@ from tokencat.core.render import render_dashboard
 from tokencat.core.time import parse_datetime_value
 from tokencat.providers.registry import scan_providers
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+from conftest import (
+    create_codex_state_db,
+    write_copilot_cli_session_state,
+    write_json,
+    write_jsonl,
+    write_opencode_message,
+    write_opencode_session,
+)
 
 
 def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> None:
@@ -360,6 +367,43 @@ def test_pricing_show_json_includes_pricing_source(sample_home: Path, monkeypatc
     entries = payload["summary"]["pricing"]["catalog"]["entries"]
     assert any(entry["pricing_source"] == "openai" and entry["model"] == "gpt-5" for entry in entries)
     assert any(entry["pricing_source"] == "gemini" and entry["model"] == "gemini-2.5-pro" for entry in entries)
+
+
+def test_opencode_namespaced_models_use_underlying_vendor_pricing(sample_home: Path, monkeypatch) -> None:
+    seed_pricing_cache(sample_home)
+    write_opencode_session(
+        sample_home,
+        "session-opencode-pricing",
+        {
+            "id": "session-opencode-pricing",
+            "title": "OpenCode Pricing",
+            "time": {"created": 1773340000000, "updated": 1773340400000},
+        },
+        project_id="pricing-project",
+    )
+    write_opencode_message(
+        sample_home,
+        "session-opencode-pricing",
+        "msg-1",
+        {
+            "id": "msg-1",
+            "sessionID": "session-opencode-pricing",
+            "providerID": "openai",
+            "modelID": "gpt-5.3-codex",
+            "tokens": {"input": 1000, "output": 200, "cache": {"read": 100, "write": 0}, "reasoning": 50},
+            "time": {"created": 1773340400000},
+        },
+        project_id="pricing-project",
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["sessions", "--provider", "opencode", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["items"][0]["pricing_source"] == "openai"
+    assert payload["items"][0]["pricing_model"] == "gpt-5.2-codex"
 
 
 def test_refresh_builtin_pricing_writes_cache(sample_home: Path) -> None:

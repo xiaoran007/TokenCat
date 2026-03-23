@@ -7,28 +7,15 @@ from typer.testing import CliRunner
 
 from tokencat.cli import app
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
-
-
-def write_copilot_session_json(
-    home: Path,
-    workspace_id: str,
-    session_id: str,
-    payload: dict[str, object],
-) -> Path:
-    path = (
-        home
-        / "Library"
-        / "Application Support"
-        / "Code"
-        / "User"
-        / "workspaceStorage"
-        / workspace_id
-        / "chatSessions"
-        / f"{session_id}.json"
-    )
-    write_json(path, payload)
-    return path
+from conftest import (
+    create_codex_state_db,
+    write_copilot_cli_session_state,
+    write_copilot_session_json,
+    write_json,
+    write_jsonl,
+    write_opencode_message,
+    write_opencode_session,
+)
 
 
 def seed_bootstrap_marker(home: Path) -> None:
@@ -441,3 +428,55 @@ def test_copilot_doctor_sessions_and_models_commands_report_cli_session_state_us
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["model"] == "claude-sonnet-4.6"
     assert models_payload["items"][0]["token_totals"]["cached"] == 406292
+
+
+def test_opencode_doctor_sessions_and_models_commands_report_local_usage(sample_home: Path, monkeypatch) -> None:
+    seed_bootstrap_marker(sample_home)
+    write_opencode_session(
+        sample_home,
+        "session-open",
+        {
+            "id": "session-open",
+            "title": "OpenCode Pairing",
+            "cwd": "/repo/opencode-playground",
+            "time": {"created": 1773340000000, "updated": 1773340600000},
+        },
+        project_id="project-open",
+    )
+    write_opencode_message(
+        sample_home,
+        "session-open",
+        "msg-1",
+        {
+            "id": "msg-1",
+            "sessionID": "session-open",
+            "providerID": "anthropic",
+            "modelID": "claude-sonnet-4.6",
+            "tokens": {"input": 1200, "output": 200, "reasoning": 50, "cache": {"read": 300, "write": 30}},
+            "time": {"created": 1773340400000},
+        },
+        project_id="project-open",
+    )
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    doctor_result = runner.invoke(app, ["doctor", "--json"])
+    assert doctor_result.exit_code == 0
+    doctor_payload = json.loads(doctor_result.stdout)
+    statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
+    assert statuses["opencode"] == "supported"
+
+    sessions_result = runner.invoke(app, ["sessions", "--provider", "opencode", "--since", "365d", "--json"])
+    assert sessions_result.exit_code == 0
+    sessions_payload = json.loads(sessions_result.stdout)
+    assert len(sessions_payload["items"]) == 1
+    assert sessions_payload["items"][0]["primary_model"] == "anthropic/claude-sonnet-4.6"
+    assert sessions_payload["items"][0]["token_totals"]["total"] == 1750
+    assert "provider_session_id" not in sessions_payload["items"][0]
+
+    models_result = runner.invoke(app, ["models", "--provider", "opencode", "--since", "365d", "--json", "--no-price"])
+    assert models_result.exit_code == 0
+    models_payload = json.loads(models_result.stdout)
+    assert models_payload["items"][0]["model"] == "anthropic/claude-sonnet-4.6"
+    assert models_payload["items"][0]["token_totals"]["reasoning"] == 50

@@ -1,7 +1,7 @@
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ tokencat  local usage cockpit                                                                    │
 │ window: 7d                                                                                       │
-│ ● Codex:supported  ● Gemini CLI:supported  ● GitHub Copilot CLI:not_found                        │
+│ ● Codex:supported  ● Gemini CLI:supported  ● GitHub Copilot CLI:not_found  ● OpenCode:not_found  │
 │ pricing: cache  refreshed 2026-03-15T00:00:00+00:00                                              │
 │ unknown pricing: gemini-3-pro-preview                                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
