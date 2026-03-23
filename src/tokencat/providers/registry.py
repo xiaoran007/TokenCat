@@ -6,6 +6,7 @@ from tokencat.providers.base import ProviderAdapter
 from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
+from tokencat.providers.opencode import OpenCodeAdapter
 
 
 def build_providers() -> list[ProviderAdapter]:
@@ -13,6 +14,7 @@ def build_providers() -> list[ProviderAdapter]:
         CodexAdapter(),
         GeminiAdapter(),
         CopilotAdapter(),
+        OpenCodeAdapter(),
     ]
 
 
@@ -20,7 +22,7 @@ def scan_providers(filters: ScanFilters) -> ScanResult:
     statuses = []
     sessions = []
     warnings = []
-    selected = filters.providers or {ProviderName.CODEX, ProviderName.GEMINI, ProviderName.COPILOT}
+    selected = filters.providers or {ProviderName.CODEX, ProviderName.GEMINI, ProviderName.COPILOT, ProviderName.OPENCODE}
 
     for adapter in build_providers():
         status = adapter.detect()

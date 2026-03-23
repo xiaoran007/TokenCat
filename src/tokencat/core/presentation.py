@@ -9,6 +9,7 @@ FORMAL_PROVIDER_NAMES = {
     ProviderName.CODEX.value: "Codex",
     ProviderName.GEMINI.value: "Gemini CLI",
     ProviderName.COPILOT.value: "GitHub Copilot CLI",
+    ProviderName.OPENCODE.value: "OpenCode",
 }
 
 

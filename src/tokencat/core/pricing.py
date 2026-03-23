@@ -35,6 +35,7 @@ DIRECT_SOURCES_BY_PROVIDER: dict[ProviderName, tuple[PricingSourceName, ...]] = 
     ProviderName.CODEX: ("openai",),
     ProviderName.GEMINI: ("gemini",),
     ProviderName.COPILOT: ("github_copilot",),
+    ProviderName.OPENCODE: (),
 }
 OFFICIAL_SOURCES_BY_FAMILY: dict[str, tuple[PricingSourceName, ...]] = {
     "openai": ("openai",),
@@ -373,7 +374,9 @@ def _normalize_litellm_dataset(dataset: dict[str, object]) -> list[PricingEntry]
 
 
 def _pricing_candidates(provider: ProviderName, model: str) -> list[PricingCandidate]:
-    family = _infer_model_family(model)
+    explicit_source_model = _extract_explicit_source_model(model)
+    base_model = explicit_source_model[1] if explicit_source_model is not None else model
+    family = _infer_model_family(base_model)
     seen: set[tuple[str, str]] = set()
     candidates: list[PricingCandidate] = []
 
@@ -384,16 +387,19 @@ def _pricing_candidates(provider: ProviderName, model: str) -> list[PricingCandi
         seen.add(key)
         candidates.append(PricingCandidate(pricing_source=source, model=model_key, is_fallback=is_fallback))
 
+    if explicit_source_model is not None:
+        add(explicit_source_model[0], explicit_source_model[1], is_fallback=False)
+
     direct_sources = DIRECT_SOURCES_BY_PROVIDER.get(provider, ())
     for source in direct_sources:
-        for model_key, used_alias in _model_keys_for_source(source, model, family):
+        for model_key, used_alias in _model_keys_for_source(source, base_model, family):
             add(source, model_key, is_fallback=used_alias)
 
     if family is not None:
         for source in OFFICIAL_SOURCES_BY_FAMILY.get(family, ()):
-            for model_key, used_alias in _model_keys_for_source(source, model, family):
+            for model_key, used_alias in _model_keys_for_source(source, base_model, family):
                 add(source, model_key, is_fallback=True)
-        for model_key, used_alias in _model_keys_for_source("openrouter", model, family):
+        for model_key, used_alias in _model_keys_for_source("openrouter", base_model, family):
             add("openrouter", model_key, is_fallback=True)
 
     return candidates
@@ -455,7 +461,7 @@ def _normalize_observed_model_name(provider: ProviderName, model: str) -> str:
 
 
 def _infer_model_family(model: str) -> str | None:
-    lower = model.lower()
+    lower = model.lower().split("/", 1)[-1]
     if lower.startswith("gpt-") or "codex" in lower:
         return "openai"
     if lower.startswith("gemini-"):
@@ -471,6 +477,20 @@ def _infer_model_family(model: str) -> str | None:
     if "llama" in lower:
         return "llama"
     return None
+
+
+def _extract_explicit_source_model(model: str) -> tuple[PricingSourceName, str] | None:
+    normalized = model.strip()
+    if "/" not in normalized:
+        return None
+
+    source_prefix, remainder = normalized.split("/", 1)
+    pricing_source = _normalize_pricing_source_name(source_prefix)
+    if pricing_source is None or pricing_source == source_prefix.strip() and pricing_source not in SOURCE_ALIASES.values():
+        return None
+    if not remainder.strip():
+        return None
+    return pricing_source, remainder.strip()
 
 
 def _catalog_entry_pricing_source(raw: dict[str, object]) -> PricingSourceName | None:

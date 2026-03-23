@@ -15,6 +15,7 @@ from tokencat.core.models import (
     TokenTotals,
     UsageSlice,
 )
+from tokencat.core.paths import vscode_copilot_global_storage_dirs, vscode_user_roots, vscode_workspace_storage_dirs
 from tokencat.core.privacy import anonymize_session_id
 from tokencat.core.time import parse_iso_datetime
 from tokencat.providers.base import ProviderAdapter
@@ -27,7 +28,9 @@ class CopilotAdapter(ProviderAdapter):
         self.copilot_session_state_dir = self.copilot_dir / "session-state"
         self.config_dir = self.home / ".config"
         self.library_dir = self.home / "Library" / "Application Support"
-        self.vscode_workspace_storage_dir = self.library_dir / "Code" / "User" / "workspaceStorage"
+        self.vscode_user_roots = vscode_user_roots(self.home)
+        self.vscode_workspace_storage_dirs = vscode_workspace_storage_dirs(self.home)
+        self.vscode_copilot_global_storage_dirs = vscode_copilot_global_storage_dirs(self.home)
 
     def detect(self) -> ProviderStatus:
         found_paths: list[Path] = []
@@ -44,7 +47,7 @@ class CopilotAdapter(ProviderAdapter):
 
         vscode_session_paths = self._session_paths()
         if vscode_session_paths:
-            found_paths.append(self.vscode_workspace_storage_dir)
+            found_paths.extend(path.parent.parent for path in vscode_session_paths)
 
         cli_session_dirs = self._cli_session_dirs()
         if cli_session_dirs:
@@ -430,13 +433,13 @@ class CopilotAdapter(ProviderAdapter):
         return state if _as_non_empty_string(state.get("sessionId")) is not None else None
 
     def _session_paths(self) -> list[Path]:
-        if not self.vscode_workspace_storage_dir.exists():
-            return []
-
         paths: list[Path] = []
-        for path in self.vscode_workspace_storage_dir.glob("*/chatSessions/*"):
-            if path.is_file() and path.suffix in {".json", ".jsonl"}:
-                paths.append(path)
+        for workspace_storage_dir in self.vscode_workspace_storage_dirs:
+            if not workspace_storage_dir.exists():
+                continue
+            for path in workspace_storage_dir.glob("*/chatSessions/*"):
+                if path.is_file() and path.suffix in {".json", ".jsonl"}:
+                    paths.append(path)
         return sorted(paths)
 
     def _cli_session_dirs(self) -> list[Path]:
@@ -462,7 +465,7 @@ class CopilotAdapter(ProviderAdapter):
             self.config_dir / "copilot-cli",
             self.home / ".local" / "share" / "github-copilot-cli",
             self.library_dir / "GitHub Copilot CLI",
-            self.library_dir / "Code" / "User" / "globalStorage" / "github.copilot-chat" / "copilotCli",
+            *self.vscode_copilot_global_storage_dirs,
         ]
 
     def _plugin_paths(self) -> list[Path]:

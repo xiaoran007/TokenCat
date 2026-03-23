@@ -12,6 +12,7 @@ class ProviderName(StrEnum):
     CODEX = "codex"
     GEMINI = "gemini"
     COPILOT = "copilot"
+    OPENCODE = "opencode"
 
     @property
     def display_name(self) -> str:
@@ -19,7 +20,9 @@ class ProviderName(StrEnum):
             return "Codex"
         if self is ProviderName.GEMINI:
             return "Gemini CLI"
-        return "GitHub Copilot CLI"
+        if self is ProviderName.COPILOT:
+            return "GitHub Copilot CLI"
+        return "OpenCode"
 
 
 class ProviderSupportLevel(StrEnum):
