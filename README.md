@@ -4,18 +4,18 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/tokencat?style=for-the-badge&logo=python&logoColor=white&label=Python&color=3776ab)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/pypi/l/tokencat?style=for-the-badge&label=License&color=3fb950)](LICENSE)
 
-[![Supported](https://img.shields.io/badge/Supported-Codex%20%7C%20Gemini%20%7C%20Copilot-6e7781?style=for-the-badge&labelColor=3a3a3a)](#supported-tools)
-[![Platform](https://img.shields.io/badge/Platform-macOS--first-f78166?style=for-the-badge&labelColor=3a3a3a)](#limits)
+[![Supported](https://img.shields.io/badge/Supported-Codex%20%7C%20Gemini%20%7C%20Copilot%20%7C%20OpenCode-6e7781?style=for-the-badge&labelColor=3a3a3a)](#supported-tools)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%2B%20Linux-3fb950?style=for-the-badge&labelColor=3a3a3a)](#limits)
 
 TokenCat is a local-first, read-only CLI for understanding how AI coding agents are being used on your machine.
 
-If you jump between Codex, Gemini CLI, and Copilot CLI, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
+If you jump between Codex, Gemini CLI, Copilot, and OpenCode, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
 
 ![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png)
 
 ## Why TokenCat
 
-- One place to inspect Codex, Gemini CLI, VS Code Copilot Chat/Agent usage, and Copilot CLI session-state totals
+- One place to inspect Codex, Gemini CLI, VS Code Copilot Chat/Agent usage, Copilot CLI session-state totals, and OpenCode local message stores
 - A default 0-argument dashboard: just run `tokencat`
 - Read-only by design: no proxying, no interception, no auth-token handling
 - Local pricing estimates with clear coverage for unknown or unattributed usage
@@ -100,7 +100,8 @@ tokencat pricing refresh
 | --- | --- | --- |
 | Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite` when needed. |
 | Gemini CLI | Supported | Reads `~/.gemini/tmp/**/chats/session-*.json` and non-sensitive settings metadata. |
-| GitHub Copilot | Supported | Reads VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl` for Copilot Chat/Agent sessions and `~/.copilot/session-state/*/events.jsonl` for standalone Copilot CLI shutdown summaries. Active CLI sessions without shutdown summaries still show as partial in `doctor`. |
+| GitHub Copilot | Supported | Reads VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl` on both macOS and Linux for Copilot Chat/Agent sessions and `~/.copilot/session-state/*/events.jsonl` for standalone Copilot CLI shutdown summaries. Active CLI sessions without shutdown summaries still show as partial in `doctor`. |
+| OpenCode | Supported | Reads local message stores under `~/.local/share/opencode/storage/message/**/*.json` and `~/.local/share/opencode/project/*/storage/message/**/*.json`, plus local session metadata when present. `opencode.db` is detected but not yet parsed. |
 
 ## Pricing
 
@@ -156,7 +157,7 @@ That makes TokenCat easy to pipe into scripts, local dashboards, or personal aut
 
 ## Common Flags
 
-- `--provider codex|gemini|copilot`
+- `--provider codex|gemini|copilot|opencode`
 - `--since` / `--until` with values like `7d`, `24h`, or ISO dates
 - `--json`
 - `--no-price`
@@ -170,10 +171,10 @@ Session listings also support:
 
 ## Limits
 
-- TokenCat is macOS-first today.
-- Linux path hooks are present, but Linux is not yet a polished target.
+- TokenCat treats macOS and Linux default local paths as first-class targets.
 - Windows is not yet supported.
 - Copilot support covers VS Code Chat/Agent sessions plus standalone CLI shutdown summaries under `~/.copilot/session-state/`. Active CLI sessions without a shutdown summary are detected but not yet counted.
+- OpenCode support currently scans JSON message/session stores and does not yet parse `~/.local/share/opencode/opencode.db`.
 - Cost is an estimate, not your actual bill.
 
 ## License
