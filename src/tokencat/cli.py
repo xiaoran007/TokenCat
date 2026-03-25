@@ -272,6 +272,70 @@ def summary(
 
 
 @app.command()
+def daily(
+    providers: ProviderOption = None,
+    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    limit: Annotated[int | None, typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
+    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+) -> None:
+    filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    items = aggregate_daily(result.sessions)
+    if limit is not None:
+        items = items[:limit]
+
+    payload = {
+        "generated_at": local_now().isoformat(),
+        "filters": serialize_filters(filters),
+        "providers": [serialize_status(status) for status in result.statuses],
+        "items": serialize_daily_records(items),
+        "warnings": result.warnings,
+    }
+    if json_output:
+        console.print_json(json.dumps(payload, ensure_ascii=False))
+        return
+
+    visible_items = [item for item in items if item.token_totals.total or item.models]
+    if not visible_items:
+        console.print("No daily usage in this window.")
+        return
+
+    table = Table(title="TokenCat Daily Usage")
+    table.add_column("Date")
+    table.add_column("Providers")
+    table.add_column("Sessions")
+    table.add_column("Total Tokens")
+    if not no_price:
+        table.add_column("Est Cost", justify="right")
+        table.add_column("Coverage", justify="right")
+    table.add_column("Top Models")
+
+    for item in visible_items:
+        models = ", ".join(
+            f"{model.model} ({provider_display_name(model.provider)})"
+            for model in item.models[:3]
+        ) or "-"
+        table.add_row(
+            item.label or item.date.isoformat(),
+            ", ".join(provider_display_name(provider) for provider in sorted(item.providers, key=lambda value: value.value)) or "-",
+            str(item.session_count),
+            _format_tokens(item.token_totals.total),
+            *(
+                [
+                    _format_cost(item.estimated_cost.total_cost),
+                    _format_ratio((item.priced_tokens / item.total_tokens) if item.total_tokens else 0.0),
+                ]
+                if not no_price
+                else []
+            ),
+            models,
+        )
+    console.print(table)
+
+
+@app.command()
 def sessions(
     providers: ProviderOption = None,
     since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",

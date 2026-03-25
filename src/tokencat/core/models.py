@@ -10,6 +10,7 @@ PricingSourceName = str
 
 class ProviderName(StrEnum):
     CODEX = "codex"
+    CLAUDE = "claude"
     GEMINI = "gemini"
     COPILOT = "copilot"
 
@@ -17,6 +18,8 @@ class ProviderName(StrEnum):
     def display_name(self) -> str:
         if self is ProviderName.CODEX:
             return "Codex"
+        if self is ProviderName.CLAUDE:
+            return "Claude Code"
         if self is ProviderName.GEMINI:
             return "Gemini CLI"
         return "GitHub Copilot CLI"

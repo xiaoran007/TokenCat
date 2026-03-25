@@ -68,6 +68,7 @@ def serialize_session(record: SessionRecord, *, show_title: bool, show_path: boo
         blocked_keys = {"message_preview", "raw_text"}
         if not show_path:
             blocked_keys.add("project_hash")
+            blocked_keys.add("source_root")
         redacted = {key: value for key, value in record.metadata.items() if key not in blocked_keys}
         if redacted:
             data["metadata"] = redacted

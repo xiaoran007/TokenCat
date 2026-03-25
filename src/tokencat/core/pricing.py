@@ -33,6 +33,7 @@ LEGACY_PROVIDER_SOURCE_MAP: dict[str, PricingSourceName] = {
 }
 DIRECT_SOURCES_BY_PROVIDER: dict[ProviderName, tuple[PricingSourceName, ...]] = {
     ProviderName.CODEX: ("openai",),
+    ProviderName.CLAUDE: (),
     ProviderName.GEMINI: ("gemini",),
     ProviderName.COPILOT: ("github_copilot",),
 }
@@ -400,16 +401,29 @@ def _pricing_candidates(provider: ProviderName, model: str) -> list[PricingCandi
 
 
 def _model_keys_for_source(source: str, model: str, family: str | None) -> list[tuple[str, bool]]:
-    variants = [(model, False)]
+    variants: list[tuple[str, bool]] = []
+    for variant, used_alias in _observed_model_variants(model):
+        if (variant, used_alias) not in variants:
+            variants.append((variant, used_alias))
+
     alias = MODEL_ALIASES.get(model)
     if alias is not None and alias != model:
-        variants.append((alias, True))
+        for variant, used_alias in _observed_model_variants(alias):
+            candidate = (variant, True if variant == alias else used_alias or True)
+            if candidate not in variants:
+                variants.append(candidate)
 
     if source == "openrouter":
         if family is None:
             return []
         namespaces = OPENROUTER_NAMESPACES_BY_FAMILY.get(family, ())
-        return [(f"{namespace}/{variant}", used_alias) for namespace in namespaces for variant, used_alias in variants]
+        openrouter_variants: list[tuple[str, bool]] = []
+        for variant, used_alias in variants:
+            if "/" in variant:
+                openrouter_variants.append((variant, used_alias))
+                continue
+            openrouter_variants.extend((f"{namespace}/{variant}", used_alias) for namespace in namespaces)
+        return openrouter_variants
 
     return variants
 
@@ -456,21 +470,53 @@ def _normalize_observed_model_name(provider: ProviderName, model: str) -> str:
 
 def _infer_model_family(model: str) -> str | None:
     lower = model.lower()
-    if lower.startswith("gpt-") or "codex" in lower:
+    family_candidate = lower.rsplit("/", 1)[-1]
+    if family_candidate.startswith("gpt-") or "codex" in family_candidate:
         return "openai"
-    if lower.startswith("gemini-"):
+    if family_candidate.startswith("gemini-"):
         return "gemini"
-    if lower.startswith("claude-"):
+    if family_candidate.startswith("claude-"):
         return "anthropic"
-    if lower.startswith("grok-"):
+    if family_candidate.startswith("grok-"):
         return "xai"
-    if lower.startswith("deepseek"):
+    if family_candidate.startswith("deepseek"):
         return "deepseek"
-    if lower.startswith(("mistral-", "mixtral-", "ministral-", "codestral-")) or "mistral" in lower:
+    if family_candidate.startswith(("mistral-", "mixtral-", "ministral-", "codestral-")) or "mistral" in family_candidate:
         return "mistral"
-    if "llama" in lower:
+    if "llama" in family_candidate:
         return "llama"
     return None
+
+
+def _observed_model_variants(model: str) -> list[tuple[str, bool]]:
+    variants = [(model, False)]
+    stripped = _strip_known_model_namespace(model)
+    if stripped != model:
+        variants.append((stripped, True))
+    return variants
+
+
+def _strip_known_model_namespace(model: str) -> str:
+    if "/" not in model:
+        return model
+    prefix, remainder = model.split("/", 1)
+    if prefix in set(SOURCE_ALIASES) or prefix in {
+        "anthropic",
+        "openai",
+        "google",
+        "gemini",
+        "x-ai",
+        "xai",
+        "meta-llama",
+        "mistralai",
+        "deepseek",
+        "vertex_ai",
+        "bedrock",
+        "azure_ai",
+        "github_copilot",
+    }:
+        return remainder
+    return model
 
 
 def _catalog_entry_pricing_source(raw: dict[str, object]) -> PricingSourceName | None:
