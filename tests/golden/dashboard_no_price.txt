@@ -1,7 +1,8 @@
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ tokencat  local usage cockpit                                                                    │
 │ window: 7d                                                                                       │
-│ ● Codex:supported  ● Gemini CLI:supported  ● GitHub Copilot CLI:not_found                        │
+│ ● Codex:supported  ● Claude Code:not_found  ● Gemini CLI:supported  ● GitHub Copilot             │
+│ CLI:not_found                                                                                    │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮

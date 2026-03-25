@@ -45,6 +45,23 @@ def write_copilot_cli_session_state(
     return events_path
 
 
+def write_claude_session_jsonl(
+    home: Path,
+    project: str,
+    session_name: str,
+    rows: list[dict[str, object]],
+    *,
+    config_root: str = ".claude",
+    subdir: str | None = None,
+) -> Path:
+    path = home / Path(config_root) / "projects" / project
+    if subdir is not None:
+        path = path / subdir
+    path = path / f"{session_name}.jsonl"
+    write_jsonl(path, rows)
+    return path
+
+
 def create_codex_state_db(path: Path, rows: list[tuple]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)

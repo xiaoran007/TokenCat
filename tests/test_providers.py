@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 from tokencat.core.models import ScanFilters
+from tokencat.providers.claude import ClaudeAdapter
 from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+from conftest import create_codex_state_db, write_claude_session_jsonl, write_copilot_cli_session_state, write_json, write_jsonl
 
 
 def write_copilot_session_json(
@@ -265,6 +266,262 @@ def test_gemini_adapter_aggregates_message_level_tokens(sample_home: Path) -> No
     assert record.token_totals.total == 17682
     assert record.token_totals.cached == 5978
     assert record.metadata["default_model"] == "gemini-3.1-pro-preview"
+
+
+def test_claude_detect_supports_modern_and_legacy_roots(sample_home: Path) -> None:
+    write_claude_session_jsonl(
+        sample_home,
+        "legacy-project",
+        "legacy-session",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:43:52.043Z",
+                "sessionId": "legacy-session",
+                "cwd": "/repo/legacy",
+                "message": {
+                    "id": "msg-legacy",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.6",
+                    "usage": {
+                        "input_tokens": 100,
+                        "cache_creation_input_tokens": 20,
+                        "cache_read_input_tokens": 10,
+                        "output_tokens": 30,
+                    },
+                },
+            }
+        ],
+    )
+    write_claude_session_jsonl(
+        sample_home,
+        "modern-project",
+        "modern-session",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:48:02.684Z",
+                "sessionId": "modern-session",
+                "cwd": "/repo/modern",
+                "message": {
+                    "id": "msg-modern",
+                    "role": "assistant",
+                    "model": "gpt-5",
+                    "usage": {
+                        "input_tokens": 50,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "output_tokens": 5,
+                    },
+                },
+            }
+        ],
+        config_root=".config/claude",
+    )
+
+    status = ClaudeAdapter(home=sample_home, env={}).detect()
+
+    assert status.status.value == "supported"
+    assert any(str(path).endswith(".claude") for path in status.found_paths)
+    assert any(str(path).endswith(".config/claude") for path in status.found_paths)
+
+
+def test_claude_detect_uses_claude_config_dir_and_ignores_invalid_entries(sample_home: Path) -> None:
+    custom_root = sample_home / "claude-custom"
+    write_claude_session_jsonl(
+        sample_home,
+        "custom-project",
+        "custom-session",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:43:52.043Z",
+                "sessionId": "custom-session",
+                "message": {
+                    "id": "msg-custom",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.6",
+                    "usage": {
+                        "input_tokens": 40,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "output_tokens": 10,
+                    },
+                },
+            }
+        ],
+        config_root="claude-custom",
+    )
+    env = {"CLAUDE_CONFIG_DIR": f"{custom_root},{sample_home / 'missing-claude-root'}"}
+
+    status = ClaudeAdapter(home=sample_home, env=env).detect()
+    sessions = ClaudeAdapter(home=sample_home, env=env).scan(ScanFilters())
+
+    assert status.status.value == "supported"
+    assert len(sessions) == 1
+    assert sessions[0].provider_session_id == "custom-session"
+    assert any("CLAUDE_CONFIG_DIR" in warning for warning in status.warnings)
+
+
+def test_claude_adapter_scans_main_session_dedupes_updates_and_ignores_synthetic_rows(sample_home: Path) -> None:
+    write_claude_session_jsonl(
+        sample_home,
+        "playground",
+        "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+        [
+            {
+                "type": "user",
+                "timestamp": "2026-03-25T20:38:42.001Z",
+                "sessionId": "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+                "cwd": "/Users/xiaoran/Desktop/code/playground",
+                "version": "2.1.83",
+                "gitBranch": "HEAD",
+                "entrypoint": "cli",
+                "slug": "jolly-gathering-bentley",
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:43:52.043Z",
+                "sessionId": "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+                "message": {
+                    "id": "msg_f68b6d6b53114616bd9f896e",
+                    "role": "assistant",
+                    "model": "Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
+                    "usage": {"input_tokens": 23064, "output_tokens": 0},
+                },
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:44:22.651Z",
+                "sessionId": "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+                "message": {
+                    "id": "msg_f68b6d6b53114616bd9f896e",
+                    "role": "assistant",
+                    "model": "Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
+                    "usage": {
+                        "input_tokens": 23064,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                        "output_tokens": 369,
+                    },
+                },
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:45:22.651Z",
+                "sessionId": "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+                "isApiErrorMessage": True,
+                "message": {
+                    "id": "msg-api-error",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.6",
+                    "usage": {"input_tokens": 500, "output_tokens": 500},
+                },
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:48:02.684Z",
+                "sessionId": "b7b58aba-3b85-475c-aa08-a28ea12020b4",
+                "message": {
+                    "id": "msg-synthetic",
+                    "role": "assistant",
+                    "model": "<synthetic>",
+                    "usage": {"input_tokens": 999, "output_tokens": 999},
+                },
+            },
+        ],
+    )
+
+    sessions = ClaudeAdapter(home=sample_home, env={}).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.provider_session_id == "b7b58aba-3b85-475c-aa08-a28ea12020b4"
+    assert record.title == "jolly-gathering-bentley"
+    assert record.cwd == "/Users/xiaoran/Desktop/code/playground"
+    assert record.token_totals.input == 23064
+    assert record.token_totals.output == 369
+    assert record.token_totals.total == 23433
+    assert record.primary_model == "Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"
+    assert record.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].message_count == 1
+    assert record.metadata["session_kind"] == "main"
+    assert record.metadata["git_branch"] == "HEAD"
+    assert record.metadata["entrypoint"] == "cli"
+    assert record.metadata["version"] == "2.1.83"
+    assert record.attribution_status == "exact"
+
+
+def test_claude_adapter_scans_subagent_as_separate_session(sample_home: Path) -> None:
+    write_claude_session_jsonl(
+        sample_home,
+        "lab",
+        "0463030f-09fb-4e36-815c-da9cacd01a1e",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-02-09T16:30:00.000Z",
+                "sessionId": "0463030f-09fb-4e36-815c-da9cacd01a1e",
+                "cwd": "/Users/xiaoran/Desktop/code/ENGN2500Lab",
+                "message": {
+                    "id": "msg-main",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4-5-20250929",
+                    "usage": {
+                        "input_tokens": 500,
+                        "cache_creation_input_tokens": 100,
+                        "cache_read_input_tokens": 200,
+                        "output_tokens": 50,
+                    },
+                },
+            }
+        ],
+    )
+    write_claude_session_jsonl(
+        sample_home,
+        "lab",
+        "agent-a669e77",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-02-09T16:33:10.929Z",
+                "sessionId": "0463030f-09fb-4e36-815c-da9cacd01a1e",
+                "agentId": "a669e77",
+                "isSidechain": True,
+                "cwd": "/Users/xiaoran/Desktop/code/ENGN2500Lab",
+                "message": {
+                    "id": "msg-subagent",
+                    "role": "assistant",
+                    "model": "claude-haiku-4-5-20251001",
+                    "usage": {
+                        "input_tokens": 10,
+                        "cache_creation_input_tokens": 1401,
+                        "cache_read_input_tokens": 9974,
+                        "output_tokens": 185,
+                    },
+                },
+            }
+        ],
+        subdir="0463030f-09fb-4e36-815c-da9cacd01a1e/subagents",
+    )
+
+    sessions = {
+        record.provider_session_id: record
+        for record in ClaudeAdapter(home=sample_home, env={}).scan(ScanFilters())
+    }
+
+    assert set(sessions) == {
+        "0463030f-09fb-4e36-815c-da9cacd01a1e",
+        "0463030f-09fb-4e36-815c-da9cacd01a1e#agent:a669e77",
+    }
+    subagent = sessions["0463030f-09fb-4e36-815c-da9cacd01a1e#agent:a669e77"]
+    assert subagent.metadata["session_kind"] == "subagent"
+    assert subagent.metadata["parent_session_id"] == "0463030f-09fb-4e36-815c-da9cacd01a1e"
+    assert subagent.metadata["agent_id"] == "a669e77"
+    assert subagent.metadata["is_sidechain"] == "true"
+    assert subagent.token_totals.input == 11385
+    assert subagent.token_totals.cached == 9974
+    assert subagent.token_totals.output == 185
+    assert subagent.token_totals.total == 11570
 
 
 def test_copilot_detect_marks_plugin_only_state_as_unsupported(sample_home: Path) -> None:

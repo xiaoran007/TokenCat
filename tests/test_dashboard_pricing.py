@@ -23,7 +23,7 @@ from tokencat.core.render import render_dashboard
 from tokencat.core.time import parse_datetime_value
 from tokencat.providers.registry import scan_providers
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+from conftest import create_codex_state_db, write_claude_session_jsonl, write_copilot_cli_session_state, write_json, write_jsonl
 
 
 def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> None:
@@ -56,6 +56,17 @@ def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> N
             "input_per_1m": 1.25,
             "output_per_1m": 10.0,
             "cached_input_per_1m": 0.125,
+            "currency": "USD",
+            "effective_date": "2026-03-15",
+            "source_url": "https://example.test/pricing",
+            "notes": [],
+        },
+        {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4.6",
+            "input_per_1m": 3.0,
+            "output_per_1m": 15.0,
+            "cached_input_per_1m": 0.3,
             "currency": "USD",
             "effective_date": "2026-03-15",
             "source_url": "https://example.test/pricing",
@@ -256,7 +267,7 @@ def write_copilot_session_json(home: Path, workspace_id: str, session_id: str, p
 
 
 def build_dashboard_render_output(home: Path) -> str:
-    result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
+    result = scan_providers(ScanFilters(since=parse_datetime_value("2026-03-09", bound="since")))
     catalog = load_pricing_catalog(home)
     coverage = apply_pricing(result.sessions, catalog)
     summary = aggregate_summary(result.sessions, pricing_coverage=coverage)
@@ -311,6 +322,9 @@ def test_root_command_defaults_to_dashboard_json(sample_home: Path, monkeypatch)
     seed_dashboard_sample(sample_home)
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    fixed_now = datetime.fromisoformat("2026-03-16T12:00:00+00:00")
+    monkeypatch.setattr("tokencat.core.time.local_now", lambda: fixed_now)
+    monkeypatch.setattr("tokencat.cli.local_now", lambda: fixed_now)
     runner = CliRunner()
 
     result = runner.invoke(app, ["--json"])
@@ -595,7 +609,7 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
     seed_dashboard_sample(sample_home)
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
-    result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
+    result = scan_providers(ScanFilters(since=parse_datetime_value("2026-03-09", bound="since")))
     summary = aggregate_summary(result.sessions, pricing_coverage=None)
     daily = aggregate_daily(result.sessions)
     models = aggregate_models(result.sessions)
@@ -954,8 +968,8 @@ def test_codex_dashboard_and_models_agree_for_recent_active_sessions(sample_home
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
-    dashboard_result = runner.invoke(app, ["dashboard", "--provider", "codex", "--json"])
-    models_result = runner.invoke(app, ["models", "--provider", "codex", "--json"])
+    dashboard_result = runner.invoke(app, ["dashboard", "--provider", "codex", "--since", "30d", "--json"])
+    models_result = runner.invoke(app, ["models", "--provider", "codex", "--since", "30d", "--json"])
 
     assert dashboard_result.exit_code == 0
     assert models_result.exit_code == 0
@@ -1257,6 +1271,93 @@ def test_apply_pricing_falls_back_to_official_source_then_openrouter() -> None:
     assert claude_record.model_usage["copilot/claude-sonnet-4.5"].pricing_model == "anthropic/claude-sonnet-4.5"
 
 
+def test_apply_pricing_handles_claude_namespaced_redirected_and_custom_models() -> None:
+    loaded_at = datetime.now().astimezone()
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=loaded_at,
+        entries={
+            ("anthropic", "claude-sonnet-4.6"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-sonnet-4.6",
+                input_per_1m=3.0,
+                output_per_1m=15.0,
+                cached_input_per_1m=0.3,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
+            ("openai", "gpt-5"): PricingEntry(
+                pricing_source="openai",
+                model="gpt-5",
+                input_per_1m=1.25,
+                output_per_1m=10.0,
+                cached_input_per_1m=0.125,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/openai",
+            ),
+        },
+    )
+    claude_namespaced = SessionRecord(
+        provider=ProviderName.CLAUDE,
+        provider_session_id="claude-namespaced",
+        anon_session_id="claude-namespaced",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=1000, output=100, total=1100),
+        model_usage={
+            "anthropic/claude-sonnet-4.6": ModelUsage(
+                model="anthropic/claude-sonnet-4.6",
+                tokens=TokenTotals(input=1000, output=100, total=1100),
+                attribution_status="exact",
+            )
+        },
+    )
+    claude_redirected = SessionRecord(
+        provider=ProviderName.CLAUDE,
+        provider_session_id="claude-redirected",
+        anon_session_id="claude-redirected",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=2000, output=200, total=2200),
+        model_usage={
+            "openai/gpt-5": ModelUsage(
+                model="openai/gpt-5",
+                tokens=TokenTotals(input=2000, output=200, total=2200),
+                attribution_status="exact",
+            )
+        },
+    )
+    claude_custom = SessionRecord(
+        provider=ProviderName.CLAUDE,
+        provider_session_id="claude-custom",
+        anon_session_id="claude-custom",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=500, output=40, total=540),
+        model_usage={
+            "Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit": ModelUsage(
+                model="Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
+                tokens=TokenTotals(input=500, output=40, total=540),
+                attribution_status="exact",
+            )
+        },
+    )
+
+    coverage = apply_pricing([claude_namespaced, claude_redirected, claude_custom], catalog)
+
+    assert coverage is not None
+    assert claude_namespaced.model_usage["anthropic/claude-sonnet-4.6"].pricing_status == "fallback_priced"
+    assert claude_namespaced.model_usage["anthropic/claude-sonnet-4.6"].pricing_source == "anthropic"
+    assert claude_namespaced.model_usage["anthropic/claude-sonnet-4.6"].pricing_model == "claude-sonnet-4.6"
+    assert claude_redirected.model_usage["openai/gpt-5"].pricing_status == "fallback_priced"
+    assert claude_redirected.model_usage["openai/gpt-5"].pricing_source == "openai"
+    assert claude_redirected.model_usage["openai/gpt-5"].pricing_model == "gpt-5"
+    assert claude_custom.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_status == "unknown_model"
+    assert coverage.unknown_models == ["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"]
+
+
 def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None:
     entry = PricingEntry(
         pricing_source="openai",
@@ -1288,7 +1389,7 @@ def test_aggregate_daily_includes_model_subrows_and_preserves_day_totals(sample_
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
 
-    result = scan_providers(ScanFilters(since=parse_datetime_value("7d", bound="since")))
+    result = scan_providers(ScanFilters(since=parse_datetime_value("2026-03-09", bound="since")))
     catalog = load_pricing_catalog(sample_home)
     apply_pricing(result.sessions, catalog)
     daily = aggregate_daily(result.sessions)
@@ -1299,3 +1400,64 @@ def test_aggregate_daily_includes_model_subrows_and_preserves_day_totals(sample_
     assert len(codex_day.models) == 1
     assert codex_day.models[0].model == "gpt-5.3-codex"
     assert codex_day.models[0].token_totals.total == 180
+
+
+def test_claude_cross_day_window_projection_uses_assistant_message_timestamps(sample_home: Path, monkeypatch) -> None:
+    write_claude_session_jsonl(
+        sample_home,
+        "playground",
+        "claude-cross-day",
+        [
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-01T12:00:05.000Z",
+                "sessionId": "claude-cross-day",
+                "cwd": "/Users/xiaoran/Desktop/code/playground",
+                "message": {
+                    "id": "msg-day-1",
+                    "role": "assistant",
+                    "model": "claude-sonnet-4.6",
+                    "usage": {
+                        "input_tokens": 400,
+                        "cache_creation_input_tokens": 50,
+                        "cache_read_input_tokens": 25,
+                        "output_tokens": 25,
+                    },
+                },
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-03T12:00:10.000Z",
+                "sessionId": "claude-cross-day",
+                "cwd": "/Users/xiaoran/Desktop/code/playground",
+                "message": {
+                    "id": "msg-day-3",
+                    "role": "assistant",
+                    "model": "gpt-5",
+                    "usage": {
+                        "input_tokens": 80,
+                        "cache_creation_input_tokens": 10,
+                        "cache_read_input_tokens": 5,
+                        "output_tokens": 5,
+                    },
+                },
+            },
+        ],
+    )
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    full_result = scan_providers(ScanFilters(providers={ProviderName.CLAUDE}))
+    daily = aggregate_daily(full_result.sessions)
+    day_totals = {item.date.isoformat(): item.token_totals.total for item in daily}
+    assert day_totals["2026-03-01"] == 500
+    assert day_totals["2026-03-03"] == 100
+
+    march_3 = scan_providers(
+        ScanFilters(
+            providers={ProviderName.CLAUDE},
+            since=parse_datetime_value("2026-03-03", bound="since"),
+        )
+    )
+    assert len(march_3.sessions) == 1
+    assert march_3.sessions[0].token_totals.total == 100
+    assert set(march_3.sessions[0].model_usage) == {"gpt-5"}

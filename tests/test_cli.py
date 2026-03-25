@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from tokencat.cli import app
 
-from conftest import create_codex_state_db, write_copilot_cli_session_state, write_json, write_jsonl
+from conftest import create_codex_state_db, write_claude_session_jsonl, write_copilot_cli_session_state, write_json, write_jsonl
 
 
 def write_copilot_session_json(
@@ -51,6 +52,17 @@ def seed_pricing_cache(home: Path) -> None:
                     "input_per_1m": 1.25,
                     "output_per_1m": 10.0,
                     "cached_input_per_1m": 0.125,
+                    "currency": "USD",
+                    "effective_date": "2026-03-15",
+                    "source_url": "https://example.test/pricing",
+                    "notes": [],
+                },
+                {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4.6",
+                    "input_per_1m": 3.0,
+                    "output_per_1m": 15.0,
+                    "cached_input_per_1m": 0.3,
                     "currency": "USD",
                     "effective_date": "2026-03-15",
                     "source_url": "https://example.test/pricing",
@@ -105,6 +117,50 @@ def seed_codex_session(home: Path, *, session_id: str = "session", title: str = 
     create_codex_state_db(
         codex_dir / "state_5.sqlite",
         [(session_id, 1773590861, 1773590961, "vscode", "openai", "/repo/project", title, 180, "0.115.0-alpha.4")],
+    )
+
+
+def seed_claude_session(
+    home: Path,
+    *,
+    session_id: str = "claude-session",
+    model: str = "claude-sonnet-4.6",
+    config_root: str = ".claude",
+) -> None:
+    write_claude_session_jsonl(
+        home,
+        "playground",
+        session_id,
+        [
+            {
+                "type": "user",
+                "timestamp": "2026-03-25T20:38:42.001Z",
+                "sessionId": session_id,
+                "cwd": "/Users/xiaoran/Desktop/code/playground",
+                "version": "2.1.83",
+                "gitBranch": "HEAD",
+                "entrypoint": "cli",
+                "slug": "sensitive-claude-slug",
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2026-03-25T20:44:22.651Z",
+                "sessionId": session_id,
+                "cwd": "/Users/xiaoran/Desktop/code/playground",
+                "message": {
+                    "id": "msg-claude-final",
+                    "role": "assistant",
+                    "model": model,
+                    "usage": {
+                        "input_tokens": 1200,
+                        "cache_creation_input_tokens": 200,
+                        "cache_read_input_tokens": 300,
+                        "output_tokens": 90,
+                    },
+                },
+            },
+        ],
+        config_root=config_root,
     )
 
 
@@ -176,7 +232,7 @@ def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monk
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
-    result = runner.invoke(app, ["sessions", "--provider", "codex", "--json"])
+    result = runner.invoke(app, ["sessions", "--provider", "codex", "--since", "365d", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["items"][0]["anon_session_id"]
@@ -185,12 +241,38 @@ def test_sessions_json_redacts_title_and_path_by_default(sample_home: Path, monk
     assert "cwd" not in payload["items"][0]
     assert "source_refs" not in payload["items"][0]
 
-    reveal = runner.invoke(app, ["sessions", "--provider", "codex", "--show-title", "--show-path", "--json"])
+    reveal = runner.invoke(app, ["sessions", "--provider", "codex", "--since", "365d", "--show-title", "--show-path", "--json"])
     assert reveal.exit_code == 0
     revealed_payload = json.loads(reveal.stdout)
     assert revealed_payload["items"][0]["provider_session_id"] == "019cf23f-a38c-7c21-b2f2-ecbb145c1652"
     assert revealed_payload["items"][0]["title"] == "Sensitive Title"
     assert revealed_payload["items"][0]["cwd"] == "/repo/project"
+
+
+def test_claude_sessions_json_redacts_path_metadata_by_default(sample_home: Path, monkeypatch) -> None:
+    seed_claude_session(sample_home)
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["sessions", "--provider", "claude", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    item = payload["items"][0]
+    assert item["primary_model"] == "claude-sonnet-4.6"
+    assert "provider_session_id" not in item
+    assert "title" not in item
+    assert "cwd" not in item
+    assert item["metadata"]["session_kind"] == "main"
+    assert "source_root" not in item["metadata"]
+
+    reveal = runner.invoke(app, ["sessions", "--provider", "claude", "--show-title", "--show-path", "--json"])
+    assert reveal.exit_code == 0
+    revealed_item = json.loads(reveal.stdout)["items"][0]
+    assert revealed_item["provider_session_id"] == "claude-session"
+    assert revealed_item["title"] == "sensitive-claude-slug"
+    assert revealed_item["cwd"] == "/Users/xiaoran/Desktop/code/playground"
+    assert revealed_item["metadata"]["source_root"].endswith(".claude")
 
 
 def test_sessions_and_models_json_include_pricing_source(sample_home: Path, monkeypatch) -> None:
@@ -200,17 +282,49 @@ def test_sessions_and_models_json_include_pricing_source(sample_home: Path, monk
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
-    sessions_result = runner.invoke(app, ["sessions", "--provider", "codex", "--json"])
+    sessions_result = runner.invoke(app, ["sessions", "--provider", "codex", "--since", "365d", "--json"])
     assert sessions_result.exit_code == 0
     sessions_payload = json.loads(sessions_result.stdout)
     assert sessions_payload["items"][0]["pricing_source"] == "openai"
     assert sessions_payload["items"][0]["pricing_model"] == "gpt-5"
 
-    models_result = runner.invoke(app, ["models", "--provider", "codex", "--json"])
+    models_result = runner.invoke(app, ["models", "--provider", "codex", "--since", "365d", "--json"])
     assert models_result.exit_code == 0
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["pricing_source"] == "openai"
     assert models_payload["items"][0]["pricing_model"] == "gpt-5"
+
+
+def test_claude_doctor_dashboard_models_and_daily_commands_report_usage(sample_home: Path, monkeypatch) -> None:
+    seed_pricing_cache(sample_home)
+    seed_claude_session(sample_home, model="anthropic/claude-sonnet-4.6")
+
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    runner = CliRunner()
+
+    doctor_result = runner.invoke(app, ["doctor", "--json"])
+    assert doctor_result.exit_code == 0
+    doctor_payload = json.loads(doctor_result.stdout)
+    statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
+    assert statuses["claude"] == "supported"
+
+    dashboard_result = runner.invoke(app, ["dashboard", "--provider", "claude", "--json"])
+    assert dashboard_result.exit_code == 0
+    dashboard_payload = json.loads(dashboard_result.stdout)
+    assert dashboard_payload["summary"]["overview"]["token_totals"]["total"] == 1790
+    assert dashboard_payload["summary"]["daily"][0]["models"][0]["model"] == "anthropic/claude-sonnet-4.6"
+
+    models_result = runner.invoke(app, ["models", "--provider", "claude", "--json"])
+    assert models_result.exit_code == 0
+    models_payload = json.loads(models_result.stdout)
+    assert models_payload["items"][0]["model"] == "anthropic/claude-sonnet-4.6"
+    assert models_payload["items"][0]["pricing_source"] == "anthropic"
+    assert models_payload["items"][0]["pricing_model"] == "claude-sonnet-4.6"
+
+    daily_result = runner.invoke(app, ["daily", "--provider", "claude", "--json"])
+    assert daily_result.exit_code == 0
+    daily_payload = json.loads(daily_result.stdout)
+    assert daily_payload["items"][0]["token_totals"]["total"] == 1790
 
 
 def test_default_dashboard_hides_recent_sessions_but_dashboard_command_keeps_it(sample_home: Path, monkeypatch) -> None:
@@ -260,7 +374,7 @@ def test_doctor_and_models_commands_report_provider_status_and_model_usage(sampl
     assert statuses["gemini"] == "supported"
     assert statuses["copilot"] == "not_found"
 
-    models_result = runner.invoke(app, ["models", "--provider", "gemini", "--since", "30d", "--json"])
+    models_result = runner.invoke(app, ["models", "--provider", "gemini", "--since", "60d", "--json"])
     assert models_result.exit_code == 0
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["model"] == "gemini-3-pro-preview"
@@ -313,19 +427,19 @@ def test_terminal_ui_hides_broken_zero_token_sessions_but_json_keeps_them(sample
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
-    ui_result = runner.invoke(app, ["sessions", "--provider", "codex", "--show-title", "--no-price"])
+    ui_result = runner.invoke(app, ["sessions", "--provider", "codex", "--since", "365d", "--show-title", "--no-price"])
     assert ui_result.exit_code == 0
     assert "SQLite" in ui_result.stdout
     assert "Broken" not in ui_result.stdout
     assert "Codex" in ui_result.stdout
 
-    json_result = runner.invoke(app, ["sessions", "--provider", "codex", "--show-title", "--json"])
+    json_result = runner.invoke(app, ["sessions", "--provider", "codex", "--since", "365d", "--show-title", "--json"])
     assert json_result.exit_code == 0
     payload = json.loads(json_result.stdout)
     titles = {item["title"] for item in payload["items"]}
     assert titles == {"SQLite Only Session", "Broken Empty Session"}
 
-    models_result = runner.invoke(app, ["models", "--provider", "codex", "--no-price"])
+    models_result = runner.invoke(app, ["models", "--provider", "codex", "--since", "365d", "--no-price"])
     assert models_result.exit_code == 0
     assert "No model usage in this window." in models_result.stdout
 
