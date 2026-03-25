@@ -4,18 +4,18 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/tokencat?style=for-the-badge&logo=python&logoColor=white&label=Python&color=3776ab)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/pypi/l/tokencat?style=for-the-badge&label=License&color=3fb950)](LICENSE)
 
-[![Supported](https://img.shields.io/badge/Supported-Codex%20%7C%20Gemini%20%7C%20Copilot-6e7781?style=for-the-badge&labelColor=3a3a3a)](#supported-tools)
+[![Supported](https://img.shields.io/badge/Supported-Codex%20%7C%20Claude%20%7C%20Gemini%20%7C%20Copilot-6e7781?style=for-the-badge&labelColor=3a3a3a)](#supported-tools)
 [![Platform](https://img.shields.io/badge/Platform-macOS--first-f78166?style=for-the-badge&labelColor=3a3a3a)](#limits)
 
 TokenCat is a local-first, read-only CLI for understanding how AI coding agents are being used on your machine.
 
-If you jump between Codex, Gemini CLI, and Copilot CLI, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
+If you jump between Codex, Claude Code, Gemini CLI, and Copilot CLI, TokenCat gives you one terminal-native view for sessions, models, tokens, and API-equivalent cost estimates without proxying traffic, rewriting endpoints, or touching your prompts and responses.
 
 ![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png)
 
 ## Why TokenCat
 
-- One place to inspect Codex, Gemini CLI, VS Code Copilot Chat/Agent usage, and Copilot CLI session-state totals
+- One place to inspect Codex, Claude Code, Gemini CLI, VS Code Copilot Chat/Agent usage, and Copilot CLI session-state totals
 - A default 0-argument dashboard: just run `tokencat`
 - Read-only by design: no proxying, no interception, no auth-token handling
 - Local pricing estimates with clear coverage for unknown or unattributed usage
@@ -73,6 +73,12 @@ Inspect model totals:
 tokencat models --provider gemini
 ```
 
+Inspect daily totals:
+
+```bash
+tokencat daily --provider claude
+```
+
 Check local detection and health:
 
 ```bash
@@ -91,6 +97,7 @@ tokencat pricing refresh
 - A dense terminal dashboard with provider health, token totals, pricing coverage, daily usage, and recent sessions
 - Session-level views with anonymous IDs by default
 - Model-level aggregation across supported tools
+- Daily time-series aggregation across supported tools
 - A bundled pricing catalog, plus a local cache that can refresh itself on first use
 - Stable JSON envelopes for scripting and automation
 
@@ -99,6 +106,7 @@ tokencat pricing refresh
 | Tool | Status | Notes |
 | --- | --- | --- |
 | Codex | Supported | Reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/*.jsonl`, then falls back to `~/.codex/state_*.sqlite` when needed. |
+| Claude Code | Supported | Reads `projects/**/*.jsonl` under `CLAUDE_CONFIG_DIR` when set, otherwise scans both `~/.config/claude` and legacy `~/.claude`. Preserves exact observed model names, including redirected non-Anthropic models and subagent sessions. |
 | Gemini CLI | Supported | Reads `~/.gemini/tmp/**/chats/session-*.json` and non-sensitive settings metadata. |
 | GitHub Copilot | Supported | Reads VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl` for Copilot Chat/Agent sessions and `~/.copilot/session-state/*/events.jsonl` for standalone Copilot CLI shutdown summaries. Active CLI sessions without shutdown summaries still show as partial in `doctor`. |
 
@@ -157,6 +165,7 @@ That makes TokenCat easy to pipe into scripts, local dashboards, or personal aut
 ## Common Flags
 
 - `--provider codex|gemini|copilot`
+- `--provider codex|claude|gemini|copilot`
 - `--since` / `--until` with values like `7d`, `24h`, or ISO dates
 - `--json`
 - `--no-price`
