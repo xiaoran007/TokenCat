@@ -2,8 +2,7 @@
 
 ## Product Status
 
-- Current tagged release: `v0.4.0`.
-- Release prep target in the worktree: `v0.5.0`.
+- Current tagged release: `v0.5.0`.
 - Current working branch is typically `main` unless the user explicitly asks for a feature branch.
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
 - Supported in practice:
