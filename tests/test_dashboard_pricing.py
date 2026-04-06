@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from tokencat.cli import app
 from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
-from tokencat.core.models import DashboardUsageGranularity, ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
+from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity, ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
 from tokencat.core.pricing import (
     apply_pricing,
     estimate_cost,
@@ -19,8 +19,9 @@ from tokencat.core.pricing import (
     refresh_builtin_pricing,
     refresh_user_pricing_cache,
 )
-from tokencat.core.render import render_dashboard
+from tokencat.core.render import render_dashboard, resolve_dashboard_theme
 from tokencat.core.time import parse_datetime_value
+from tokencat.core.updates import UpdateNotice, check_latest_version
 from tokencat.providers.registry import scan_providers
 
 from conftest import create_codex_state_db, write_claude_session_jsonl, write_copilot_cli_session_state, write_json, write_jsonl
@@ -266,7 +267,12 @@ def write_copilot_session_json(home: Path, workspace_id: str, session_id: str, p
     return path
 
 
-def build_dashboard_render_output(home: Path) -> str:
+def build_dashboard_render_output(
+    home: Path,
+    *,
+    theme: DashboardThemeMode = DashboardThemeMode.DARK,
+    update_notice: UpdateNotice | None = None,
+) -> str:
     result = scan_providers(ScanFilters(since=parse_datetime_value("2026-03-09", bound="since")))
     catalog = load_pricing_catalog(home)
     coverage = apply_pricing(result.sessions, catalog)
@@ -285,6 +291,8 @@ def build_dashboard_render_output(home: Path) -> str:
         pricing_catalog=catalog,
         pricing_coverage=coverage,
         warnings=result.warnings,
+        theme=theme,
+        update_notice=update_notice,
     )
     return console.export_text()
 
@@ -596,6 +604,18 @@ def test_dashboard_render_matches_golden_files(sample_home: Path, monkeypatch) -
     assert rendered == expected
 
 
+def test_dashboard_render_with_update_notice_matches_golden(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    rendered = build_dashboard_render_output(
+        sample_home,
+        update_notice=UpdateNotice(current_version="0.4.0", latest_version="0.5.0"),
+    )
+    expected = (Path(__file__).parent / "golden" / "dashboard_priced_update.txt").read_text(encoding="utf-8")
+    assert rendered == expected
+
+
 def test_dashboard_render_unknown_pricing_matches_golden(sample_home: Path, monkeypatch) -> None:
     seed_dashboard_sample(sample_home, unknown_gemini=True)
     seed_pricing_cache(sample_home)
@@ -676,6 +696,85 @@ def test_dashboard_granularity_flags_conflict(sample_home: Path, monkeypatch) ->
     result = runner.invoke(app, ["dashboard", "--daily", "--monthly"])
     assert result.exit_code != 0
     assert "Choose at most one of --daily, --weekly, or --monthly." in result.stdout
+
+
+def test_dashboard_json_skips_update_check(sample_home: Path, monkeypatch) -> None:
+    seed_dashboard_sample(sample_home)
+    seed_pricing_cache(sample_home)
+    monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+
+    def fail_check(_: str):
+        raise AssertionError("update check should not run for --json")
+
+    monkeypatch.setattr("tokencat.cli.check_latest_version", fail_check)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["dashboard", "--json"])
+    assert result.exit_code == 0
+
+
+def test_resolve_dashboard_theme_uses_colorfgbg_background() -> None:
+    assert resolve_dashboard_theme(DashboardThemeMode.AUTO, {"COLORFGBG": "15;0"}) is DashboardThemeMode.DARK
+    assert resolve_dashboard_theme(DashboardThemeMode.AUTO, {"COLORFGBG": "0;15"}) is DashboardThemeMode.LIGHT
+    assert resolve_dashboard_theme(DashboardThemeMode.AUTO, {}) is DashboardThemeMode.DARK
+
+
+def test_resolve_dashboard_theme_respects_explicit_theme() -> None:
+    assert resolve_dashboard_theme(DashboardThemeMode.DARK, {"COLORFGBG": "0;15"}) is DashboardThemeMode.DARK
+    assert resolve_dashboard_theme(DashboardThemeMode.LIGHT, {"COLORFGBG": "15;0"}) is DashboardThemeMode.LIGHT
+
+
+class _FakePyPIResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> "_FakePyPIResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+def test_check_latest_version_returns_notice_for_newer_release(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "tokencat.core.updates.urlopen",
+        lambda url, timeout=0: _FakePyPIResponse(b'{"info":{"version":"0.5.0"}}'),
+    )
+
+    notice = check_latest_version("0.4.0")
+
+    assert notice == UpdateNotice(current_version="0.4.0", latest_version="0.5.0")
+
+
+def test_check_latest_version_returns_none_for_same_or_older_release(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "tokencat.core.updates.urlopen",
+        lambda url, timeout=0: _FakePyPIResponse(b'{"info":{"version":"0.4.0"}}'),
+    )
+    assert check_latest_version("0.4.0") is None
+
+    monkeypatch.setattr(
+        "tokencat.core.updates.urlopen",
+        lambda url, timeout=0: _FakePyPIResponse(b'{"info":{"version":"0.3.9"}}'),
+    )
+    assert check_latest_version("0.4.0") is None
+
+
+def test_check_latest_version_returns_none_for_invalid_or_failed_response(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "tokencat.core.updates.urlopen",
+        lambda url, timeout=0: _FakePyPIResponse(b'{"info":{"version":"0.5.0rc1"}}'),
+    )
+    assert check_latest_version("0.4.0") is None
+
+    def fail_urlopen(url, timeout=0):
+        raise OSError("network down")
+
+    monkeypatch.setattr("tokencat.core.updates.urlopen", fail_urlopen)
+    assert check_latest_version("0.4.0") is None
 
 
 def test_dashboard_weekly_render_matches_golden(sample_home: Path, monkeypatch) -> None:

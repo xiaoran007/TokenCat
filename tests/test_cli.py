@@ -255,7 +255,7 @@ def test_claude_sessions_json_redacts_path_metadata_by_default(sample_home: Path
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
     runner = CliRunner()
 
-    result = runner.invoke(app, ["sessions", "--provider", "claude", "--json"])
+    result = runner.invoke(app, ["sessions", "--provider", "claude", "--since", "30d", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     item = payload["items"][0]
@@ -266,7 +266,7 @@ def test_claude_sessions_json_redacts_path_metadata_by_default(sample_home: Path
     assert item["metadata"]["session_kind"] == "main"
     assert "source_root" not in item["metadata"]
 
-    reveal = runner.invoke(app, ["sessions", "--provider", "claude", "--show-title", "--show-path", "--json"])
+    reveal = runner.invoke(app, ["sessions", "--provider", "claude", "--since", "30d", "--show-title", "--show-path", "--json"])
     assert reveal.exit_code == 0
     revealed_item = json.loads(reveal.stdout)["items"][0]
     assert revealed_item["provider_session_id"] == "claude-session"
@@ -308,20 +308,20 @@ def test_claude_doctor_dashboard_models_and_daily_commands_report_usage(sample_h
     statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
     assert statuses["claude"] == "supported"
 
-    dashboard_result = runner.invoke(app, ["dashboard", "--provider", "claude", "--json"])
+    dashboard_result = runner.invoke(app, ["dashboard", "--provider", "claude", "--since", "30d", "--json"])
     assert dashboard_result.exit_code == 0
     dashboard_payload = json.loads(dashboard_result.stdout)
     assert dashboard_payload["summary"]["overview"]["token_totals"]["total"] == 1790
     assert dashboard_payload["summary"]["daily"][0]["models"][0]["model"] == "anthropic/claude-sonnet-4.6"
 
-    models_result = runner.invoke(app, ["models", "--provider", "claude", "--json"])
+    models_result = runner.invoke(app, ["models", "--provider", "claude", "--since", "30d", "--json"])
     assert models_result.exit_code == 0
     models_payload = json.loads(models_result.stdout)
     assert models_payload["items"][0]["model"] == "anthropic/claude-sonnet-4.6"
     assert models_payload["items"][0]["pricing_source"] == "anthropic"
     assert models_payload["items"][0]["pricing_model"] == "claude-sonnet-4.6"
 
-    daily_result = runner.invoke(app, ["daily", "--provider", "claude", "--json"])
+    daily_result = runner.invoke(app, ["daily", "--provider", "claude", "--since", "30d", "--json"])
     assert daily_result.exit_code == 0
     daily_payload = json.loads(daily_result.stdout)
     assert daily_payload["items"][0]["token_totals"]["total"] == 1790
