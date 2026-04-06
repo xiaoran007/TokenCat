@@ -7,10 +7,12 @@
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
 - Supported in practice:
   - `Codex`: supported via local session JSONL and SQLite fallback.
+  - `Claude Code`: supported via `CLAUDE_CONFIG_DIR` roots or local Claude project JSONL under `$XDG_CONFIG_HOME/claude` / `~/.config/claude` and legacy `~/.claude`.
   - `Gemini CLI`: supported via local chat/session files.
   - `GitHub Copilot`: supported via VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl`.
   - `GitHub Copilot CLI`: supported via `~/.copilot/session-state/*/events.jsonl` shutdown summaries.
   - Active Copilot CLI sessions without a `session.shutdown` summary still show as `partial` in `doctor`.
+  - Claude Code support is read-only and based on local session telemetry only; it keeps exact observed model names so redirected/custom backends are shown conservatively instead of guessed.
 
 ## Privacy / Pricing Behavior
 
@@ -28,9 +30,11 @@
     4. otherwise `unknown_model`.
   - pricing catalog entries are keyed by pricing source, not scan provider;
   - session/model JSON can include `pricing_source` in addition to `pricing_model`.
+  - Claude Code pricing keeps the observed model string, but pricing normalization can still resolve namespaced forms such as `anthropic/claude-*` and redirected families such as `openai/gpt-*` or `google/gemini-*` when they map cleanly to existing catalog families.
   - time-windowed `sessions`, `summary`, `models`, and `daily` views now use event/message/request timestamps when local telemetry supports it, instead of assigning whole sessions to `updated_at`.
   - terminal dashboard usage buckets can adapt between daily, weekly, and monthly views based on the selected time window, with explicit `--daily`, `--weekly`, and `--monthly` overrides.
   - terminal dashboard hides zero-token model rows so metadata-only Copilot VS Code sessions do not show misleading `0` token lines by default.
+  - Claude Code session parsing is conservative: only assistant messages with usage are billable, streaming snapshots are deduplicated by message id, and prompt/response bodies remain out of TokenCat output.
 
 ## Release / Versioning Workflow
 
