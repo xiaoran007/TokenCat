@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from os import environ
+
 from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
@@ -8,21 +11,54 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from tokencat.core.models import DashboardUsageGranularity, DailyUsageRecord, PricingCatalog, PricingCoverage, ProviderStatus, SessionRecord
+from tokencat.core.models import (
+    DashboardThemeMode,
+    DashboardUsageGranularity,
+    DailyUsageRecord,
+    PricingCatalog,
+    PricingCoverage,
+    ProviderStatus,
+    SessionRecord,
+)
 from tokencat.core.presentation import (
     filter_displayable_daily_records,
     filter_displayable_model_items,
     filter_displayable_sessions,
     provider_display_name,
 )
+from tokencat.core.updates import UpdateNotice
 
-ACCENT = "#d7ba7d"
-MUTED = "#9ba1a6"
-COOL = "#89dceb"
-SUCCESS = "#a6e3a1"
-WARN = "#f9e2af"
-ERROR = "#f38ba8"
-SURFACE = "on #1a1a1a"
+
+@dataclass(frozen=True, slots=True)
+class DashboardPalette:
+    accent: str
+    muted: str
+    cool: str
+    success: str
+    warn: str
+    error: str
+    surface: str
+
+
+DARK_PALETTE = DashboardPalette(
+    accent="#d7ba7d",
+    muted="#9ba1a6",
+    cool="#89dceb",
+    success="#a6e3a1",
+    warn="#f9e2af",
+    error="#f38ba8",
+    surface="on #1a1a1a",
+)
+
+LIGHT_PALETTE = DashboardPalette(
+    accent="#8b5e00",
+    muted="#5f6368",
+    cool="#006d77",
+    success="#1b7f3b",
+    warn="#a15c00",
+    error="#b42318",
+    surface="on #f7f3ea",
+)
 
 
 def render_dashboard(
@@ -38,27 +74,37 @@ def render_dashboard(
     warnings: list[str],
     show_recent_sessions: bool = True,
     usage_granularity: DashboardUsageGranularity = DashboardUsageGranularity.DAILY,
+    theme: DashboardThemeMode = DashboardThemeMode.DARK,
+    update_notice: UpdateNotice | None = None,
 ) -> None:
+    palette = _palette_for_theme(theme)
     visible_daily = _filter_dashboard_daily_records(daily)
     visible_sessions = filter_displayable_sessions(sessions[:6])
     renderables = [
-        _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage),
-        _hero_panel(overview),
-        _daily_panel(visible_daily, granularity=usage_granularity),
+        _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage, palette=palette, update_notice=update_notice),
+        _hero_panel(overview, palette=palette),
+        _daily_panel(visible_daily, granularity=usage_granularity, palette=palette),
     ]
     if show_recent_sessions:
         renderables.append(
-            Panel(_recent_sessions_renderable(visible_sessions), title="Recent Sessions", border_style=ACCENT, box=box.ROUNDED, style=SURFACE)
+            Panel(
+                _recent_sessions_renderable(visible_sessions, palette=palette),
+                title="Recent Sessions",
+                border_style=palette.accent,
+                box=box.ROUNDED,
+                style=palette.surface,
+            )
         )
     if warnings:
-        warning_text = Text("\n".join(f"- {warning}" for warning in warnings), style=WARN)
-        renderables.append(Panel(warning_text, title="Warnings", border_style=WARN, box=box.ROUNDED, style=SURFACE))
+        warning_text = Text("\n".join(f"- {warning}" for warning in warnings), style=palette.warn)
+        renderables.append(Panel(warning_text, title="Warnings", border_style=palette.warn, box=box.ROUNDED, style=palette.surface))
     console.print(Group(*renderables))
 
 
 def render_pricing_summary(console: Console, *, catalog: PricingCatalog | None, coverage: PricingCoverage | None, unknown_models: list[str]) -> None:
+    palette = DARK_PALETTE
     table = Table(box=box.SIMPLE_HEAVY, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    table.add_column("Metric", style=ACCENT)
+    table.add_column("Metric", style=palette.accent)
     table.add_column("Value", justify="right")
     if catalog is not None:
         table.add_row("Catalog source", catalog.source)
@@ -74,37 +120,72 @@ def render_pricing_summary(console: Console, *, catalog: PricingCatalog | None, 
         table.add_row("Coverage", _format_ratio(coverage.priced_ratio))
         table.add_row("Estimated cost", _format_cost(coverage.estimated_cost.total_cost))
     table.add_row("Unknown models", ", ".join(unknown_models) if unknown_models else "-")
-    console.print(Panel(table, title="Pricing", border_style=COOL, box=box.ROUNDED, style=SURFACE))
+    console.print(Panel(table, title="Pricing", border_style=palette.cool, box=box.ROUNDED, style=palette.surface))
 
 
-def _brand_panel(time_label: str, statuses: list[ProviderStatus], pricing_catalog: PricingCatalog | None, pricing_coverage: PricingCoverage | None) -> Panel:
+def resolve_dashboard_theme(mode: DashboardThemeMode, env: dict[str, str] | None = None) -> DashboardThemeMode:
+    if mode is not DashboardThemeMode.AUTO:
+        return mode
+
+    colorfgbg = (env or environ).get("COLORFGBG")
+    if not colorfgbg:
+        return DashboardThemeMode.DARK
+
+    background = colorfgbg.rsplit(";", 1)[-1].strip()
+    if not background.isdigit():
+        return DashboardThemeMode.DARK
+
+    return DashboardThemeMode.LIGHT if int(background) >= 7 else DashboardThemeMode.DARK
+
+
+def _brand_panel(
+    time_label: str,
+    statuses: list[ProviderStatus],
+    pricing_catalog: PricingCatalog | None,
+    pricing_coverage: PricingCoverage | None,
+    *,
+    palette: DashboardPalette,
+    update_notice: UpdateNotice | None,
+) -> Panel:
     header = Text()
-    header.append("tokencat", style=f"bold {ACCENT}")
-    header.append("  local usage cockpit", style=MUTED)
-    header.append(f"\nwindow: {time_label}", style=COOL)
+    header.append("tokencat", style=f"bold {palette.accent}")
+    header.append("  local usage cockpit", style=palette.muted)
+    header.append(f"\nwindow: {time_label}", style=palette.cool)
 
     status_line = Text()
     for index, status in enumerate(statuses):
         if index:
             status_line.append("  ")
-        color = SUCCESS if status.status.value == "supported" else WARN if status.status.value == "partial" else ERROR if status.status.value == "unsupported" else MUTED
+        color = _provider_status_color(status, palette)
         status_line.append("● ", style=color)
-        status_line.append(f"{provider_display_name(status.provider)}:{status.status.value}", style=color)
+        status_line.append(provider_display_name(status.provider), style=color)
+
+    update_line = Text()
+    if update_notice is not None:
+        update_line.append(
+            f"update available: {update_notice.latest_version} (local {update_notice.current_version})",
+            style=palette.warn,
+        )
 
     footer = Text()
     if pricing_catalog is not None:
-        footer.append(f"pricing: {pricing_catalog.source}", style=ACCENT)
+        footer.append(f"pricing: {pricing_catalog.source}", style=palette.accent)
         if pricing_catalog.refreshed_at:
-            footer.append(f"  refreshed {pricing_catalog.refreshed_at}", style=MUTED)
+            footer.append(f"  refreshed {pricing_catalog.refreshed_at}", style=palette.muted)
     if pricing_coverage is not None and pricing_coverage.unknown_models:
-        footer.append(f"\nunknown pricing: {', '.join(pricing_coverage.unknown_models)}", style=WARN)
+        footer.append(f"\nunknown pricing: {', '.join(pricing_coverage.unknown_models)}", style=palette.warn)
     if pricing_coverage is not None and pricing_coverage.unattributed_token_count:
-        footer.append(f"\nunattributed tokens: {_format_int(pricing_coverage.unattributed_token_count)}", style=WARN)
+        footer.append(f"\nunattributed tokens: {_format_int(pricing_coverage.unattributed_token_count)}", style=palette.warn)
 
-    return Panel(Group(header, status_line, footer), border_style=ACCENT, box=box.ROUNDED, style=SURFACE)
+    lines: list[object] = [header, status_line]
+    if update_notice is not None:
+        lines.append(update_line)
+    if footer.plain:
+        lines.append(footer)
+    return Panel(Group(*lines), border_style=palette.accent, box=box.ROUNDED, style=palette.surface)
 
 
-def _hero_panel(overview: dict[str, object]) -> Panel:
+def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Panel:
     totals = overview["token_totals"]
     cost = overview["estimated_cost"]
     secondary = overview.get("secondary_metrics") or {}
@@ -113,9 +194,9 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
     ]
 
     primary = Text()
-    primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {ACCENT}")
-    primary.append("Total tokens\n", style=COOL)
-    primary.append(f"{_format_cost(cost['total_cost'])} estimated API cost\n", style=f"bold {WARN}")
+    primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {palette.accent}")
+    primary.append("Total tokens\n", style=palette.cool)
+    primary.append(f"{_format_cost(cost['total_cost'])} estimated API cost\n", style=f"bold {palette.warn}")
     primary.append(
         "  ".join(
             [
@@ -125,7 +206,7 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
             ]
         )
         + "\n",
-        style=MUTED,
+        style=palette.muted,
     )
     primary.append(
         "  ".join(
@@ -135,11 +216,11 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
                 f"unattributed {_format_int(secondary.get('unattributed_token_count'))}",
             ]
         ),
-        style=MUTED,
+        style=palette.muted,
     )
 
     ranking = Table(box=None, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    ranking.add_column("Top models", style=COOL)
+    ranking.add_column("Top models", style=palette.cool)
     ranking.add_column("Tokens", justify="right")
     ranking.add_column("Cost", justify="right")
     for item in top_models[:5]:
@@ -155,49 +236,49 @@ def _hero_panel(overview: dict[str, object]) -> Panel:
     return Panel(
         Columns(
             [
-                Panel(primary, title="Overview", border_style=MUTED, box=box.ROUNDED),
-                Panel(ranking, title="Top Models", border_style=COOL, box=box.ROUNDED, style=SURFACE),
+                Panel(primary, title="Overview", border_style=palette.muted, box=box.ROUNDED),
+                Panel(ranking, title="Top Models", border_style=palette.cool, box=box.ROUNDED, style=palette.surface),
             ],
             equal=False,
             expand=True,
         ),
-        border_style=ACCENT,
+        border_style=palette.accent,
         box=box.ROUNDED,
-        style=SURFACE,
+        style=palette.surface,
     )
 
 
-def _daily_panel(records: list[DailyUsageRecord], *, granularity: DashboardUsageGranularity) -> Panel:
+def _daily_panel(records: list[DailyUsageRecord], *, granularity: DashboardUsageGranularity, palette: DashboardPalette) -> Panel:
     title = {
         DashboardUsageGranularity.DAILY: "Daily Usage",
         DashboardUsageGranularity.WEEKLY: "Weekly Usage",
         DashboardUsageGranularity.MONTHLY: "Monthly Usage",
     }[granularity]
     if not records:
-        return Panel(Text("No usage in this window.", style=MUTED), title=title, border_style=MUTED, box=box.ROUNDED, style=SURFACE)
+        return Panel(Text("No usage in this window.", style=palette.muted), title=title, border_style=palette.muted, box=box.ROUNDED, style=palette.surface)
 
     sections: list[object] = []
     for index, record in enumerate(records):
         if index:
-            sections.append(Rule(style=MUTED))
-        sections.append(_daily_block(record))
-    return Panel(Group(*sections), title=title, border_style=MUTED, box=box.ROUNDED, style=SURFACE)
+            sections.append(Rule(style=palette.muted))
+        sections.append(_daily_block(record, palette=palette))
+    return Panel(Group(*sections), title=title, border_style=palette.muted, box=box.ROUNDED, style=palette.surface)
 
 
-def _daily_block(record: DailyUsageRecord) -> Group:
+def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette) -> Group:
     header = Text()
-    header.append(record.label or record.date.isoformat(), style=f"bold {ACCENT}")
-    header.append("  ", style=MUTED)
-    header.append(f"{_format_int(record.token_totals.total)} total", style=COOL)
-    header.append("  ", style=MUTED)
-    header.append(f"{_format_cost(record.estimated_cost.total_cost)}", style=WARN)
-    header.append("  ", style=MUTED)
-    header.append(f"{record.session_count} sessions", style=MUTED)
-    header.append("  ", style=MUTED)
-    header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=MUTED)
+    header.append(record.label or record.date.isoformat(), style=f"bold {palette.accent}")
+    header.append("  ", style=palette.muted)
+    header.append(f"{_format_int(record.token_totals.total)} total", style=palette.cool)
+    header.append("  ", style=palette.muted)
+    header.append(f"{_format_cost(record.estimated_cost.total_cost)}", style=palette.warn)
+    header.append("  ", style=palette.muted)
+    header.append(f"{record.session_count} sessions", style=palette.muted)
+    header.append("  ", style=palette.muted)
+    header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=palette.muted)
 
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    table.add_column("Model", style=ACCENT, width=32, no_wrap=True, overflow="ellipsis")
+    table.add_column("Model", style=palette.accent, width=32, no_wrap=True, overflow="ellipsis")
     table.add_column("Input", justify="right", width=12, no_wrap=True)
     table.add_column("Output", justify="right", width=12, no_wrap=True)
     table.add_column("Cached", justify="right", width=12, no_wrap=True)
@@ -265,18 +346,18 @@ def _token_total(tokens) -> int:
     return sum(value for value in values if isinstance(value, int))
 
 
-def _recent_sessions_renderable(records: list[SessionRecord]) -> Table | Text:
+def _recent_sessions_renderable(records: list[SessionRecord], *, palette: DashboardPalette) -> Table | Text:
     if not records:
-        return Text("No recent sessions in this window.", style=MUTED)
-    return _recent_sessions_table(records)
+        return Text("No recent sessions in this window.", style=palette.muted)
+    return _recent_sessions_table(records, palette=palette)
 
 
-def _recent_sessions_table(records: list[SessionRecord]) -> Table:
+def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPalette) -> Table:
     single_provider = len({record.provider.value for record in records}) <= 1 if records else False
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    table.add_column("Session", style=ACCENT)
+    table.add_column("Session", style=palette.accent)
     if not single_provider:
-        table.add_column("Provider", style=COOL)
+        table.add_column("Provider", style=palette.cool)
     table.add_column("Model")
     table.add_column("Attr")
     table.add_column("Tokens", justify="right")
@@ -295,6 +376,18 @@ def _recent_sessions_table(records: list[SessionRecord]) -> Table:
         )
         table.add_row(*row)
     return table
+
+
+def _provider_status_color(status: ProviderStatus, palette: DashboardPalette) -> str:
+    if status.status.value == "supported":
+        return palette.success
+    if status.status.value == "partial":
+        return palette.warn
+    return palette.error
+
+
+def _palette_for_theme(theme: DashboardThemeMode) -> DashboardPalette:
+    return LIGHT_PALETTE if theme is DashboardThemeMode.LIGHT else DARK_PALETTE
 
 
 def _format_int(value: int | None) -> str:

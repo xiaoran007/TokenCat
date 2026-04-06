@@ -38,6 +38,12 @@ class DashboardUsageGranularity(StrEnum):
     MONTHLY = "monthly"
 
 
+class DashboardThemeMode(StrEnum):
+    AUTO = "auto"
+    DARK = "dark"
+    LIGHT = "light"
+
+
 @dataclass(slots=True)
 class TokenTotals:
     input: int | None = None

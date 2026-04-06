@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from typing import Annotated
 
@@ -8,11 +9,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from tokencat import __version__
 from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
-from tokencat.core.models import DashboardUsageGranularity, PricingCatalog, PricingCoverage, ProviderName, ScanFilters
+from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity, PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
 from tokencat.core.presentation import filter_displayable_model_items, filter_displayable_sessions, provider_display_name
-from tokencat.core.render import render_dashboard, render_pricing_summary
+from tokencat.core.render import render_dashboard, render_pricing_summary, resolve_dashboard_theme
 from tokencat.core.serialize import (
     serialize_daily_records,
     serialize_filters,
@@ -22,6 +24,7 @@ from tokencat.core.serialize import (
     serialize_status,
 )
 from tokencat.core.time import local_now, parse_datetime_value
+from tokencat.core.updates import check_latest_version
 from tokencat.providers.registry import scan_providers
 
 app = typer.Typer(help="TokenCat: local-first, read-only token and usage inspector for AI coding agents.", invoke_without_command=True)
@@ -77,6 +80,7 @@ def main(
     monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the terminal dashboard.")] = False,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of styled dashboard output.")] = False,
+    theme: Annotated[DashboardThemeMode, typer.Option("--theme", help="Theme for the terminal dashboard: auto, dark, or light.")] = DashboardThemeMode.AUTO,
 ) -> None:
     if ctx.invoked_subcommand is None:
         _run_dashboard(
@@ -89,6 +93,7 @@ def main(
             no_price=no_price,
             json_output=json_output,
             show_recent_sessions=False,
+            theme=theme,
         )
 
 
@@ -102,6 +107,7 @@ def dashboard(
     monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the dashboard.")] = False,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of the dashboard.")] = False,
+    theme: Annotated[DashboardThemeMode, typer.Option("--theme", help="Theme for the terminal dashboard: auto, dark, or light.")] = DashboardThemeMode.AUTO,
 ) -> None:
     _run_dashboard(
         providers=providers,
@@ -113,6 +119,7 @@ def dashboard(
         no_price=no_price,
         json_output=json_output,
         show_recent_sessions=True,
+        theme=theme,
     )
 
 
@@ -127,6 +134,7 @@ def _run_dashboard(
     no_price: bool,
     json_output: bool,
     show_recent_sessions: bool,
+    theme: DashboardThemeMode,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     usage_granularity = _resolve_dashboard_usage_granularity(
@@ -164,6 +172,8 @@ def _run_dashboard(
         console.print_json(json.dumps(payload, ensure_ascii=False))
         return
 
+    resolved_theme = resolve_dashboard_theme(theme, os.environ)
+    update_notice = check_latest_version(__version__)
     render_dashboard(
         console,
         time_label=time_label,
@@ -176,6 +186,8 @@ def _run_dashboard(
         warnings=result.warnings,
         show_recent_sessions=show_recent_sessions,
         usage_granularity=usage_granularity,
+        theme=resolved_theme,
+        update_notice=update_notice,
     )
 
 
