@@ -49,6 +49,13 @@ Open the dashboard:
 tokencat
 ```
 
+Force a specific dashboard theme:
+
+```bash
+tokencat --theme light
+tokencat dashboard --theme dark
+```
+
 Look at a longer window:
 
 ```bash
@@ -95,6 +102,7 @@ tokencat pricing refresh
 ## What You Get
 
 - A dense terminal dashboard with provider health, token totals, pricing coverage, daily usage, and recent sessions
+- Dashboard theme switching with `--theme auto|dark|light`
 - Session-level views with anonymous IDs by default
 - Model-level aggregation across supported tools
 - Daily time-series aggregation across supported tools
@@ -118,6 +126,7 @@ TokenCat can estimate API-equivalent cost for models with known pricing data.
 - On first pricing use, TokenCat silently tries to refresh its own cache under `~/.tokencat/pricing/`.
 - If that refresh fails, it quietly falls back to the bundled catalog.
 - `tokencat pricing refresh` manually refreshes the local cache.
+- The terminal dashboard also does a silent PyPI update check and only shows a notice when a newer TokenCat release exists.
 - Pricing resolution is source-aware: direct source price first, then official API price, then OpenRouter as the marketplace fallback.
 - JSON output includes `pricing_source` so you can see whether a session or model was priced from the direct source, an official vendor catalog, or OpenRouter.
 - Metadata-only rows in the upstream dataset are ignored; TokenCat only treats entries with explicit price fields as priced.
@@ -167,8 +176,11 @@ That makes TokenCat easy to pipe into scripts, local dashboards, or personal aut
 - `--provider codex|gemini|copilot`
 - `--provider codex|claude|gemini|copilot`
 - `--since` / `--until` with values like `7d`, `24h`, or ISO dates
+- `--theme auto|dark|light` for dashboard rendering
 - `--json`
 - `--no-price`
+
+`--theme auto` uses `COLORFGBG` when available to detect a light terminal background, and falls back to the dark palette when it cannot tell.
 
 Session listings also support:
 
