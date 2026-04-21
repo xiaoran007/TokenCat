@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-from typing import Annotated, List, Optional
+from typing import List, Optional
 
 import typer
 from rich.console import Console
@@ -32,14 +32,7 @@ pricing_app = typer.Typer(help="Inspect and refresh the local pricing catalog.")
 app.add_typer(pricing_app, name="pricing")
 console = Console(highlight=False)
 
-ProviderOption = Annotated[
-    Optional[List[ProviderName]],
-    typer.Option(
-        "--provider",
-        help="Filter to one or more providers.",
-        case_sensitive=False,
-    ),
-]
+ProviderOption = Optional[List[ProviderName]]
 
 
 def build_filters(
@@ -72,15 +65,15 @@ def build_filters(
 @app.callback()
 def main(
     ctx: typer.Context,
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the terminal dashboard.")] = False,
-    weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the terminal dashboard.")] = False,
-    monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the terminal dashboard.")] = False,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of styled dashboard output.")] = False,
-    theme: Annotated[DashboardThemeMode, typer.Option("--theme", help="Theme for the terminal dashboard: auto, dark, or light.")] = DashboardThemeMode.AUTO,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    daily_view: bool = typer.Option(False, "--daily", help="Force daily usage buckets in the terminal dashboard."),
+    weekly_view: bool = typer.Option(False, "--weekly", help="Force weekly usage buckets in the terminal dashboard."),
+    monthly_view: bool = typer.Option(False, "--monthly", help="Force monthly usage buckets in the terminal dashboard."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of styled dashboard output."),
+    theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
 ) -> None:
     if ctx.invoked_subcommand is None:
         _run_dashboard(
@@ -99,15 +92,15 @@ def main(
 
 @app.command()
 def dashboard(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the dashboard.")] = False,
-    weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the dashboard.")] = False,
-    monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the dashboard.")] = False,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of the dashboard.")] = False,
-    theme: Annotated[DashboardThemeMode, typer.Option("--theme", help="Theme for the terminal dashboard: auto, dark, or light.")] = DashboardThemeMode.AUTO,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    daily_view: bool = typer.Option(False, "--daily", help="Force daily usage buckets in the dashboard."),
+    weekly_view: bool = typer.Option(False, "--weekly", help="Force weekly usage buckets in the dashboard."),
+    monthly_view: bool = typer.Option(False, "--monthly", help="Force monthly usage buckets in the dashboard."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of the dashboard."),
+    theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
 ) -> None:
     _run_dashboard(
         providers=providers,
@@ -193,7 +186,7 @@ def _run_dashboard(
 
 @app.command()
 def doctor(
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = ScanFilters()
     result = scan_providers(filters)
@@ -232,12 +225,12 @@ def doctor(
 
 @app.command()
 def summary(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Cap matching sessions before aggregation.")] = None,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option(None, "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Cap matching sessions before aggregation."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model=None, show_title=False, show_path=False)
     result, _, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price)
@@ -285,12 +278,12 @@ def summary(
 
 @app.command()
 def daily(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Maximum number of rows to show."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
@@ -349,15 +342,15 @@ def daily(
 
 @app.command()
 def sessions(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of sessions to show.")] = 50,
-    model: Annotated[Optional[str], typer.Option("--model", help="Only include sessions that used this model.")] = None,
-    show_title: Annotated[bool, typer.Option("--show-title", help="Show local session titles when available.")] = False,
-    show_path: Annotated[bool, typer.Option("--show-path", help="Show local paths/source refs when available.")] = False,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    limit: Optional[int] = typer.Option(50, "--limit", min=1, help="Maximum number of sessions to show."),
+    model: Optional[str] = typer.Option(None, "--model", help="Only include sessions that used this model."),
+    show_title: bool = typer.Option(False, "--show-title", help="Show local session titles when available."),
+    show_path: bool = typer.Option(False, "--show-path", help="Show local paths/source refs when available."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model, show_title, show_path)
     result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
@@ -415,12 +408,12 @@ def sessions(
 
 @app.command()
 def models(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
-    no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Maximum number of rows to show."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
@@ -480,10 +473,10 @@ def models(
 
 @pricing_app.command("show")
 def pricing_show(
-    providers: ProviderOption = None,
-    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option(None, "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=True)
@@ -509,7 +502,7 @@ def pricing_show(
 
 @pricing_app.command("refresh")
 def pricing_refresh(
-    json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
 ) -> None:
     warnings: list[str] = []
     try:
