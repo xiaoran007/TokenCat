@@ -8,7 +8,7 @@ from urllib.request import urlopen
 PYPI_VERSION_URL = "https://pypi.org/pypi/tokencat/json"
 
 
-@dataclass(slots=True)
+@dataclass
 class UpdateNotice:
     current_version: str
     latest_version: str

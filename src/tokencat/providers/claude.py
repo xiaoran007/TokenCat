@@ -22,7 +22,7 @@ from tokencat.providers.base import ProviderAdapter
 CLAUDE_CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR"
 
 
-@dataclass(slots=True)
+@dataclass
 class ClaudeRoot:
     root: Path
     label: str

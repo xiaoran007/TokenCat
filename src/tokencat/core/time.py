@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Literal
 
 
@@ -56,7 +56,7 @@ def _parse_relative(value: str) -> timedelta | None:
 def parse_unix_timestamp(value: int | float | None) -> datetime | None:
     if value is None:
         return None
-    return datetime.fromtimestamp(value, tz=UTC).astimezone()
+    return datetime.fromtimestamp(value, tz=timezone.utc).astimezone()
 
 
 def parse_iso_datetime(value: str | None) -> datetime | None:

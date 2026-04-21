@@ -75,7 +75,7 @@ MODEL_ALIASES: dict[str, str] = {
 }
 
 
-@dataclass(slots=True)
+@dataclass
 class PricingLookupResult:
     entry: PricingEntry
     resolved_model: str
@@ -83,7 +83,7 @@ class PricingLookupResult:
     is_fallback: bool = False
 
 
-@dataclass(slots=True)
+@dataclass
 class PricingCandidate:
     pricing_source: PricingSourceName
     model: str

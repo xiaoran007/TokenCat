@@ -24,7 +24,7 @@ SESSION_ID_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 LEGACY_FALLBACK_MODEL = "gpt-5"
 
 
-@dataclass(slots=True)
+@dataclass
 class RawUsage:
     input_tokens: int
     cached_input_tokens: int

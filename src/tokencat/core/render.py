@@ -29,7 +29,7 @@ from tokencat.core.presentation import (
 from tokencat.core.updates import UpdateNotice
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class DashboardPalette:
     accent: str
     muted: str

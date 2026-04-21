@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, List, Optional
 
 import typer
 from rich.console import Console
@@ -33,7 +33,7 @@ app.add_typer(pricing_app, name="pricing")
 console = Console(highlight=False)
 
 ProviderOption = Annotated[
-    list[ProviderName] | None,
+    Optional[List[ProviderName]],
     typer.Option(
         "--provider",
         help="Filter to one or more providers.",
@@ -73,8 +73,8 @@ def build_filters(
 def main(
     ctx: typer.Context,
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
     daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the terminal dashboard.")] = False,
     weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the terminal dashboard.")] = False,
     monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the terminal dashboard.")] = False,
@@ -100,8 +100,8 @@ def main(
 @app.command()
 def dashboard(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
     daily_view: Annotated[bool, typer.Option("--daily", help="Force daily usage buckets in the dashboard.")] = False,
     weekly_view: Annotated[bool, typer.Option("--weekly", help="Force weekly usage buckets in the dashboard.")] = False,
     monthly_view: Annotated[bool, typer.Option("--monthly", help="Force monthly usage buckets in the dashboard.")] = False,
@@ -233,9 +233,9 @@ def doctor(
 @app.command()
 def summary(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[int | None, typer.Option("--limit", min=1, help="Cap matching sessions before aggregation.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Cap matching sessions before aggregation.")] = None,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
 ) -> None:
@@ -286,9 +286,9 @@ def summary(
 @app.command()
 def daily(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[int | None, typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
 ) -> None:
@@ -350,10 +350,10 @@ def daily(
 @app.command()
 def sessions(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[int | None, typer.Option("--limit", min=1, help="Maximum number of sessions to show.")] = 50,
-    model: Annotated[str | None, typer.Option("--model", help="Only include sessions that used this model.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of sessions to show.")] = 50,
+    model: Annotated[Optional[str], typer.Option("--model", help="Only include sessions that used this model.")] = None,
     show_title: Annotated[bool, typer.Option("--show-title", help="Show local session titles when available.")] = False,
     show_path: Annotated[bool, typer.Option("--show-path", help="Show local paths/source refs when available.")] = False,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
@@ -416,9 +416,9 @@ def sessions(
 @app.command()
 def models(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    limit: Annotated[int | None, typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = "7d",
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    limit: Annotated[Optional[int], typer.Option("--limit", min=1, help="Maximum number of rows to show.")] = None,
     no_price: Annotated[bool, typer.Option("--no-price", help="Disable pricing and cost estimation.")] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
 ) -> None:
@@ -481,8 +481,8 @@ def models(
 @pricing_app.command("show")
 def pricing_show(
     providers: ProviderOption = None,
-    since: Annotated[str | None, typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
-    until: Annotated[str | None, typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    since: Annotated[Optional[str], typer.Option("--since", help="Relative like 7d/24h or ISO date/datetime.")] = None,
+    until: Annotated[Optional[str], typer.Option("--until", help="Relative like 7d/24h or ISO date/datetime.")] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Emit structured JSON instead of tables.")] = False,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)

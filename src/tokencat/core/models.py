@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 
 PricingSourceName = str
 
 
-class ProviderName(StrEnum):
+class ProviderName(str, Enum):
     CODEX = "codex"
     CLAUDE = "claude"
     GEMINI = "gemini"
@@ -25,26 +25,26 @@ class ProviderName(StrEnum):
         return "GitHub Copilot CLI"
 
 
-class ProviderSupportLevel(StrEnum):
+class ProviderSupportLevel(str, Enum):
     SUPPORTED = "supported"
     PARTIAL = "partial"
     UNSUPPORTED = "unsupported"
     NOT_FOUND = "not_found"
 
 
-class DashboardUsageGranularity(StrEnum):
+class DashboardUsageGranularity(str, Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
 
 
-class DashboardThemeMode(StrEnum):
+class DashboardThemeMode(str, Enum):
     AUTO = "auto"
     DARK = "dark"
     LIGHT = "light"
 
 
-@dataclass(slots=True)
+@dataclass
 class TokenTotals:
     input: int | None = None
     output: int | None = None
@@ -85,7 +85,7 @@ class TokenTotals:
         return sum(value or 0 for value in (self.input, self.output, self.cached, self.reasoning, self.tool))
 
 
-@dataclass(slots=True)
+@dataclass
 class CostEstimate:
     input_cost: float = 0.0
     cached_input_cost: float = 0.0
@@ -109,7 +109,7 @@ class CostEstimate:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class ModelUsage:
     model: str
     tokens: TokenTotals = field(default_factory=TokenTotals)
@@ -126,7 +126,7 @@ class ModelUsage:
         self.message_count += message_count
 
 
-@dataclass(slots=True)
+@dataclass
 class UsageSlice:
     timestamp: datetime
     model: str | None
@@ -136,7 +136,7 @@ class UsageSlice:
     is_fallback_model: bool = False
 
 
-@dataclass(slots=True)
+@dataclass
 class SessionRecord:
     provider: ProviderName
     provider_session_id: str
@@ -178,7 +178,7 @@ class SessionRecord:
         return self.models[0] if self.models else None
 
 
-@dataclass(slots=True)
+@dataclass
 class ProviderStatus:
     provider: ProviderName
     status: ProviderSupportLevel
@@ -188,7 +188,7 @@ class ProviderStatus:
     warnings: list[str] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass
 class ScanFilters:
     providers: set[ProviderName] | None = None
     since: datetime | None = None
@@ -199,14 +199,14 @@ class ScanFilters:
     show_path: bool = False
 
 
-@dataclass(slots=True)
+@dataclass
 class ScanResult:
     statuses: list[ProviderStatus]
     sessions: list[SessionRecord]
     warnings: list[str] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass
 class PricingEntry:
     pricing_source: PricingSourceName
     model: str
@@ -232,7 +232,7 @@ class PricingEntry:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class PricingCatalog:
     source: str
     loaded_at: datetime
@@ -246,7 +246,7 @@ class PricingCatalog:
         return len(self.entries)
 
 
-@dataclass(slots=True)
+@dataclass
 class PricingCoverage:
     total_tokens: int = 0
     priced_tokens: int = 0
@@ -279,7 +279,7 @@ class PricingCoverage:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class DailyModelUsageRecord:
     provider: ProviderName
     model: str
@@ -304,7 +304,7 @@ class DailyModelUsageRecord:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class DailyUsageRecord:
     date: date
     label: str | None = None

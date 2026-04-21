@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from tokencat.core.models import (
@@ -656,7 +656,7 @@ def _parse_timestamp(value: object) -> datetime | None:
         seconds = float(value)
         if seconds > 10_000_000_000:
             seconds /= 1000.0
-        return datetime.fromtimestamp(seconds, tz=UTC).astimezone()
+        return datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone()
     if isinstance(value, str):
         return parse_iso_datetime(value)
     return None
@@ -753,5 +753,5 @@ def _session_score(record: SessionRecord) -> tuple[int, int, int, float]:
     total_tokens = record.token_totals.total or 0
     model_count = len(record.model_usage)
     request_count = int(record.metadata.get("request_count", 0) or 0)
-    timestamp = (record.updated_at or record.started_at or datetime.fromtimestamp(0, tz=UTC).astimezone()).timestamp()
+    timestamp = (record.updated_at or record.started_at or datetime.fromtimestamp(0, tz=timezone.utc).astimezone()).timestamp()
     return (total_tokens, model_count, request_count, timestamp)
