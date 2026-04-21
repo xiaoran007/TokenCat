@@ -781,6 +781,8 @@ def test_dashboard_weekly_render_matches_golden(sample_home: Path, monkeypatch) 
     seed_long_window_dashboard_sample(sample_home)
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    fixed_now = datetime.fromisoformat("2026-04-08T12:00:00+00:00")
+    monkeypatch.setattr("tokencat.core.time.local_now", lambda: fixed_now)
     rendered = build_dashboard_render_output_for_granularity(
         sample_home,
         since="30d",
@@ -794,6 +796,8 @@ def test_dashboard_monthly_render_matches_golden(sample_home: Path, monkeypatch)
     seed_long_window_dashboard_sample(sample_home)
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    fixed_now = datetime.fromisoformat("2026-03-16T12:00:00+00:00")
+    monkeypatch.setattr("tokencat.core.time.local_now", lambda: fixed_now)
     rendered = build_dashboard_render_output_for_granularity(
         sample_home,
         since="90d",
@@ -1065,6 +1069,9 @@ def test_codex_dashboard_and_models_agree_for_recent_active_sessions(sample_home
     seed_dashboard_sample(sample_home)
     seed_pricing_cache(sample_home)
     monkeypatch.setattr("pathlib.Path.home", lambda: sample_home)
+    fixed_now = datetime.fromisoformat("2026-03-16T12:00:00+00:00")
+    monkeypatch.setattr("tokencat.core.time.local_now", lambda: fixed_now)
+    monkeypatch.setattr("tokencat.cli.local_now", lambda: fixed_now)
     runner = CliRunner()
 
     dashboard_result = runner.invoke(app, ["dashboard", "--provider", "codex", "--since", "30d", "--json"])
