@@ -23,7 +23,7 @@ If you jump between Codex, Claude Code, Gemini CLI, and Copilot CLI, TokenCat gi
 
 ## Install
 
-Python 3.11+ is required.
+Python 3.9+ is required.
 
 ```bash
 pipx install tokencat
