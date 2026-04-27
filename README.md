@@ -102,6 +102,7 @@ tokencat pricing refresh
 ## What You Get
 
 - A dense terminal dashboard with provider health, token totals, pricing coverage, daily usage, and recent sessions
+- Compact dashboard token counts such as `2M` and `837K` on narrow terminals
 - Dashboard theme switching with `--theme auto|dark|light`
 - Session-level views with anonymous IDs by default
 - Model-level aggregation across supported tools
@@ -188,6 +189,8 @@ That makes TokenCat easy to pipe into scripts, local dashboards, or personal aut
 - `--no-price`
 
 `--theme auto` uses `COLORFGBG` when available to detect a light terminal background, and falls back to the dark palette when it cannot tell.
+
+Dashboard token counts automatically switch to compact notation on terminals 120 columns wide or narrower.
 
 Session listings also support:
 

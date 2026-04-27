@@ -2,7 +2,7 @@
 
 ## Product Status
 
-- Current tagged release: `v0.6.0`.
+- Current tagged release: `v0.6.1`.
 - Current release maturity: stable.
 - Current working branch is typically `main` unless the user explicitly asks for a feature branch.
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
@@ -21,7 +21,7 @@
 - TokenCat is read-only with respect to provider data.
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
-- Pricing behavior in `v0.6.0`:
+- Pricing behavior in `v0.6.1`:
   - package builds do not refresh the bundled pricing catalog automatically;
   - refresh bundled package pricing explicitly with `make refresh-bundled-pricing`;
   - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
@@ -36,6 +36,7 @@
   - Claude Code pricing keeps the observed model string, but pricing normalization can still resolve namespaced forms such as `anthropic/claude-*` and redirected families such as `openai/gpt-*` or `google/gemini-*` when they map cleanly to existing catalog families.
   - time-windowed `sessions`, `summary`, `models`, and `daily` views now use event/message/request timestamps when local telemetry supports it, instead of assigning whole sessions to `updated_at`.
   - terminal dashboard usage buckets can adapt between daily, weekly, and monthly views based on the selected time window, with explicit `--daily`, `--weekly`, and `--monthly` overrides.
+  - terminal dashboard uses compact token counts such as `2M` and `837K` on terminals 120 columns wide or narrower.
   - terminal dashboard hides zero-token model rows so metadata-only Copilot VS Code sessions do not show misleading `0` token lines by default.
   - terminal dashboard supports `--theme auto|dark|light`; `auto` uses `COLORFGBG` when available and otherwise falls back to the dark palette.
   - terminal dashboard provider health now uses color-coded dots with provider names only instead of repeating `:supported` / `:partial` / `:not_found`.
