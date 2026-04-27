@@ -2,9 +2,11 @@
 
 ## Product Status
 
-- Current tagged release: `v0.5.0`.
+- Current tagged release: `v0.6.0`.
+- Current release maturity: stable.
 - Current working branch is typically `main` unless the user explicitly asks for a feature branch.
 - Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
+- Supported Python floor is `3.9+`.
 - Supported in practice:
   - `Codex`: supported via local session JSONL and SQLite fallback.
   - `Claude Code`: supported via `CLAUDE_CONFIG_DIR` roots or local Claude project JSONL under `$XDG_CONFIG_HOME/claude` / `~/.config/claude` and legacy `~/.claude`.
@@ -19,7 +21,7 @@
 - TokenCat is read-only with respect to provider data.
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
-- Pricing behavior in `v0.5.0`:
+- Pricing behavior in `v0.6.0`:
   - package builds refresh the bundled pricing catalog before packaging;
   - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
   - silent bootstrap failure falls back to the bundled catalog without surfacing an error.
@@ -46,7 +48,8 @@
 - Version bumps happen in both:
   - `pyproject.toml`
   - `src/tokencat/__init__.py`
-- Tag after the explicit version bump commit.
+- If local build refreshes the bundled pricing catalog, commit that generated catalog update before tagging.
+- Tag after the release-related commit chain is complete.
 - Current tag convention: `vX.Y.Z`.
 
 ## Git Hygiene
