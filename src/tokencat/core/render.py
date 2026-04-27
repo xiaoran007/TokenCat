@@ -60,6 +60,8 @@ LIGHT_PALETTE = DashboardPalette(
     surface="on #f7f3ea",
 )
 
+COMPACT_DASHBOARD_WIDTH = 100
+
 
 def render_dashboard(
     console: Console,
@@ -78,17 +80,26 @@ def render_dashboard(
     update_notice: UpdateNotice | None = None,
 ) -> None:
     palette = _palette_for_theme(theme)
+    compact_tokens = console.width < COMPACT_DASHBOARD_WIDTH
     visible_daily = _filter_dashboard_daily_records(daily)
     visible_sessions = filter_displayable_sessions(sessions[:6])
     renderables = [
-        _brand_panel(time_label, statuses, pricing_catalog, pricing_coverage, palette=palette, update_notice=update_notice),
-        _hero_panel(overview, palette=palette),
-        _daily_panel(visible_daily, granularity=usage_granularity, palette=palette),
+        _brand_panel(
+            time_label,
+            statuses,
+            pricing_catalog,
+            pricing_coverage,
+            palette=palette,
+            update_notice=update_notice,
+            compact_tokens=compact_tokens,
+        ),
+        _hero_panel(overview, palette=palette, compact_tokens=compact_tokens),
+        _daily_panel(visible_daily, granularity=usage_granularity, palette=palette, compact_tokens=compact_tokens),
     ]
     if show_recent_sessions:
         renderables.append(
             Panel(
-                _recent_sessions_renderable(visible_sessions, palette=palette),
+                _recent_sessions_renderable(visible_sessions, palette=palette, compact_tokens=compact_tokens),
                 title="Recent Sessions",
                 border_style=palette.accent,
                 box=box.ROUNDED,
@@ -146,11 +157,14 @@ def _brand_panel(
     *,
     palette: DashboardPalette,
     update_notice: UpdateNotice | None,
+    compact_tokens: bool,
 ) -> Panel:
     header = Text()
     header.append("tokencat", style=f"bold {palette.accent}")
     header.append("  local usage cockpit", style=palette.muted)
     header.append(f"\nwindow: {time_label}", style=palette.cool)
+    if compact_tokens:
+        header.append("\ncompact tokens: narrow terminal", style=palette.muted)
 
     status_line = Text()
     for index, status in enumerate(statuses):
@@ -175,7 +189,10 @@ def _brand_panel(
     if pricing_coverage is not None and pricing_coverage.unknown_models:
         footer.append(f"\nunknown pricing: {', '.join(pricing_coverage.unknown_models)}", style=palette.warn)
     if pricing_coverage is not None and pricing_coverage.unattributed_token_count:
-        footer.append(f"\nunattributed tokens: {_format_int(pricing_coverage.unattributed_token_count)}", style=palette.warn)
+        footer.append(
+            f"\nunattributed tokens: {_format_token_count(pricing_coverage.unattributed_token_count, compact=compact_tokens)}",
+            style=palette.warn,
+        )
 
     lines: list[object] = [header, status_line]
     if update_notice is not None:
@@ -185,7 +202,7 @@ def _brand_panel(
     return Panel(Group(*lines), border_style=palette.accent, box=box.ROUNDED, style=palette.surface)
 
 
-def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Panel:
+def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compact_tokens: bool) -> Panel:
     totals = overview["token_totals"]
     cost = overview["estimated_cost"]
     secondary = overview.get("secondary_metrics") or {}
@@ -194,7 +211,7 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Pa
     ]
 
     primary = Text()
-    primary.append(f"{_format_int(totals['total'])}\n", style=f"bold {palette.accent}")
+    primary.append(f"{_format_token_count(totals['total'], compact=compact_tokens)}\n", style=f"bold {palette.accent}")
     primary.append("Total tokens\n", style=palette.cool)
     primary.append(f"{_format_cost(cost['total_cost'])} estimated API cost\n", style=f"bold {palette.warn}")
     primary.append(
@@ -212,8 +229,8 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Pa
         "  ".join(
             [
                 f"coverage {_format_ratio(secondary.get('priced_coverage', 0.0))}",
-                f"unknown {_format_int(secondary.get('unknown_model_tokens'))}",
-                f"unattributed {_format_int(secondary.get('unattributed_token_count'))}",
+                f"unknown {_format_token_count(secondary.get('unknown_model_tokens'), compact=compact_tokens)}",
+                f"unattributed {_format_token_count(secondary.get('unattributed_token_count'), compact=compact_tokens)}",
             ]
         ),
         style=palette.muted,
@@ -227,7 +244,7 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Pa
         estimated = item.get("estimated_cost") or {}
         ranking.add_row(
             item["model"],
-            _format_int(item["token_totals"]["total"]),
+            _format_token_count(item["token_totals"]["total"], compact=compact_tokens),
             _format_cost(estimated.get("total_cost", 0.0)),
         )
     if not top_models:
@@ -248,7 +265,13 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette) -> Pa
     )
 
 
-def _daily_panel(records: list[DailyUsageRecord], *, granularity: DashboardUsageGranularity, palette: DashboardPalette) -> Panel:
+def _daily_panel(
+    records: list[DailyUsageRecord],
+    *,
+    granularity: DashboardUsageGranularity,
+    palette: DashboardPalette,
+    compact_tokens: bool,
+) -> Panel:
     title = {
         DashboardUsageGranularity.DAILY: "Daily Usage",
         DashboardUsageGranularity.WEEKLY: "Weekly Usage",
@@ -261,15 +284,15 @@ def _daily_panel(records: list[DailyUsageRecord], *, granularity: DashboardUsage
     for index, record in enumerate(records):
         if index:
             sections.append(Rule(style=palette.muted))
-        sections.append(_daily_block(record, palette=palette))
+        sections.append(_daily_block(record, palette=palette, compact_tokens=compact_tokens))
     return Panel(Group(*sections), title=title, border_style=palette.muted, box=box.ROUNDED, style=palette.surface)
 
 
-def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette) -> Group:
+def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact_tokens: bool) -> Group:
     header = Text()
     header.append(record.label or record.date.isoformat(), style=f"bold {palette.accent}")
     header.append("  ", style=palette.muted)
-    header.append(f"{_format_int(record.token_totals.total)} total", style=palette.cool)
+    header.append(f"{_format_token_count(record.token_totals.total, compact=compact_tokens)} total", style=palette.cool)
     header.append("  ", style=palette.muted)
     header.append(f"{_format_cost(record.estimated_cost.total_cost)}", style=palette.warn)
     header.append("  ", style=palette.muted)
@@ -278,21 +301,23 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette) -> Grou
     header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=palette.muted)
 
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    table.add_column("Model", style=palette.accent, width=32, no_wrap=True, overflow="ellipsis")
-    table.add_column("Input", justify="right", width=12, no_wrap=True)
-    table.add_column("Output", justify="right", width=12, no_wrap=True)
-    table.add_column("Cached", justify="right", width=12, no_wrap=True)
-    table.add_column("Total", justify="right", width=12, no_wrap=True)
+    model_width = 26 if compact_tokens else 32
+    token_width = 7 if compact_tokens else 12
+    table.add_column("Model", style=palette.accent, width=model_width, no_wrap=True, overflow="ellipsis")
+    table.add_column("Input", justify="right", width=token_width, no_wrap=True)
+    table.add_column("Output", justify="right", width=token_width, no_wrap=True)
+    table.add_column("Cached", justify="right", width=token_width, no_wrap=True)
+    table.add_column("Total", justify="right", width=token_width, no_wrap=True)
     table.add_column("Est Cost", justify="right", width=8, no_wrap=True)
 
     visible_models = record.models[:5]
     for model in visible_models:
         table.add_row(
             f"{model.model} ({provider_display_name(model.provider)})",
-            _format_int(model.token_totals.input),
-            _format_int((model.token_totals.output or 0) + (model.token_totals.reasoning or 0)),
-            _format_int(model.token_totals.cached),
-            _format_int(model.token_totals.total),
+            _format_token_count(model.token_totals.input, compact=compact_tokens),
+            _format_token_count((model.token_totals.output or 0) + (model.token_totals.reasoning or 0), compact=compact_tokens),
+            _format_token_count(model.token_totals.cached, compact=compact_tokens),
+            _format_token_count(model.token_totals.total, compact=compact_tokens),
             _format_cost(model.estimated_cost.total_cost),
         )
     if len(record.models) > len(visible_models):
@@ -346,13 +371,13 @@ def _token_total(tokens) -> int:
     return sum(value for value in values if isinstance(value, int))
 
 
-def _recent_sessions_renderable(records: list[SessionRecord], *, palette: DashboardPalette) -> Table | Text:
+def _recent_sessions_renderable(records: list[SessionRecord], *, palette: DashboardPalette, compact_tokens: bool) -> Table | Text:
     if not records:
         return Text("No recent sessions in this window.", style=palette.muted)
-    return _recent_sessions_table(records, palette=palette)
+    return _recent_sessions_table(records, palette=palette, compact_tokens=compact_tokens)
 
 
-def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPalette) -> Table:
+def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPalette, compact_tokens: bool) -> Table:
     single_provider = len({record.provider.value for record in records}) <= 1 if records else False
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
     table.add_column("Session", style=palette.accent)
@@ -370,7 +395,7 @@ def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPa
             [
                 record.primary_model or "unknown",
                 record.attribution_status or "-",
-                _format_int(record.token_totals.total),
+                _format_token_count(record.token_totals.total, compact=compact_tokens),
                 _format_cost(record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0),
             ]
         )
@@ -399,6 +424,22 @@ def _format_int(value: int | None) -> str:
         return f"{int(number):,} ({number / 1_000_000:.1f}M)"
     if abs_number >= 1_000:
         return f"{int(number):,} ({number / 1_000:.1f}K)"
+    return f"{int(number):,}"
+
+
+def _format_token_count(value: int | None, *, compact: bool) -> str:
+    return _format_compact_int(value) if compact else _format_int(value)
+
+
+def _format_compact_int(value: int | None) -> str:
+    number = float(value or 0)
+    abs_number = abs(number)
+    if abs_number >= 1_000_000_000:
+        return f"{number / 1_000_000_000:.1f}".rstrip("0").rstrip(".") + "B"
+    if abs_number >= 1_000_000:
+        return f"{number / 1_000_000:.1f}".rstrip("0").rstrip(".") + "M"
+    if abs_number >= 1_000:
+        return f"{number / 1_000:.0f}K"
     return f"{int(number):,}"
 
 
