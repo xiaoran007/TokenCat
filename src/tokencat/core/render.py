@@ -60,7 +60,7 @@ LIGHT_PALETTE = DashboardPalette(
     surface="on #f7f3ea",
 )
 
-COMPACT_DASHBOARD_WIDTH = 100
+COMPACT_DASHBOARD_WIDTH = 121
 
 
 def render_dashboard(

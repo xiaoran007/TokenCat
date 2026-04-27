@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -9,7 +9,22 @@ from typer.testing import CliRunner
 
 from tokencat.cli import app
 from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
-from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity, ModelUsage, PricingCatalog, PricingEntry, ProviderName, ScanFilters, SessionRecord, TokenTotals
+from tokencat.core.models import (
+    CostEstimate,
+    DailyModelUsageRecord,
+    DailyUsageRecord,
+    DashboardThemeMode,
+    DashboardUsageGranularity,
+    ModelUsage,
+    PricingCatalog,
+    PricingEntry,
+    ProviderName,
+    ProviderStatus,
+    ProviderSupportLevel,
+    ScanFilters,
+    SessionRecord,
+    TokenTotals,
+)
 from tokencat.core.pricing import (
     apply_pricing,
     estimate_cost,
@@ -649,6 +664,82 @@ def test_dashboard_render_without_pricing_matches_golden(sample_home: Path, monk
     rendered = console.export_text()
     expected = (Path(__file__).parent / "golden" / "dashboard_no_price.txt").read_text(encoding="utf-8")
     assert rendered == expected
+
+
+def test_dashboard_uses_compact_tokens_on_narrow_terminal() -> None:
+    overview = {
+        "token_totals": {"input": 837000, "output": 1163000, "cached": 0, "reasoning": 0, "tool": 0, "total": 2000000},
+        "estimated_cost": {"total_cost": 0.0},
+        "session_count": 1,
+        "model_count": 1,
+        "top_models": [
+            {
+                "provider": "codex",
+                "model": "gpt-5.4",
+                "token_totals": {"input": 837000, "output": 0, "cached": 0, "reasoning": 0, "tool": 0, "total": 837000},
+                "estimated_cost": {"total_cost": 0.0},
+            }
+        ],
+        "secondary_metrics": {
+            "provider_count": 1,
+            "priced_coverage": 0.0,
+            "unknown_model_tokens": 837000,
+            "unattributed_token_count": 0,
+        },
+    }
+    daily = [
+        DailyUsageRecord(
+            date=date(2026, 3, 16),
+            label="2026-03-16",
+            providers={ProviderName.CODEX},
+            token_totals=TokenTotals(input=837000, output=1163000, cached=0, total=2000000),
+            session_count=1,
+            estimated_cost=CostEstimate(),
+            total_tokens=2000000,
+            models=[
+                DailyModelUsageRecord(
+                    provider=ProviderName.CODEX,
+                    model="gpt-5.4",
+                    token_totals=TokenTotals(input=837000, output=1163000, cached=0, total=2000000),
+                    estimated_cost=CostEstimate(),
+                    session_count=1,
+                )
+            ],
+        )
+    ]
+    sessions = [
+        SessionRecord(
+            provider=ProviderName.CODEX,
+            provider_session_id="wide-token-session",
+            anon_session_id="codex:wide-token-session",
+            started_at=datetime.fromisoformat("2026-03-16T12:00:00+00:00"),
+            updated_at=datetime.fromisoformat("2026-03-16T12:01:00+00:00"),
+            token_totals=TokenTotals(input=837000, output=1163000, cached=0, total=2000000),
+            primary_model_override="gpt-5.4",
+            estimated_cost=CostEstimate(),
+            attribution_status="known",
+        )
+    ]
+    console = Console(width=120, force_terminal=False, color_system=None, record=True)
+
+    render_dashboard(
+        console,
+        time_label="7d",
+        statuses=[ProviderStatus(provider=ProviderName.CODEX, status=ProviderSupportLevel.SUPPORTED)],
+        overview=overview,
+        daily=daily,
+        sessions=sessions,
+        pricing_catalog=None,
+        pricing_coverage=None,
+        warnings=[],
+    )
+
+    rendered = console.export_text()
+    assert "compact tokens: narrow terminal" in rendered
+    assert "2M" in rendered
+    assert "837K" in rendered
+    assert "2,000,000 (2.0M)" not in rendered
+    assert "837,000 (837.0K)" not in rendered
 
 
 def test_dashboard_adapts_to_weekly_and_monthly_terminal_usage(sample_home: Path, monkeypatch) -> None:
