@@ -20,7 +20,7 @@ clean:
 refresh-bundled-pricing:
 	$(PYTHON) -m tokencat.core.pricing refresh-bundled
 
-build: clean refresh-bundled-pricing
+build: clean
 	$(PYTHON) -m build
 
 check-dist: build

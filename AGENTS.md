@@ -22,7 +22,8 @@
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
 - Pricing behavior in `v0.6.0`:
-  - package builds refresh the bundled pricing catalog before packaging;
+  - package builds do not refresh the bundled pricing catalog automatically;
+  - refresh bundled package pricing explicitly with `make refresh-bundled-pricing`;
   - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
   - silent bootstrap failure falls back to the bundled catalog without surfacing an error.
   - pricing resolution order is:
@@ -48,7 +49,7 @@
 - Version bumps happen in both:
   - `pyproject.toml`
   - `src/tokencat/__init__.py`
-- If local build refreshes the bundled pricing catalog, commit that generated catalog update before tagging.
+- If refreshing the bundled pricing catalog for a release, commit that generated catalog update before tagging.
 - Tag after the release-related commit chain is complete.
 - Current tag convention: `vX.Y.Z`.
 

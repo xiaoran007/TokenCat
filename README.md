@@ -132,6 +132,13 @@ TokenCat can estimate API-equivalent cost for models with known pricing data.
 - Metadata-only rows in the upstream dataset are ignored; TokenCat only treats entries with explicit price fields as priced.
 - Unknown or historically renamed models are shown clearly instead of being guessed.
 
+Maintainers can refresh the bundled package catalog explicitly before building:
+
+```bash
+make refresh-bundled-pricing
+make build
+```
+
 Current pricing references:
 
 - [OpenAI API pricing](https://openai.com/api/pricing/)
