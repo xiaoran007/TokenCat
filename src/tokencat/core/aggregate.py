@@ -64,6 +64,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
     attribution_statuses: dict[tuple[str, str], set[str]] = defaultdict(set)
     pricing_models: dict[tuple[str, str], set[str]] = defaultdict(set)
     pricing_sources: dict[tuple[str, str], set[str]] = defaultdict(set)
+    pricing_statuses: dict[tuple[str, str], str | None] = defaultdict(lambda: None)
     fallback_flags: dict[tuple[str, str], bool] = defaultdict(bool)
 
     for record in records:
@@ -79,6 +80,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
                 pricing_models[key].add(usage.pricing_model)
             if usage.pricing_source is not None:
                 pricing_sources[key].add(usage.pricing_source)
+            pricing_statuses[key] = _pick_pricing_status(pricing_statuses[key], usage.pricing_status)
             fallback_flags[key] = fallback_flags[key] or usage.is_fallback_model
             sessions_per_model[key].add(record.anon_session_id)
 
@@ -102,6 +104,7 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
                 "attribution_status": attribution_status,
                 "pricing_model": resolved_pricing_models[0] if len(resolved_pricing_models) == 1 else None,
                 "pricing_source": resolved_pricing_sources[0] if len(resolved_pricing_sources) == 1 else None,
+                "pricing_status": pricing_statuses[(provider, model)],
                 "is_fallback_model": fallback_flags[(provider, model)],
             }
         )
@@ -328,6 +331,7 @@ def build_dashboard_overview(summary: dict[str, object], top_models: list[dict[s
         "top_models": top_models[:5],
         "secondary_metrics": {
             "priced_coverage": pricing.get("priced_ratio", 0.0),
+            "fallback_priced_tokens": pricing.get("fallback_priced_tokens", 0),
             "unknown_model_tokens": pricing.get("unknown_model_tokens", 0),
             "unattributed_token_count": pricing.get("unattributed_token_count", 0),
             "provider_count": len([status for status in statuses if getattr(getattr(status, "status", None), "value", None) == "supported"]),

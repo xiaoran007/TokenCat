@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -140,6 +141,15 @@ def lookup_pricing_entry(catalog: PricingCatalog, provider: ProviderName, model:
             resolved_source=candidate.pricing_source,
             is_fallback=candidate.is_fallback,
         )
+    if provider is ProviderName.CLAUDE:
+        entry = _latest_claude_opus_entry(catalog)
+        if entry is not None:
+            return PricingLookupResult(
+                entry=entry,
+                resolved_model=entry.model,
+                resolved_source=entry.pricing_source,
+                is_fallback=True,
+            )
     return None
 
 
@@ -582,6 +592,22 @@ def _as_number(value: object) -> float:
 
 def _has_non_zero_pricing(entry: PricingEntry) -> bool:
     return any(value > 0 for value in (entry.input_per_1m, entry.output_per_1m, entry.cached_input_per_1m or 0.0))
+
+
+def _latest_claude_opus_entry(catalog: PricingCatalog) -> PricingEntry | None:
+    candidates = [
+        entry
+        for (source, _), entry in catalog.entries.items()
+        if source == "anthropic" and "opus" in entry.model.lower() and _has_non_zero_pricing(entry)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda entry: (_model_date_key(entry.model), entry.model))
+
+
+def _model_date_key(model: str) -> int:
+    dates = re.findall(r"(20\d{6})", model)
+    return max((int(value) for value in dates), default=-1)
 
 
 def _bundled_catalog_path() -> Path:

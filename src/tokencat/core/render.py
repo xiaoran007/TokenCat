@@ -213,7 +213,11 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compa
     primary = Text()
     primary.append(f"{_format_token_count(totals['total'], compact=compact_tokens)}\n", style=f"bold {palette.accent}")
     primary.append("Total tokens\n", style=palette.cool)
-    primary.append(f"{_format_cost(cost['total_cost'])} estimated API cost\n", style=f"bold {palette.warn}")
+    overview_pricing_status = "fallback_priced" if secondary.get("fallback_priced_tokens", 0) else "priced"
+    primary.append(
+        f"{_format_cost(cost['total_cost'])} estimated API cost\n",
+        style=f"bold {_cost_style(cost.get('total_cost'), overview_pricing_status, palette)}",
+    )
     primary.append(
         "  ".join(
             [
@@ -245,7 +249,7 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compa
         ranking.add_row(
             item["model"],
             _format_token_count(item["token_totals"]["total"], compact=compact_tokens),
-            _format_cost(estimated.get("total_cost", 0.0)),
+            _cost_text(estimated.get("total_cost", 0.0), item.get("pricing_status"), palette),
         )
     if not top_models:
         ranking.add_row("No model data", "-", "-")
@@ -294,7 +298,10 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     header.append("  ", style=palette.muted)
     header.append(f"{_format_token_count(record.token_totals.total, compact=compact_tokens)} total", style=palette.cool)
     header.append("  ", style=palette.muted)
-    header.append(f"{_format_cost(record.estimated_cost.total_cost)}", style=palette.warn)
+    header.append(
+        f"{_format_cost(record.estimated_cost.total_cost)}",
+        style=_cost_style(record.estimated_cost.total_cost, _daily_pricing_status(record), palette),
+    )
     header.append("  ", style=palette.muted)
     header.append(f"{record.session_count} sessions", style=palette.muted)
     header.append("  ", style=palette.muted)
@@ -318,7 +325,7 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
             _format_token_count((model.token_totals.output or 0) + (model.token_totals.reasoning or 0), compact=compact_tokens),
             _format_token_count(model.token_totals.cached, compact=compact_tokens),
             _format_token_count(model.token_totals.total, compact=compact_tokens),
-            _format_cost(model.estimated_cost.total_cost),
+            _cost_text(model.estimated_cost.total_cost, model.pricing_status, palette),
         )
     if len(record.models) > len(visible_models):
         table.add_row(
@@ -396,7 +403,11 @@ def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPa
                 record.primary_model or "unknown",
                 record.attribution_status or "-",
                 _format_token_count(record.token_totals.total, compact=compact_tokens),
-                _format_cost(record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0),
+                _cost_text(
+                    record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0,
+                    record.pricing_status,
+                    palette,
+                ),
             ]
         )
         table.add_row(*row)
@@ -449,3 +460,41 @@ def _format_cost(value: float | None) -> str:
 
 def _format_ratio(value: float) -> str:
     return f"{value * 100:.1f}%"
+
+
+def _cost_text(value: float | None, pricing_status: object, palette: DashboardPalette) -> Text:
+    return Text(_format_cost(value), style=_cost_style(value, pricing_status, palette))
+
+
+def _cost_style(value: float | None, pricing_status: object, palette: DashboardPalette) -> str:
+    if not value:
+        return palette.muted
+    if pricing_status == "fallback_priced":
+        return palette.warn
+    if pricing_status == "priced":
+        return palette.success
+    return palette.muted
+
+
+def _daily_pricing_status(record: DailyUsageRecord) -> str | None:
+    status: str | None = None
+    for model in record.models:
+        status = _pick_dashboard_pricing_status(status, model.pricing_status)
+    return status
+
+
+def _pick_dashboard_pricing_status(current: str | None, incoming: str | None) -> str | None:
+    order = {
+        None: 0,
+        "priced": 1,
+        "fallback_priced": 2,
+        "partial": 3,
+        "unknown_model": 4,
+        "unattributed": 5,
+        "unpriced": 6,
+    }
+    if current is None:
+        return incoming
+    if incoming is None:
+        return current
+    return incoming if order.get(incoming, 0) > order.get(current, 0) else current

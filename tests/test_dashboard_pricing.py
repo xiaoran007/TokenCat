@@ -1484,6 +1484,26 @@ def test_apply_pricing_handles_claude_namespaced_redirected_and_custom_models() 
                 effective_date="2026-03-16",
                 source_url="https://example.test/anthropic",
             ),
+            ("anthropic", "claude-opus-4-20250514"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-opus-4-20250514",
+                input_per_1m=15.0,
+                output_per_1m=75.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
+            ("anthropic", "claude-opus-4-7-20260416"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-opus-4-7-20260416",
+                input_per_1m=5.0,
+                output_per_1m=25.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
             ("openai", "gpt-5"): PricingEntry(
                 pricing_source="openai",
                 model="gpt-5",
@@ -1551,8 +1571,252 @@ def test_apply_pricing_handles_claude_namespaced_redirected_and_custom_models() 
     assert claude_redirected.model_usage["openai/gpt-5"].pricing_status == "fallback_priced"
     assert claude_redirected.model_usage["openai/gpt-5"].pricing_source == "openai"
     assert claude_redirected.model_usage["openai/gpt-5"].pricing_model == "gpt-5"
-    assert claude_custom.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_status == "unknown_model"
+    assert claude_custom.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_status == "fallback_priced"
+    assert claude_custom.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_source == "anthropic"
+    assert claude_custom.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_model == "claude-opus-4-7-20260416"
+    assert claude_custom.estimated_cost is not None
+    assert claude_custom.estimated_cost.total_cost == 0.0035
+    assert coverage.unknown_models == []
+    assert coverage.fallback_priced_tokens == 3840
+
+
+def test_claude_opus_fallback_does_not_apply_to_other_providers() -> None:
+    loaded_at = datetime.now().astimezone()
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=loaded_at,
+        entries={
+            ("anthropic", "claude-opus-4-7-20260416"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-opus-4-7-20260416",
+                input_per_1m=5.0,
+                output_per_1m=25.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
+        },
+    )
+    record = SessionRecord(
+        provider=ProviderName.CODEX,
+        provider_session_id="codex-custom",
+        anon_session_id="codex-custom",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=500, output=40, total=540),
+        model_usage={
+            "Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit": ModelUsage(
+                model="Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit",
+                tokens=TokenTotals(input=500, output=40, total=540),
+                attribution_status="exact",
+            )
+        },
+    )
+
+    coverage = apply_pricing([record], catalog)
+
+    assert coverage is not None
+    assert record.model_usage["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"].pricing_status == "unknown_model"
     assert coverage.unknown_models == ["Qwen3.5-27B-Claude-4.6-Opus-Distilled-MLX-6bit"]
+
+
+def test_claude_opus_fallback_requires_non_zero_opus_price() -> None:
+    loaded_at = datetime.now().astimezone()
+    record = SessionRecord(
+        provider=ProviderName.CLAUDE,
+        provider_session_id="claude-custom",
+        anon_session_id="claude-custom",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=500, output=40, total=540),
+        model_usage={
+            "local-qwen": ModelUsage(
+                model="local-qwen",
+                tokens=TokenTotals(input=500, output=40, total=540),
+                attribution_status="exact",
+            )
+        },
+    )
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=loaded_at,
+        entries={
+            ("anthropic", "claude-opus-4-7-20260416"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-opus-4-7-20260416",
+                input_per_1m=0.0,
+                output_per_1m=0.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
+        },
+    )
+
+    coverage = apply_pricing([record], catalog)
+
+    assert coverage is not None
+    assert record.model_usage["local-qwen"].pricing_status == "unknown_model"
+    assert coverage.unknown_models == ["local-qwen"]
+
+
+def test_aggregate_models_includes_pricing_status_for_fallback_costs() -> None:
+    loaded_at = datetime.now().astimezone()
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=loaded_at,
+        entries={
+            ("anthropic", "claude-opus-4-7-20260416"): PricingEntry(
+                pricing_source="anthropic",
+                model="claude-opus-4-7-20260416",
+                input_per_1m=5.0,
+                output_per_1m=25.0,
+                cached_input_per_1m=None,
+                currency="USD",
+                effective_date="2026-03-16",
+                source_url="https://example.test/anthropic",
+            ),
+        },
+    )
+    record = SessionRecord(
+        provider=ProviderName.CLAUDE,
+        provider_session_id="claude-custom",
+        anon_session_id="claude-custom",
+        started_at=None,
+        updated_at=None,
+        token_totals=TokenTotals(input=500, output=40, total=540),
+        model_usage={
+            "local-qwen": ModelUsage(
+                model="local-qwen",
+                tokens=TokenTotals(input=500, output=40, total=540),
+                attribution_status="exact",
+            )
+        },
+    )
+    apply_pricing([record], catalog)
+
+    items = aggregate_models([record])
+
+    assert items[0]["pricing_status"] == "fallback_priced"
+    assert items[0]["pricing_model"] == "claude-opus-4-7-20260416"
+    assert items[0]["pricing_source"] == "anthropic"
+
+
+def test_dashboard_cost_styles_distinguish_priced_and_fallback() -> None:
+    overview = {
+        "session_count": 2,
+        "model_count": 2,
+        "token_totals": {"total": 3000},
+        "estimated_cost": {"total_cost": 3.0},
+        "top_models": [
+            {
+                "provider": "claude",
+                "model": "local-qwen",
+                "token_totals": {"input": 1000, "output": 100, "cached": 0, "reasoning": 0, "tool": 0, "total": 1100},
+                "estimated_cost": {"total_cost": 2.0},
+                "pricing_status": "fallback_priced",
+            },
+            {
+                "provider": "claude",
+                "model": "claude-sonnet-4.6",
+                "token_totals": {"input": 1000, "output": 100, "cached": 0, "reasoning": 0, "tool": 0, "total": 1100},
+                "estimated_cost": {"total_cost": 1.0},
+                "pricing_status": "priced",
+            },
+        ],
+        "secondary_metrics": {
+            "provider_count": 0,
+            "priced_coverage": 1.0,
+            "fallback_priced_tokens": 1100,
+            "unknown_model_tokens": 0,
+            "unattributed_token_count": 0,
+        },
+    }
+    daily = [
+        DailyUsageRecord(
+            date=date(2026, 3, 15),
+            providers={ProviderName.CLAUDE},
+            token_totals=TokenTotals(input=2000, output=200, total=2200),
+            session_count=2,
+            estimated_cost=CostEstimate(total_cost=3.0),
+            priced_tokens=2200,
+            total_tokens=2200,
+            models=[
+                DailyModelUsageRecord(
+                    provider=ProviderName.CLAUDE,
+                    model="local-qwen",
+                    token_totals=TokenTotals(input=1000, output=100, total=1100),
+                    estimated_cost=CostEstimate(total_cost=2.0),
+                    pricing_status="fallback_priced",
+                ),
+                DailyModelUsageRecord(
+                    provider=ProviderName.CLAUDE,
+                    model="claude-sonnet-4.6",
+                    token_totals=TokenTotals(input=1000, output=100, total=1100),
+                    estimated_cost=CostEstimate(total_cost=1.0),
+                    pricing_status="priced",
+                ),
+            ],
+        )
+    ]
+    sessions = [
+        SessionRecord(
+            provider=ProviderName.CLAUDE,
+            provider_session_id="fallback",
+            anon_session_id="fallback",
+            started_at=None,
+            updated_at=None,
+            token_totals=TokenTotals(input=1000, output=100, total=1100),
+            estimated_cost=CostEstimate(total_cost=2.0),
+            attribution_status="exact",
+            pricing_status="fallback_priced",
+            model_usage={
+                "local-qwen": ModelUsage(
+                    model="local-qwen",
+                    tokens=TokenTotals(input=1000, output=100, total=1100),
+                    pricing_status="fallback_priced",
+                )
+            },
+        ),
+        SessionRecord(
+            provider=ProviderName.CLAUDE,
+            provider_session_id="priced",
+            anon_session_id="priced",
+            started_at=None,
+            updated_at=None,
+            token_totals=TokenTotals(input=1000, output=100, total=1100),
+            estimated_cost=CostEstimate(total_cost=1.0),
+            attribution_status="exact",
+            pricing_status="priced",
+            model_usage={
+                "claude-sonnet-4.6": ModelUsage(
+                    model="claude-sonnet-4.6",
+                    tokens=TokenTotals(input=1000, output=100, total=1100),
+                    pricing_status="priced",
+                )
+            },
+        ),
+    ]
+    console = Console(width=100, force_terminal=True, color_system="truecolor", record=True)
+
+    render_dashboard(
+        console,
+        time_label="7d",
+        statuses=[ProviderStatus(provider=ProviderName.CLAUDE, status=ProviderSupportLevel.NOT_FOUND)],
+        overview=overview,
+        daily=daily,
+        sessions=sessions,
+        pricing_catalog=None,
+        pricing_coverage=None,
+        warnings=[],
+        show_recent_sessions=True,
+    )
+
+    rendered = console.export_html(inline_styles=True)
+    assert "#f9e2af" in rendered
+    assert "#a6e3a1" in rendered
 
 
 def test_estimate_cost_excludes_cached_input_from_normal_input_billing() -> None:
