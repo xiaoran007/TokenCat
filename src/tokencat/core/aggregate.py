@@ -182,6 +182,7 @@ def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
                 ),
             )
             model_bucket.token_totals.add(usage.tokens)
+            _add_model_node(model_bucket, record)
             if usage.estimated_cost is not None:
                 model_bucket.estimated_cost.add(usage.estimated_cost)
             model_session_days[day][key].add(record.anon_session_id)
@@ -252,6 +253,7 @@ def aggregate_dashboard_usage(records: list[SessionRecord], granularity: Dashboa
             model_bucket.estimated_cost.add(model.estimated_cost)
             model_bucket.session_count += model.session_count
             model_bucket.priced_tokens += model.priced_tokens
+            model_bucket.node_names.update(model.node_names)
             model_bucket.attribution_status = _pick_attribution_status(model_bucket.attribution_status, model.attribution_status)
             model_bucket.pricing_status = _pick_pricing_status(model_bucket.pricing_status, model.pricing_status)
         bucket.models = sorted(
@@ -299,6 +301,7 @@ def _accumulate_sliced_daily_record(
             ),
         )
         model_bucket.token_totals.add(slice_record.tokens)
+        _add_model_node(model_bucket, record)
         model_session_days[day][key].add(record.anon_session_id)
         model_bucket.session_count = len(model_session_days[day][key])
 
@@ -340,6 +343,12 @@ def _allocate_cost_proportionally(
     allocated.output_cost = _scale_cost_component(estimate.output_cost, slice_output, aggregate_output)
     allocated.total_cost = allocated.input_cost + allocated.cached_input_cost + allocated.output_cost
     return allocated
+
+
+def _add_model_node(model: DailyModelUsageRecord, record: SessionRecord) -> None:
+    node_name = record.node_name
+    if node_name:
+        model.node_names.add(node_name)
 
 
 def _scale_cost_component(total_cost: float, slice_amount: int, aggregate_amount: int) -> float:

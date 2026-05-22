@@ -291,6 +291,7 @@ class DailyModelUsageRecord:
     priced_tokens: int = 0
     attribution_status: str | None = None
     pricing_status: str | None = None
+    node_names: set[str] = field(default_factory=set)
 
     def to_dict(self) -> dict[str, object]:
         total_tokens = self.token_totals.total or 0
@@ -303,6 +304,7 @@ class DailyModelUsageRecord:
             "priced_ratio": round((self.priced_tokens / total_tokens), 4) if total_tokens else 0.0,
             "attribution_status": self.attribution_status,
             "pricing_status": self.pricing_status,
+            "nodes": sorted(self.node_names),
         }
 
 

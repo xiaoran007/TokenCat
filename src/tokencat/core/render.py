@@ -351,7 +351,7 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=palette.muted)
 
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    model_width = 26 if compact_tokens else 32
+    model_width = 30 if compact_tokens else 42
     token_width = 7 if compact_tokens else 12
     table.add_column("Model", style=palette.accent, width=model_width, no_wrap=True, overflow="ellipsis")
     table.add_column("Input", justify="right", width=token_width, no_wrap=True)
@@ -363,7 +363,7 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     visible_models = record.models[:5]
     for model in visible_models:
         table.add_row(
-            f"{model.model} ({provider_display_name(model.provider)})",
+            _daily_model_label(model),
             _format_token_count(model.token_totals.input, compact=compact_tokens),
             _format_token_count((model.token_totals.output or 0) + (model.token_totals.reasoning or 0), compact=compact_tokens),
             _format_token_count(model.token_totals.cached, compact=compact_tokens),
@@ -381,6 +381,16 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
         )
 
     return Group(header, table)
+
+
+def _daily_model_label(model) -> str:
+    label = f"{model.model} ({provider_display_name(model.provider)})"
+    nodes = sorted(getattr(model, "node_names", set()) or [])
+    if not nodes:
+        return label
+    if len(nodes) == 1:
+        return f"{label} @ {nodes[0]}"
+    return f"{label} @ {nodes[0]} +{len(nodes) - 1}"
 
 
 def _filter_dashboard_daily_records(records: list[DailyUsageRecord]) -> list[DailyUsageRecord]:

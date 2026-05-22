@@ -367,7 +367,7 @@ def daily(
 
     for item in visible_items:
         models = ", ".join(
-            f"{model.model} ({provider_display_name(model.provider)})"
+            _daily_model_display(model)
             for model in item.models[:3]
         ) or "-"
         table.add_row(
@@ -826,6 +826,16 @@ def _token_rows(tokens: dict[str, int | None]) -> dict[str, str]:
         "Tool Tokens": _format_tokens(tokens["tool"]),
         "Total Tokens": _format_tokens(tokens["total"]),
     }
+
+
+def _daily_model_display(model) -> str:
+    label = f"{model.model} ({provider_display_name(model.provider)})"
+    nodes = sorted(getattr(model, "node_names", set()) or [])
+    if not nodes:
+        return label
+    if len(nodes) == 1:
+        return f"{label} @ {nodes[0]}"
+    return f"{label} @ {nodes[0]} +{len(nodes) - 1}"
 
 
 def _format_datetime(value: datetime | None) -> str:
