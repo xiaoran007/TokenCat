@@ -54,6 +54,7 @@ final class MenuBarStatusModel: ObservableObject {
     defer { isRefreshing = false }
 
     do {
+      let bridge = self.bridge
       let refreshed = try await Task.detached(priority: .userInitiated) {
         try bridge.fetchSnapshot()
       }.value

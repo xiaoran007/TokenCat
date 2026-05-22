@@ -31,13 +31,20 @@ fi
 
 build_app() {
   pkill -x "$APP_NAME" >/dev/null 2>&1 || true
-  xcodebuild \
-    -project "$PROJECT_PATH" \
-    -scheme "$SCHEME" \
-    -configuration Debug \
-    -derivedDataPath "$DERIVED_DATA_PATH" \
-    "${build_settings[@]}" \
+  local command=(
+    xcodebuild
+    -project "$PROJECT_PATH"
+    -scheme "$SCHEME"
+    -configuration Debug
+    -derivedDataPath "$DERIVED_DATA_PATH"
+  )
+  if [[ "${#build_settings[@]}" -gt 0 ]]; then
+    command+=("${build_settings[@]}")
+  fi
+  command+=(
     build
+  )
+  "${command[@]}"
 }
 
 open_app() {
