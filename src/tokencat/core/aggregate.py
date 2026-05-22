@@ -58,6 +58,40 @@ def aggregate_summary(records: list[SessionRecord], *, pricing_coverage: Pricing
     return summary
 
 
+def aggregate_nodes(records: list[SessionRecord]) -> list[dict[str, object]]:
+    buckets: dict[tuple[str, str], list[SessionRecord]] = defaultdict(list)
+    for record in records:
+        node_id = record.node_id or "local"
+        node_name = record.node_name or "local"
+        buckets[(node_id, node_name)].append(record)
+
+    items: list[dict[str, object]] = []
+    for (node_id, node_name), node_records in buckets.items():
+        tokens = TokenTotals.zero()
+        models: set[str] = set()
+        providers: set[str] = set()
+        cost = CostEstimate()
+        for record in node_records:
+            tokens.add(record.token_totals)
+            models.update(record.models)
+            providers.add(record.provider.value)
+            if record.estimated_cost is not None:
+                cost.add(record.estimated_cost)
+        items.append(
+            {
+                "node_id": node_id,
+                "node_name": node_name,
+                "session_count": len(node_records),
+                "provider_count": len(providers),
+                "model_count": len(models),
+                "token_totals": tokens.to_dict(),
+                "estimated_cost": cost.to_dict(),
+            }
+        )
+    items.sort(key=lambda item: (-((item["token_totals"] or {}).get("total") or 0), item["node_name"]))
+    return items
+
+
 def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
     buckets: dict[tuple[str, str], ModelUsage] = {}
     sessions_per_model: dict[tuple[str, str], set[str]] = defaultdict(set)

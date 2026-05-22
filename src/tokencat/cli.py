@@ -7,10 +7,11 @@ from typing import List, Optional
 
 import typer
 from rich.console import Console
+from rich.prompt import Prompt
 from rich.table import Table
 
 from tokencat import __version__
-from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_summary, build_dashboard_overview
+from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_nodes, aggregate_summary, build_dashboard_overview
 from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity, PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
 from tokencat.core.presentation import filter_displayable_model_items, filter_displayable_sessions, provider_display_name
@@ -25,6 +26,11 @@ from tokencat.core.serialize import (
 )
 from tokencat.core.time import local_now, parse_datetime_value
 from tokencat.core.updates import check_latest_version
+from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes, register_service
+from tokencat.node.identity import load_or_create_identity
+from tokencat.node.lan import scan_lan
+from tokencat.node.server import serve_forever
+from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, save_trusted_nodes
 from tokencat.providers.registry import scan_providers
 
 app = typer.Typer(help="TokenCat: local-first, read-only token and usage inspector for AI coding agents.", invoke_without_command=True)
@@ -74,6 +80,7 @@ def main(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of styled dashboard output."),
     theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     if ctx.invoked_subcommand is None:
         _run_dashboard(
@@ -87,6 +94,7 @@ def main(
             json_output=json_output,
             show_recent_sessions=False,
             theme=theme,
+            lan=lan,
         )
 
 
@@ -101,6 +109,7 @@ def dashboard(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of the dashboard."),
     theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     _run_dashboard(
         providers=providers,
@@ -113,6 +122,7 @@ def dashboard(
         json_output=json_output,
         show_recent_sessions=True,
         theme=theme,
+        lan=lan,
     )
 
 
@@ -128,6 +138,7 @@ def _run_dashboard(
     json_output: bool,
     show_recent_sessions: bool,
     theme: DashboardThemeMode,
+    lan: bool,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     usage_granularity = _resolve_dashboard_usage_granularity(
@@ -136,8 +147,9 @@ def _run_dashboard(
         weekly_view=weekly_view,
         monthly_view=monthly_view,
     )
-    result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
+    node_items = aggregate_nodes(result.sessions) if lan else []
     daily = aggregate_daily(result.sessions)
     dashboard_usage = aggregate_dashboard_usage(result.sessions, usage_granularity)
     top_models = aggregate_models(result.sessions)
@@ -153,6 +165,7 @@ def _run_dashboard(
             "overview": overview,
             "daily": serialize_daily_records(daily),
             "top_models": top_models[:8],
+            "nodes": node_items,
             "recent_sessions": [serialize_session(record, show_title=False, show_path=False) for record in recent_sessions],
             "pricing": {
                 "catalog": serialize_pricing_catalog(catalog),
@@ -187,9 +200,10 @@ def _run_dashboard(
 @app.command()
 def doctor(
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     filters = ScanFilters()
-    result = scan_providers(filters)
+    result = scan_lan(filters, identity=load_or_create_identity()).result if lan else scan_providers(filters)
     catalog = load_pricing_catalog()
     pricing_summary = {
         "catalog": serialize_pricing_catalog(catalog),
@@ -231,15 +245,18 @@ def summary(
     limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Cap matching sessions before aggregation."),
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model=None, show_title=False, show_path=False)
-    result, _, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    result, _, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
+    node_items = aggregate_nodes(result.sessions) if lan else []
     payload = {
         "generated_at": local_now().isoformat(),
         "filters": serialize_filters(filters),
         "providers": [serialize_status(status) for status in result.statuses],
         "summary": summary_data,
+        "nodes": node_items,
         "warnings": result.warnings,
     }
     if json_output:
@@ -275,6 +292,25 @@ def summary(
         )
     console.print(providers_table)
 
+    if lan:
+        nodes_table = Table(title="By Node")
+        nodes_table.add_column("Node")
+        nodes_table.add_column("Sessions")
+        nodes_table.add_column("Providers")
+        nodes_table.add_column("Models")
+        nodes_table.add_column("Total Tokens")
+        nodes_table.add_column("Est Cost")
+        for item in node_items:
+            nodes_table.add_row(
+                item["node_name"],
+                str(item["session_count"]),
+                str(item["provider_count"]),
+                str(item["model_count"]),
+                _format_tokens(item["token_totals"]["total"]),
+                _format_cost(item["estimated_cost"]["total_cost"]),
+            )
+        console.print(nodes_table)
+
 
 @app.command()
 def daily(
@@ -284,9 +320,10 @@ def daily(
     limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Maximum number of rows to show."),
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
     items = aggregate_daily(result.sessions)
     if limit is not None:
         items = items[:limit]
@@ -351,9 +388,10 @@ def sessions(
     show_path: bool = typer.Option(False, "--show-path", help="Show local paths/source refs when available."),
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model, show_title, show_path)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
     payload = {
         "generated_at": local_now().isoformat(),
         "filters": serialize_filters(filters),
@@ -366,6 +404,8 @@ def sessions(
         return
 
     table = Table(title="TokenCat Sessions")
+    if lan:
+        table.add_column("Node")
     table.add_column("Anon ID")
     table.add_column("Provider")
     table.add_column("Updated")
@@ -387,6 +427,7 @@ def sessions(
 
     for record in visible_sessions:
         row = [
+            record.node_name or "-",
             record.anon_session_id,
             provider_display_name(record.provider),
             _format_datetime(record.updated_at or record.started_at),
@@ -402,6 +443,8 @@ def sessions(
         if show_path:
             path_value = record.cwd or (str(record.source_refs[0]) if record.source_refs else "-")
             row.append(path_value)
+        if not lan:
+            row = row[1:]
         table.add_row(*row)
     console.print(table)
 
@@ -414,9 +457,10 @@ def models(
     limit: Optional[int] = typer.Option(None, "--limit", min=1, help="Maximum number of rows to show."),
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
+    lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
     items = aggregate_models(result.sessions)
     if limit is not None:
         items = items[:limit]
@@ -469,6 +513,96 @@ def models(
             row.append(_format_ratio(item.get("priced_token_coverage", 0.0)))
         table.add_row(*row)
     console.print(table)
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Host interface to bind."),
+    port: int = typer.Option(8765, "--port", min=0, help="Port to listen on."),
+    lan: bool = typer.Option(False, "--lan", help="Bind to the LAN and advertise via mDNS."),
+    token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable containing the bearer token."),
+) -> None:
+    identity = load_or_create_identity()
+    bind_host = "0.0.0.0" if lan and host == "127.0.0.1" else host
+    token = os.environ.get(token_env)
+    registration = None
+
+    def on_ready(server) -> None:
+        nonlocal registration
+        actual_port = int(server.server_port)
+        console.print(f"TokenCat node {identity.name} listening on http://{bind_host}:{actual_port}")
+        if token:
+            console.print(f"Snapshot API requires bearer token from ${token_env}.")
+        elif lan:
+            console.print("Warning: LAN node is running without a bearer token.")
+        if lan:
+            try:
+                registration = register_service(
+                    identity=identity,
+                    host=bind_host,
+                    port=actual_port,
+                    auth="token" if token else "none",
+                )
+                console.print("mDNS service advertised as _tokencat._tcp.local.")
+            except DiscoveryUnavailable as exc:
+                console.print(str(exc))
+
+    try:
+        serve_forever(host=bind_host, port=port, identity=identity, token=token, on_ready=on_ready)
+    except KeyboardInterrupt:
+        console.print("Stopping TokenCat node.")
+    finally:
+        if registration is not None:
+            registration.close()
+
+
+@app.command()
+def nodes(
+    trust: bool = typer.Option(False, "--trust", help="Interactively trust discovered nodes."),
+    timeout: float = typer.Option(2.0, "--timeout", min=0.5, help="Seconds to wait for LAN discovery."),
+    token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable trusted nodes should use for bearer tokens."),
+    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of a table."),
+) -> None:
+    identity = load_or_create_identity()
+    try:
+        discovered = [node for node in discover_nodes(timeout=timeout) if node.node_id != identity.node_id]
+    except DiscoveryUnavailable as exc:
+        console.print(str(exc))
+        raise typer.Exit(code=2) from exc
+
+    trusted = load_trusted_nodes()
+    trusted_ids = {node.node_id for node in trusted}
+    payload = {
+        "generated_at": local_now().isoformat(),
+        "local_node": identity.to_dict(),
+        "nodes": [
+            {
+                "id": node.node_id,
+                "name": node.name,
+                "base_url": node.base_url,
+                "version": node.version,
+                "api_version": node.api_version,
+                "auth": node.auth,
+                "trusted": node.node_id in trusted_ids,
+            }
+            for node in discovered
+        ],
+    }
+    if json_output:
+        console.print_json(json.dumps(payload, ensure_ascii=False))
+        return
+
+    _render_nodes_table(discovered, trusted_ids)
+    if not trust:
+        return
+    selected = _prompt_for_node_selection(discovered)
+    if not selected:
+        console.print("No nodes selected.")
+        return
+    token_env_value = token_env if any(node.auth == "token" for node in selected) else None
+    updated = merge_trusted_nodes(trusted, selected, token_env=token_env_value)
+    save_trusted_nodes(updated)
+    console.print(f"Trusted {len(selected)} node(s).")
 
 
 @pricing_app.command("show")
@@ -532,8 +666,8 @@ def pricing_refresh(
         console.print("\n".join(warnings))
 
 
-def _scan_with_pricing(filters: ScanFilters, *, pricing_enabled: bool) -> tuple[object, PricingCatalog | None, PricingCoverage | None]:
-    result = scan_providers(filters)
+def _scan_with_pricing(filters: ScanFilters, *, pricing_enabled: bool, lan: bool = False) -> tuple[object, PricingCatalog | None, PricingCoverage | None]:
+    result = scan_lan(filters, identity=load_or_create_identity()).result if lan else scan_providers(filters)
     if not pricing_enabled:
         return result, None, None
     catalog = load_pricing_catalog()
@@ -568,6 +702,48 @@ def _resolve_dashboard_usage_granularity(
     if window_days > 14:
         return DashboardUsageGranularity.WEEKLY
     return DashboardUsageGranularity.DAILY
+
+
+def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
+    table = Table(title="TokenCat LAN Nodes")
+    table.add_column("#", justify="right")
+    table.add_column("Name")
+    table.add_column("Address")
+    table.add_column("Version")
+    table.add_column("Auth")
+    table.add_column("Trusted")
+    for index, node in enumerate(nodes, start=1):
+        table.add_row(
+            str(index),
+            node.name,
+            node.base_url,
+            node.version or "-",
+            node.auth,
+            "yes" if node.node_id in trusted_ids else "no",
+        )
+    if not nodes:
+        table.add_row("-", "No nodes discovered", "-", "-", "-", "-")
+    console.print(table)
+
+
+def _prompt_for_node_selection(nodes: list[object]) -> list[object]:
+    if not nodes:
+        return []
+    answer = Prompt.ask("Trust which nodes? Use numbers separated by commas, or 'all'", default="")
+    normalized = answer.strip().lower()
+    if not normalized:
+        return []
+    if normalized in {"a", "all"}:
+        return nodes
+    selected: list[object] = []
+    for part in normalized.split(","):
+        try:
+            index = int(part.strip())
+        except ValueError:
+            continue
+        if 1 <= index <= len(nodes):
+            selected.append(nodes[index - 1])
+    return selected
 
 
 def _token_rows(tokens: dict[str, int | None]) -> dict[str, str]:
