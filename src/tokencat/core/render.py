@@ -71,6 +71,7 @@ def render_dashboard(
     overview: dict[str, object],
     daily: list[DailyUsageRecord],
     sessions: list[SessionRecord],
+    nodes: list[dict[str, object]] | None = None,
     pricing_catalog: PricingCatalog | None,
     pricing_coverage: PricingCoverage | None,
     warnings: list[str],
@@ -94,8 +95,10 @@ def render_dashboard(
             compact_tokens=compact_tokens,
         ),
         _hero_panel(overview, palette=palette, compact_tokens=compact_tokens),
-        _daily_panel(visible_daily, granularity=usage_granularity, palette=palette, compact_tokens=compact_tokens),
     ]
+    if nodes:
+        renderables.append(_nodes_panel(nodes, overview=overview, palette=palette, compact_tokens=compact_tokens))
+    renderables.append(_daily_panel(visible_daily, granularity=usage_granularity, palette=palette, compact_tokens=compact_tokens))
     if show_recent_sessions:
         renderables.append(
             Panel(
@@ -292,6 +295,46 @@ def _daily_panel(
     return Panel(Group(*sections), title=title, border_style=palette.muted, box=box.ROUNDED, style=palette.surface)
 
 
+def _nodes_panel(
+    nodes: list[dict[str, object]],
+    *,
+    overview: dict[str, object],
+    palette: DashboardPalette,
+    compact_tokens: bool,
+) -> Panel:
+    total_tokens = _dict_token_total(overview.get("token_totals"))
+    visible_nodes = [node for node in nodes if _dict_token_total(node.get("token_totals")) > 0 or node.get("session_count")]
+    if not visible_nodes:
+        return Panel(Text("No node usage in this window.", style=palette.muted), title="Nodes", border_style=palette.muted, box=box.ROUNDED, style=palette.surface)
+
+    table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
+    node_width = 18 if compact_tokens else 24
+    table.add_column("Node", style=palette.accent, width=node_width, no_wrap=True, overflow="ellipsis")
+    table.add_column("Sessions", justify="right", width=8, no_wrap=True)
+    table.add_column("Providers", justify="right", width=9, no_wrap=True)
+    table.add_column("Models", justify="right", width=7, no_wrap=True)
+    table.add_column("Tokens", justify="right", width=8 if compact_tokens else 12, no_wrap=True)
+    table.add_column("Share", justify="right", width=7, no_wrap=True)
+    table.add_column("Cost", justify="right", width=8, no_wrap=True)
+
+    for node in visible_nodes[:8]:
+        node_tokens = _dict_token_total(node.get("token_totals"))
+        cost = node.get("estimated_cost") if isinstance(node.get("estimated_cost"), dict) else {}
+        table.add_row(
+            str(node.get("node_name") or "unknown"),
+            str(node.get("session_count") or 0),
+            str(node.get("provider_count") or 0),
+            str(node.get("model_count") or 0),
+            _format_token_count(node_tokens, compact=compact_tokens),
+            _format_ratio((node_tokens / total_tokens) if total_tokens else 0.0),
+            _format_cost(cost.get("total_cost") if isinstance(cost, dict) else 0.0),
+        )
+    if len(visible_nodes) > 8:
+        table.add_row(f"+{len(visible_nodes) - 8} more nodes", "", "", "", "", "", "")
+
+    return Panel(table, title="Nodes", border_style=palette.cool, box=box.ROUNDED, style=palette.surface)
+
+
 def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact_tokens: bool) -> Group:
     header = Text()
     header.append(record.label or record.date.isoformat(), style=f"bold {palette.accent}")
@@ -368,6 +411,15 @@ def _model_item_total(item: dict[str, object]) -> int:
     if isinstance(total, int):
         return total
     return sum(value for value in token_totals.values() if isinstance(value, int))
+
+
+def _dict_token_total(value: object) -> int:
+    if not isinstance(value, dict):
+        return 0
+    total = value.get("total")
+    if isinstance(total, int):
+        return total
+    return sum(item for item in value.values() if isinstance(item, int))
 
 
 def _token_total(tokens) -> int:

@@ -194,6 +194,7 @@ def _run_dashboard(
         overview=overview,
         daily=dashboard_usage,
         sessions=recent_sessions,
+        nodes=node_items,
         pricing_catalog=catalog,
         pricing_coverage=coverage,
         warnings=result.warnings,

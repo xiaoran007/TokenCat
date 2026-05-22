@@ -112,6 +112,8 @@ tokencat summary --lan
 tokencat dashboard --lan
 ```
 
+The LAN dashboard includes a node breakdown between the overview and usage timeline.
+
 Check local detection and health:
 
 ```bash
