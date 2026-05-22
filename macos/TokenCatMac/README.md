@@ -15,8 +15,16 @@ calls:
 .venv/bin/python -m tokencat snapshot --since 7d
 ```
 
-The menu bar app writes the resulting `snapshot.json` to the configured App
-Group container. The widget only reads that cached snapshot.
+For local development without an Apple Developer Program certificate, the menu
+bar app writes the resulting `snapshot.json` into the Widget extension's own
+Application Support container:
+
+```text
+~/Library/Containers/com.xiaoran.tokencat.dev.widget/Data/Library/Application Support/TokenCat/snapshot.json
+```
+
+The widget only reads that cached snapshot. A future distribution build should
+switch this storage boundary to a real App Group.
 
 ## Local Build
 

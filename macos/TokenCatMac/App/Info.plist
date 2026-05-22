@@ -24,7 +24,7 @@
   <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
-  <key>TokenCatAppGroupIdentifier</key>
-  <string>$(TOKENCAT_APP_GROUP)</string>
+  <key>TokenCatWidgetBundleIdentifier</key>
+  <string>com.xiaoran.tokencat.dev.widget</string>
 </dict>
 </plist>

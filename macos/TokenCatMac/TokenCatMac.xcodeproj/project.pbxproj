@@ -433,7 +433,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev;
 				PRODUCT_NAME = TokenCatMac;
 				SWIFT_VERSION = 5.0;
-				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
 			};
 			name = Debug;
 		};
@@ -453,7 +452,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev;
 				PRODUCT_NAME = TokenCatMac;
 				SWIFT_VERSION = 5.0;
-				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
 			};
 			name = Release;
 		};
@@ -473,7 +471,6 @@
 				PRODUCT_NAME = TokenCatWidgetExtension;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
-				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
 			};
 			name = Debug;
 		};
@@ -493,7 +490,6 @@
 				PRODUCT_NAME = TokenCatWidgetExtension;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
-				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
 			};
 			name = Release;
 		};

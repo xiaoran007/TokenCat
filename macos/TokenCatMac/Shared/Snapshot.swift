@@ -232,7 +232,22 @@ extension TokenCatSnapshot {
 extension JSONDecoder {
   static var tokenCatSnapshotDecoder: JSONDecoder {
     let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
+    decoder.dateDecodingStrategy = .custom { decoder in
+      let container = try decoder.singleValueContainer()
+      let value = try container.decode(String.self)
+
+      if let date = TokenCatDateFormatter.iso8601WithFractionalSeconds.date(from: value) {
+        return date
+      }
+      if let date = TokenCatDateFormatter.iso8601.date(from: value) {
+        return date
+      }
+
+      throw DecodingError.dataCorruptedError(
+        in: container,
+        debugDescription: "Invalid TokenCat ISO-8601 date: \(value)"
+      )
+    }
     return decoder
   }
 }
@@ -244,4 +259,18 @@ extension JSONEncoder {
     encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
     return encoder
   }
+}
+
+private enum TokenCatDateFormatter {
+  static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+  }()
+
+  static let iso8601: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter
+  }()
 }

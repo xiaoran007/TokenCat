@@ -3,6 +3,8 @@ import Foundation
 enum SnapshotStoreError: LocalizedError, Equatable {
   case missingAppGroupIdentifier
   case missingAppGroupContainer(String)
+  case missingWidgetBundleIdentifier
+  case missingApplicationSupportDirectory
   case snapshotNotFound
 
   var errorDescription: String? {
@@ -11,6 +13,10 @@ enum SnapshotStoreError: LocalizedError, Equatable {
       return "TokenCat app group identifier is not configured."
     case .missingAppGroupContainer(let identifier):
       return "TokenCat app group container is unavailable: \(identifier)"
+    case .missingWidgetBundleIdentifier:
+      return "TokenCat widget bundle identifier is not configured."
+    case .missingApplicationSupportDirectory:
+      return "TokenCat application support directory is unavailable."
     case .snapshotNotFound:
       return "TokenCat snapshot has not been created yet."
     }
@@ -45,6 +51,31 @@ struct SnapshotStore {
     }
 
     return SnapshotStore(directoryURL: container)
+  }
+
+  static func developmentDefault(bundle: Bundle = .main, fileManager: FileManager = .default) -> SnapshotStore {
+    if bundle.bundlePath.hasSuffix(".appex") {
+      guard let applicationSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+        return SnapshotStore(error: .missingApplicationSupportDirectory)
+      }
+      return SnapshotStore(directoryURL: applicationSupportURL.appendingPathComponent("TokenCat", isDirectory: true))
+    }
+
+    let widgetBundleIdentifier = bundle.object(forInfoDictionaryKey: "TokenCatWidgetBundleIdentifier") as? String
+    guard let widgetBundleIdentifier, !widgetBundleIdentifier.isEmpty else {
+      return SnapshotStore(error: .missingWidgetBundleIdentifier)
+    }
+
+    let directoryURL = fileManager.homeDirectoryForCurrentUser
+      .appendingPathComponent("Library", isDirectory: true)
+      .appendingPathComponent("Containers", isDirectory: true)
+      .appendingPathComponent(widgetBundleIdentifier, isDirectory: true)
+      .appendingPathComponent("Data", isDirectory: true)
+      .appendingPathComponent("Library", isDirectory: true)
+      .appendingPathComponent("Application Support", isDirectory: true)
+      .appendingPathComponent("TokenCat", isDirectory: true)
+
+    return SnapshotStore(directoryURL: directoryURL)
   }
 
   func load() throws -> TokenCatSnapshot {
