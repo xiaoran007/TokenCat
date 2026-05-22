@@ -377,9 +377,19 @@ def build_dashboard_overview(summary: dict[str, object], top_models: list[dict[s
             "fallback_priced_tokens": pricing.get("fallback_priced_tokens", 0),
             "unknown_model_tokens": pricing.get("unknown_model_tokens", 0),
             "unattributed_token_count": pricing.get("unattributed_token_count", 0),
-            "provider_count": len([status for status in statuses if getattr(getattr(status, "status", None), "value", None) == "supported"]),
+            "provider_count": _supported_provider_count(statuses),
         },
     }
+
+
+def _supported_provider_count(statuses: list[object]) -> int:
+    supported = {
+        getattr(status, "provider", None)
+        for status in statuses
+        if getattr(getattr(status, "status", None), "value", None) == "supported"
+    }
+    supported.discard(None)
+    return len(supported)
 
 
 def _daily_model_sort_rank(pricing_status: str | None) -> int:

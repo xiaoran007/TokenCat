@@ -170,7 +170,8 @@ def _brand_panel(
         header.append("\ncompact tokens: narrow terminal", style=palette.muted)
 
     status_line = Text()
-    for index, status in enumerate(statuses):
+    display_statuses = _dedupe_provider_statuses(statuses)
+    for index, status in enumerate(display_statuses):
         if index:
             status_line.append("  ")
         color = _provider_status_color(status, palette)
@@ -482,6 +483,25 @@ def _provider_status_color(status: ProviderStatus, palette: DashboardPalette) ->
     if status.status.value == "partial":
         return palette.warn
     return palette.error
+
+
+def _dedupe_provider_statuses(statuses: list[ProviderStatus]) -> list[ProviderStatus]:
+    best_by_provider: dict[object, ProviderStatus] = {}
+    for status in statuses:
+        current = best_by_provider.get(status.provider)
+        if current is None or _provider_status_rank(status) > _provider_status_rank(current):
+            best_by_provider[status.provider] = status
+    return [best_by_provider[provider] for provider in sorted(best_by_provider, key=lambda value: value.value)]
+
+
+def _provider_status_rank(status: ProviderStatus) -> int:
+    order = {
+        "not_found": 0,
+        "unsupported": 0,
+        "partial": 1,
+        "supported": 2,
+    }
+    return order.get(status.status.value, 0)
 
 
 def _palette_for_theme(theme: DashboardThemeMode) -> DashboardPalette:
