@@ -23,6 +23,7 @@ from tokencat.core.serialize import (
     serialize_session,
     serialize_status,
 )
+from tokencat.core.snapshot import build_snapshot
 from tokencat.core.time import local_now, parse_datetime_value
 from tokencat.core.updates import check_latest_version
 from tokencat.providers.registry import scan_providers
@@ -469,6 +470,31 @@ def models(
             row.append(_format_ratio(item.get("priced_token_coverage", 0.0)))
         table.add_row(*row)
     console.print(table)
+
+
+@app.command()
+def snapshot(
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    daily_view: bool = typer.Option(False, "--daily", help="Force daily usage buckets in the snapshot."),
+    weekly_view: bool = typer.Option(False, "--weekly", help="Force weekly usage buckets in the snapshot."),
+    monthly_view: bool = typer.Option(False, "--monthly", help="Force monthly usage buckets in the snapshot."),
+    no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
+) -> None:
+    filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
+    usage_granularity = _resolve_dashboard_usage_granularity(
+        filters,
+        daily_view=daily_view,
+        weekly_view=weekly_view,
+        monthly_view=monthly_view,
+    )
+    payload = build_snapshot(
+        filters,
+        pricing_enabled=not no_price,
+        usage_granularity=usage_granularity,
+    )
+    typer.echo(json.dumps(payload, ensure_ascii=False))
 
 
 @pricing_app.command("show")
