@@ -50,16 +50,22 @@ def register_service(
         properties=properties,
         server=f"{identity.name}.local.",
     )
-    zeroconf = zeroconf_mod.Zeroconf()
-    zeroconf.register_service(info)
+    try:
+        zeroconf = zeroconf_mod.Zeroconf()
+        zeroconf.register_service(info)
+    except OSError as exc:
+        raise DiscoveryUnavailable(f"LAN discovery is unavailable: {exc}") from exc
     return ServiceRegistration(zeroconf=zeroconf, info=info)
 
 
 def discover_nodes(*, timeout: float = 2.0) -> list[NodeEndpoint]:
     zeroconf_mod = _import_zeroconf()
     listener = _NodeListener(zeroconf_mod)
-    zeroconf = zeroconf_mod.Zeroconf()
-    browser = zeroconf_mod.ServiceBrowser(zeroconf, SERVICE_TYPE, listener)
+    try:
+        zeroconf = zeroconf_mod.Zeroconf()
+        browser = zeroconf_mod.ServiceBrowser(zeroconf, SERVICE_TYPE, listener)
+    except OSError as exc:
+        raise DiscoveryUnavailable(f"LAN discovery is unavailable: {exc}") from exc
     try:
         time.sleep(timeout)
         endpoints = {endpoint.node_id: endpoint for endpoint in listener.endpoints}
