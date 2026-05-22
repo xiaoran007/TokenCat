@@ -86,6 +86,26 @@ Inspect daily totals:
 tokencat daily --provider claude
 ```
 
+Start a read-only LAN node:
+
+```bash
+export TOKENCAT_NODE_TOKEN="choose-a-shared-secret"
+tokencat serve --lan
+```
+
+Discover and trust LAN nodes:
+
+```bash
+tokencat nodes --trust
+```
+
+Aggregate trusted LAN nodes from any peer:
+
+```bash
+tokencat summary --lan
+tokencat dashboard --lan
+```
+
 Check local detection and health:
 
 ```bash
@@ -109,6 +129,7 @@ tokencat pricing refresh
 - Daily time-series aggregation across supported tools
 - A bundled pricing catalog, plus a local cache that can refresh itself on first use
 - Stable JSON envelopes for scripting and automation
+- Peer-to-peer LAN snapshots with mDNS discovery and a local trust store
 
 ## Supported Tools
 
