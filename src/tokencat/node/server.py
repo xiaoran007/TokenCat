@@ -34,7 +34,10 @@ def build_handler() -> type[BaseHTTPRequestHandler]:
                 self._write_json({"ok": True})
                 return
             if self.path == "/v1/node":
-                self._write_json({"node": self.server.identity.to_dict()})
+                self._write_json({
+                    "node": self.server.identity.to_dict(),
+                    "auth": "token" if self.server.token else "none",
+                })
                 return
             self._write_json({"error": "not_found"}, status=HTTPStatus.NOT_FOUND)
 

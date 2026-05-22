@@ -99,6 +99,12 @@ Discover and trust LAN nodes:
 tokencat nodes --trust
 ```
 
+If mDNS is not available, such as in Docker Desktop, trust a node by URL without editing config files:
+
+```bash
+tokencat nodes --url http://127.0.0.1:8765 --trust
+```
+
 Aggregate trusted LAN nodes from any peer:
 
 ```bash
@@ -223,6 +229,7 @@ Session listings also support:
 ## Limits
 
 - TokenCat is macOS-first today.
+- LAN snapshot aggregation uses mDNS for peer discovery, but Docker Desktop and some VPNs do not reliably pass multicast traffic. Use `tokencat nodes --url ... --trust` to test or pair nodes in those environments, then use `--lan` normally.
 - Linux path hooks are present, but Linux is not yet a polished target.
 - Windows is not yet supported.
 - Copilot support covers VS Code Chat/Agent sessions plus standalone CLI shutdown summaries under `~/.copilot/session-state/`. Active CLI sessions without a shutdown summary are detected but not yet counted.

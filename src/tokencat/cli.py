@@ -7,7 +7,8 @@ from typing import List, Optional
 
 import typer
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from tokencat import __version__
@@ -26,6 +27,7 @@ from tokencat.core.serialize import (
 )
 from tokencat.core.time import local_now, parse_datetime_value
 from tokencat.core.updates import check_latest_version
+from tokencat.node.client import fetch_remote_node
 from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes, register_service
 from tokencat.node.identity import load_or_create_identity
 from tokencat.node.lan import scan_lan
@@ -81,6 +83,7 @@ def main(
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of styled dashboard output."),
     theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     if ctx.invoked_subcommand is None:
         _run_dashboard(
@@ -95,6 +98,7 @@ def main(
             show_recent_sessions=False,
             theme=theme,
             lan=lan,
+            lan_timeout=lan_timeout,
         )
 
 
@@ -110,6 +114,7 @@ def dashboard(
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of the dashboard."),
     theme: DashboardThemeMode = typer.Option(DashboardThemeMode.AUTO, "--theme", help="Theme for the terminal dashboard: auto, dark, or light."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     _run_dashboard(
         providers=providers,
@@ -123,6 +128,7 @@ def dashboard(
         show_recent_sessions=True,
         theme=theme,
         lan=lan,
+        lan_timeout=lan_timeout,
     )
 
 
@@ -139,6 +145,7 @@ def _run_dashboard(
     show_recent_sessions: bool,
     theme: DashboardThemeMode,
     lan: bool,
+    lan_timeout: float,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     usage_granularity = _resolve_dashboard_usage_granularity(
@@ -147,7 +154,7 @@ def _run_dashboard(
         weekly_view=weekly_view,
         monthly_view=monthly_view,
     )
-    result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
+    result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
     node_items = aggregate_nodes(result.sessions) if lan else []
     daily = aggregate_daily(result.sessions)
@@ -201,9 +208,10 @@ def _run_dashboard(
 def doctor(
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     filters = ScanFilters()
-    result = scan_lan(filters, identity=load_or_create_identity()).result if lan else scan_providers(filters)
+    result = scan_lan(filters, identity=load_or_create_identity(), discovery_timeout=lan_timeout).result if lan else scan_providers(filters)
     catalog = load_pricing_catalog()
     pricing_summary = {
         "catalog": serialize_pricing_catalog(catalog),
@@ -246,9 +254,10 @@ def summary(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model=None, show_title=False, show_path=False)
-    result, _, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
+    result, _, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
     summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
     node_items = aggregate_nodes(result.sessions) if lan else []
     payload = {
@@ -321,9 +330,10 @@ def daily(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
     items = aggregate_daily(result.sessions)
     if limit is not None:
         items = items[:limit]
@@ -389,9 +399,10 @@ def sessions(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     filters = build_filters(providers, since, until, limit, model, show_title, show_path)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
     payload = {
         "generated_at": local_now().isoformat(),
         "filters": serialize_filters(filters),
@@ -458,9 +469,10 @@ def models(
     no_price: bool = typer.Option(False, "--no-price", help="Disable pricing and cost estimation."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of tables."),
     lan: bool = typer.Option(False, "--lan", help="Include trusted TokenCat nodes discovered on the LAN."),
+    lan_timeout: float = typer.Option(2.0, "--lan-timeout", min=0.5, help="Seconds to wait for LAN discovery."),
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
-    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan)
+    result, _, _ = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
     items = aggregate_models(result.sessions)
     if limit is not None:
         items = items[:limit]
@@ -559,22 +571,30 @@ def serve(
 @app.command()
 def nodes(
     trust: bool = typer.Option(False, "--trust", help="Interactively trust discovered nodes."),
+    url: Optional[List[str]] = typer.Option(None, "--url", help="Trust a node by base URL, useful for Docker or networks without mDNS."),
     timeout: float = typer.Option(2.0, "--timeout", min=0.5, help="Seconds to wait for LAN discovery."),
     token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable trusted nodes should use for bearer tokens."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of a table."),
 ) -> None:
     identity = load_or_create_identity()
+    discovery_warnings: list[str] = []
     try:
         discovered = [node for node in discover_nodes(timeout=timeout) if node.node_id != identity.node_id]
     except DiscoveryUnavailable as exc:
-        console.print(str(exc))
-        raise typer.Exit(code=2) from exc
+        discovered = []
+        discovery_warnings.append(str(exc))
+        if not url:
+            console.print(str(exc))
+            raise typer.Exit(code=2) from exc
 
+    url_nodes, url_warnings = _fetch_url_nodes(url or [], timeout=timeout)
+    discovered = _merge_node_endpoints(discovered, url_nodes)
     trusted = load_trusted_nodes()
     trusted_ids = {node.node_id for node in trusted}
     payload = {
         "generated_at": local_now().isoformat(),
         "local_node": identity.to_dict(),
+        "warnings": discovery_warnings + url_warnings,
         "nodes": [
             {
                 "id": node.node_id,
@@ -592,14 +612,20 @@ def nodes(
         console.print_json(json.dumps(payload, ensure_ascii=False))
         return
 
+    _render_nodes_intro(identity.name, len(trusted))
     _render_nodes_table(discovered, trusted_ids)
+    for warning in discovery_warnings + url_warnings:
+        console.print(f"Warning: {warning}")
     if not trust:
         return
-    selected = _prompt_for_node_selection(discovered)
+    selected = _prompt_for_node_selection(discovered, trusted_ids)
     if not selected:
         console.print("No nodes selected.")
         return
-    token_env_value = token_env if any(node.auth == "token" for node in selected) else None
+    token_env_value = _prompt_for_token_env(selected, default=token_env)
+    if not Confirm.ask("Save selected nodes to the local trust store?", default=True):
+        console.print("Trust store unchanged.")
+        return
     updated = merge_trusted_nodes(trusted, selected, token_env=token_env_value)
     save_trusted_nodes(updated)
     console.print(f"Trusted {len(selected)} node(s).")
@@ -666,8 +692,14 @@ def pricing_refresh(
         console.print("\n".join(warnings))
 
 
-def _scan_with_pricing(filters: ScanFilters, *, pricing_enabled: bool, lan: bool = False) -> tuple[object, PricingCatalog | None, PricingCoverage | None]:
-    result = scan_lan(filters, identity=load_or_create_identity()).result if lan else scan_providers(filters)
+def _scan_with_pricing(
+    filters: ScanFilters,
+    *,
+    pricing_enabled: bool,
+    lan: bool = False,
+    lan_timeout: float = 2.0,
+) -> tuple[object, PricingCatalog | None, PricingCoverage | None]:
+    result = scan_lan(filters, identity=load_or_create_identity(), discovery_timeout=lan_timeout).result if lan else scan_providers(filters)
     if not pricing_enabled:
         return result, None, None
     catalog = load_pricing_catalog()
@@ -704,6 +736,33 @@ def _resolve_dashboard_usage_granularity(
     return DashboardUsageGranularity.DAILY
 
 
+def _fetch_url_nodes(urls: list[str], *, timeout: float) -> tuple[list[object], list[str]]:
+    nodes: list[object] = []
+    warnings: list[str] = []
+    for value in urls:
+        try:
+            nodes.append(fetch_remote_node(value, timeout=timeout))
+        except RuntimeError as exc:
+            warnings.append(str(exc))
+    return nodes, warnings
+
+
+def _merge_node_endpoints(first: list[object], second: list[object]) -> list[object]:
+    by_id = {node.node_id: node for node in first}
+    for node in second:
+        by_id[node.node_id] = node
+    return sorted(by_id.values(), key=lambda item: (item.name.lower(), item.node_id))
+
+
+def _render_nodes_intro(local_name: str, trusted_count: int) -> None:
+    console.print(
+        Panel(
+            f"Local node: {local_name}\nTrusted nodes: {trusted_count}\nDiscovery: mDNS first, --url as a Docker/VPN fallback",
+            title="TokenCat Nodes",
+        )
+    )
+
+
 def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
     table = Table(title="TokenCat LAN Nodes")
     table.add_column("#", justify="right")
@@ -726,15 +785,17 @@ def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
     console.print(table)
 
 
-def _prompt_for_node_selection(nodes: list[object]) -> list[object]:
+def _prompt_for_node_selection(nodes: list[object], trusted_ids: set[str]) -> list[object]:
     if not nodes:
         return []
-    answer = Prompt.ask("Trust which nodes? Use numbers separated by commas, or 'all'", default="")
+    untrusted = [node for node in nodes if node.node_id not in trusted_ids]
+    default = "all" if untrusted else ""
+    answer = Prompt.ask("Trust which nodes? Use numbers separated by commas, or 'all'", default=default)
     normalized = answer.strip().lower()
     if not normalized:
         return []
     if normalized in {"a", "all"}:
-        return nodes
+        return untrusted or nodes
     selected: list[object] = []
     for part in normalized.split(","):
         try:
@@ -744,6 +805,16 @@ def _prompt_for_node_selection(nodes: list[object]) -> list[object]:
         if 1 <= index <= len(nodes):
             selected.append(nodes[index - 1])
     return selected
+
+
+def _prompt_for_token_env(nodes: list[object], *, default: str) -> str | None:
+    needs_token = any(node.auth == "token" for node in nodes)
+    if not needs_token and not Confirm.ask("Use a bearer token environment variable for these nodes?", default=False):
+        return None
+    token_env = Prompt.ask("Token environment variable", default=default).strip()
+    if token_env and token_env not in os.environ:
+        console.print(f"Warning: ${token_env} is not set in this shell.")
+    return token_env or None
 
 
 def _token_rows(tokens: dict[str, int | None]) -> dict[str, str]:
