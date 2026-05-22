@@ -38,6 +38,8 @@ def serialize_session(record: SessionRecord, *, show_title: bool, show_path: boo
     data: dict[str, object] = {
         "provider": record.provider.value,
         "anon_session_id": record.anon_session_id,
+        "node_id": record.node_id,
+        "node_name": record.node_name,
         "started_at": serialize_datetime(record.started_at),
         "updated_at": serialize_datetime(record.updated_at),
         "models": record.models,

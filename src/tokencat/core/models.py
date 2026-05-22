@@ -157,6 +157,8 @@ class SessionRecord:
     pricing_model: str | None = None
     pricing_source: PricingSourceName | None = None
     is_fallback_model: bool = False
+    node_id: str | None = None
+    node_name: str | None = None
 
     @property
     def models(self) -> list[str]:

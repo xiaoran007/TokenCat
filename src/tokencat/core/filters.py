@@ -61,6 +61,8 @@ def _project_precise_record(record: SessionRecord, included_slices: list[UsageSl
         title=record.title,
         cwd=record.cwd,
         metadata=dict(record.metadata),
+        node_id=record.node_id,
+        node_name=record.node_name,
     )
 
     saw_unattributed_tokens = False
