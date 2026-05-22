@@ -1,0 +1,576 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		100000000000000000000101 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000001 /* AppDelegate.swift */; };
+		100000000000000000000102 /* TokenCatMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000002 /* TokenCatMacApp.swift */; };
+		100000000000000000000103 /* MenuBarStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000003 /* MenuBarStatusModel.swift */; };
+		100000000000000000000104 /* MenuBarPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000004 /* MenuBarPopoverView.swift */; };
+		100000000000000000000105 /* Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000005 /* Snapshot.swift */; };
+		100000000000000000000106 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000006 /* Formatters.swift */; };
+		100000000000000000000107 /* SnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000007 /* SnapshotStore.swift */; };
+		100000000000000000000108 /* TokenCatBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000008 /* TokenCatBridge.swift */; };
+		100000000000000000000109 /* TokenCatWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000009 /* TokenCatWidgetBundle.swift */; };
+		10000000000000000000010A /* TokenCatTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000A /* TokenCatTimelineProvider.swift */; };
+		10000000000000000000010B /* TokenCatWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000B /* TokenCatWidget.swift */; };
+		10000000000000000000010C /* WidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000C /* WidgetViews.swift */; };
+		10000000000000000000010D /* Snapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000005 /* Snapshot.swift */; };
+		10000000000000000000010E /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000006 /* Formatters.swift */; };
+		10000000000000000000010F /* SnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000007 /* SnapshotStore.swift */; };
+		100000000000000000000110 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000D /* SnapshotTests.swift */; };
+		100000000000000000000111 /* SnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000E /* SnapshotStoreTests.swift */; };
+		100000000000000000000112 /* TokenCatBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000F /* TokenCatBridgeTests.swift */; };
+		100000000000000000000113 /* MenuBarStatusModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000010 /* MenuBarStatusModelTests.swift */; };
+		100000000000000000000114 /* TokenCatWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 100000000000000000000202 /* TokenCatWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		100000000000000000000301 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 100000000000000000000400 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 100000000000000000000502;
+			remoteInfo = TokenCatWidgetExtension;
+		};
+		100000000000000000000302 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 100000000000000000000400 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 100000000000000000000501;
+			remoteInfo = TokenCatMac;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		100000000000000000000601 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				100000000000000000000114 /* TokenCatWidgetExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		100000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		100000000000000000000002 /* TokenCatMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatMacApp.swift; sourceTree = "<group>"; };
+		100000000000000000000003 /* MenuBarStatusModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusModel.swift; sourceTree = "<group>"; };
+		100000000000000000000004 /* MenuBarPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopoverView.swift; sourceTree = "<group>"; };
+		100000000000000000000005 /* Snapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snapshot.swift; sourceTree = "<group>"; };
+		100000000000000000000006 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		100000000000000000000007 /* SnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStore.swift; sourceTree = "<group>"; };
+		100000000000000000000008 /* TokenCatBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatBridge.swift; sourceTree = "<group>"; };
+		100000000000000000000009 /* TokenCatWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatWidgetBundle.swift; sourceTree = "<group>"; };
+		10000000000000000000000A /* TokenCatTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatTimelineProvider.swift; sourceTree = "<group>"; };
+		10000000000000000000000B /* TokenCatWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatWidget.swift; sourceTree = "<group>"; };
+		10000000000000000000000C /* WidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetViews.swift; sourceTree = "<group>"; };
+		10000000000000000000000D /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
+		10000000000000000000000E /* SnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStoreTests.swift; sourceTree = "<group>"; };
+		10000000000000000000000F /* TokenCatBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCatBridgeTests.swift; sourceTree = "<group>"; };
+		100000000000000000000010 /* MenuBarStatusModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusModelTests.swift; sourceTree = "<group>"; };
+		100000000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000012 /* TokenCatMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TokenCatMac.entitlements; sourceTree = "<group>"; };
+		100000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000014 /* TokenCatWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TokenCatWidget.entitlements; sourceTree = "<group>"; };
+		100000000000000000000201 /* TokenCatMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenCatMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000202 /* TokenCatWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TokenCatWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		100000000000000000000203 /* TokenCatMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenCatMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		100000000000000000000701 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000702 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		100000000000000000000703 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		100000000000000000000800 = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000801 /* App */,
+				100000000000000000000802 /* MenuBar */,
+				100000000000000000000803 /* Shared */,
+				100000000000000000000804 /* Widget */,
+				100000000000000000000805 /* Tests */,
+				100000000000000000000806 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		100000000000000000000801 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000001 /* AppDelegate.swift */,
+				100000000000000000000002 /* TokenCatMacApp.swift */,
+				100000000000000000000011 /* Info.plist */,
+				100000000000000000000012 /* TokenCatMac.entitlements */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		100000000000000000000802 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000003 /* MenuBarStatusModel.swift */,
+				100000000000000000000004 /* MenuBarPopoverView.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		100000000000000000000803 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000005 /* Snapshot.swift */,
+				100000000000000000000006 /* Formatters.swift */,
+				100000000000000000000007 /* SnapshotStore.swift */,
+				100000000000000000000008 /* TokenCatBridge.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		100000000000000000000804 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000009 /* TokenCatWidgetBundle.swift */,
+				10000000000000000000000A /* TokenCatTimelineProvider.swift */,
+				10000000000000000000000B /* TokenCatWidget.swift */,
+				10000000000000000000000C /* WidgetViews.swift */,
+				100000000000000000000013 /* Info.plist */,
+				100000000000000000000014 /* TokenCatWidget.entitlements */,
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
+		100000000000000000000805 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				10000000000000000000000D /* SnapshotTests.swift */,
+				10000000000000000000000E /* SnapshotStoreTests.swift */,
+				10000000000000000000000F /* TokenCatBridgeTests.swift */,
+				100000000000000000000010 /* MenuBarStatusModelTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		100000000000000000000806 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000201 /* TokenCatMac.app */,
+				100000000000000000000202 /* TokenCatWidgetExtension.appex */,
+				100000000000000000000203 /* TokenCatMacTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		100000000000000000000501 /* TokenCatMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000A01 /* Build configuration list for PBXNativeTarget "TokenCatMac" */;
+			buildPhases = (
+				100000000000000000000901 /* Sources */,
+				100000000000000000000701 /* Frameworks */,
+				100000000000000000000601 /* Embed App Extensions */,
+			);
+			buildRules = ();
+			dependencies = (
+				100000000000000000000303 /* PBXTargetDependency */,
+			);
+			name = TokenCatMac;
+			productName = TokenCatMac;
+			productReference = 100000000000000000000201 /* TokenCatMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+		100000000000000000000502 /* TokenCatWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000A02 /* Build configuration list for PBXNativeTarget "TokenCatWidgetExtension" */;
+			buildPhases = (
+				100000000000000000000902 /* Sources */,
+				100000000000000000000702 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = TokenCatWidgetExtension;
+			productName = TokenCatWidgetExtension;
+			productReference = 100000000000000000000202 /* TokenCatWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		100000000000000000000503 /* TokenCatMacTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 100000000000000000000A03 /* Build configuration list for PBXNativeTarget "TokenCatMacTests" */;
+			buildPhases = (
+				100000000000000000000903 /* Sources */,
+				100000000000000000000703 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				100000000000000000000304 /* PBXTargetDependency */,
+			);
+			name = TokenCatMacTests;
+			productName = TokenCatMacTests;
+			productReference = 100000000000000000000203 /* TokenCatMacTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		100000000000000000000400 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					100000000000000000000501 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					100000000000000000000502 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					100000000000000000000503 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 100000000000000000000501;
+					};
+				};
+			};
+			buildConfigurationList = 100000000000000000000A00 /* Build configuration list for PBXProject "TokenCatMac" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 100000000000000000000800;
+			productRefGroup = 100000000000000000000806 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				100000000000000000000501 /* TokenCatMac */,
+				100000000000000000000502 /* TokenCatWidgetExtension */,
+				100000000000000000000503 /* TokenCatMacTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		100000000000000000000901 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000101 /* AppDelegate.swift in Sources */,
+				100000000000000000000102 /* TokenCatMacApp.swift in Sources */,
+				100000000000000000000103 /* MenuBarStatusModel.swift in Sources */,
+				100000000000000000000104 /* MenuBarPopoverView.swift in Sources */,
+				100000000000000000000105 /* Snapshot.swift in Sources */,
+				100000000000000000000106 /* Formatters.swift in Sources */,
+				100000000000000000000107 /* SnapshotStore.swift in Sources */,
+				100000000000000000000108 /* TokenCatBridge.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000902 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000109 /* TokenCatWidgetBundle.swift in Sources */,
+				10000000000000000000010A /* TokenCatTimelineProvider.swift in Sources */,
+				10000000000000000000010B /* TokenCatWidget.swift in Sources */,
+				10000000000000000000010C /* WidgetViews.swift in Sources */,
+				10000000000000000000010D /* Snapshot.swift in Sources */,
+				10000000000000000000010E /* Formatters.swift in Sources */,
+				10000000000000000000010F /* SnapshotStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		100000000000000000000903 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				100000000000000000000110 /* SnapshotTests.swift in Sources */,
+				100000000000000000000111 /* SnapshotStoreTests.swift in Sources */,
+				100000000000000000000112 /* TokenCatBridgeTests.swift in Sources */,
+				100000000000000000000113 /* MenuBarStatusModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		100000000000000000000303 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = 100000000000000000000502 /* TokenCatWidgetExtension */; targetProxy = 100000000000000000000301 /* PBXContainerItemProxy */; };
+		100000000000000000000304 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = 100000000000000000000501 /* TokenCatMac */; targetProxy = 100000000000000000000302 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000B00 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1 $(inherited)";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		100000000000000000000B01 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		100000000000000000000B10 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/TokenCatMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev;
+				PRODUCT_NAME = TokenCatMac;
+				SWIFT_VERSION = 5.0;
+				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
+			};
+			name = Debug;
+		};
+		100000000000000000000B11 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/TokenCatMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev;
+				PRODUCT_NAME = TokenCatMac;
+				SWIFT_VERSION = 5.0;
+				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
+			};
+			name = Release;
+		};
+		100000000000000000000B20 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widget/TokenCatWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev.widget;
+				PRODUCT_NAME = TokenCatWidgetExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
+			};
+			name = Debug;
+		};
+		100000000000000000000B21 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Widget/TokenCatWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Widget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev.widget;
+				PRODUCT_NAME = TokenCatWidgetExtension;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TOKENCAT_APP_GROUP = "$(TeamIdentifierPrefix)tokencat.dev";
+			};
+			name = Release;
+		};
+		100000000000000000000B30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TokenCatMac.app/Contents/MacOS/TokenCatMac";
+			};
+			name = Debug;
+		};
+		100000000000000000000B31 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaoran.tokencat.dev.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TokenCatMac.app/Contents/MacOS/TokenCatMac";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		100000000000000000000A00 /* Build configuration list for PBXProject "TokenCatMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000B00 /* Debug */,
+				100000000000000000000B01 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000A01 /* Build configuration list for PBXNativeTarget "TokenCatMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000B10 /* Debug */,
+				100000000000000000000B11 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000A02 /* Build configuration list for PBXNativeTarget "TokenCatWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000B20 /* Debug */,
+				100000000000000000000B21 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		100000000000000000000A03 /* Build configuration list for PBXNativeTarget "TokenCatMacTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000B30 /* Debug */,
+				100000000000000000000B31 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 100000000000000000000400 /* Project object */;
+}
