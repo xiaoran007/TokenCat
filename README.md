@@ -107,13 +107,13 @@ For foreground debugging:
 tokencat serve --lan --foreground
 ```
 
-Discover and trust LAN nodes:
+Discover and trust nodes:
 
 ```bash
 tokencat nodes --trust
 ```
 
-The trust flow uses a checkbox prompt when the terminal supports it.
+The trust flow uses a checkbox prompt when the terminal supports it. The same `nodes` entry point shows mDNS peers, explicit URLs, and SSH hosts from `~/.ssh/config`.
 
 If mDNS is not available, such as in Docker Desktop, trust a node by URL without editing config files:
 
@@ -121,7 +121,15 @@ If mDNS is not available, such as in Docker Desktop, trust a node by URL without
 tokencat nodes --url http://127.0.0.1:8765 --trust
 ```
 
-Aggregate trusted LAN nodes from any peer:
+For SSH-configured development machines or containers, no remote service or tunnel is required. TokenCat can execute a remote snapshot over SSH:
+
+```bash
+tokencat nodes --trust
+```
+
+The local `nodes` command lists SSH `Host` aliases as candidates. After trust, `tokencat --lan` runs `ssh <host> tokencat snapshot --json` and aggregates the returned snapshot.
+
+Aggregate trusted nodes from any peer:
 
 ```bash
 tokencat summary --lan
