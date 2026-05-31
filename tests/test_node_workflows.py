@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -9,6 +10,7 @@ from tokencat.core.models import ScanFilters, ScanResult
 from tokencat.cli import app
 from tokencat.node.client import NodeEndpoint
 from tokencat.node.identity import NodeIdentity
+from tokencat.node.lan import scan_lan
 from tokencat.node.process import NodeProcessStatus, start_detached_node
 from tokencat.node.ssh import build_ssh_snapshot_command, fetch_ssh_snapshot
 from tokencat.node.ssh_config import SSHHostCandidate, load_ssh_host_candidates
@@ -144,6 +146,45 @@ def test_ssh_snapshot_timeout_becomes_runtime_error(monkeypatch) -> None:
         assert str(exc) == "macbook-air: SSH snapshot timed out after 2s"
     else:
         raise AssertionError("expected timeout to become RuntimeError")
+
+
+def test_lan_scan_fetches_trusted_nodes_in_parallel(monkeypatch) -> None:
+    trusted = [
+        TrustedNode(
+            node_id="node-1",
+            name="Air",
+            transport="http",
+            base_url="http://air.local:8765",
+        ),
+        TrustedNode(
+            node_id="node-2",
+            name="Studio",
+            transport="http",
+            base_url="http://studio.local:8765",
+        ),
+    ]
+    barrier = threading.Barrier(2, timeout=1.0)
+    fetched: list[str] = []
+
+    monkeypatch.setattr("tokencat.node.lan.scan_providers", lambda filters: ScanResult(statuses=[], sessions=[]))
+    monkeypatch.setattr("tokencat.node.lan.load_trusted_nodes", lambda: trusted)
+    monkeypatch.setattr("tokencat.node.lan.discover_nodes", lambda timeout: [])
+
+    def fake_fetch(endpoint, filters, *, token):
+        barrier.wait()
+        fetched.append(endpoint.node_id)
+        return RemoteScan(
+            endpoint=endpoint,
+            node=NodeIdentity(endpoint.node_id, endpoint.name, "0.0.0"),
+            result=ScanResult(statuses=[], sessions=[]),
+        )
+
+    monkeypatch.setattr("tokencat.node.lan.fetch_remote_snapshot", fake_fetch)
+
+    result = scan_lan(ScanFilters(), identity=NodeIdentity("local", "Local", "0.0.0"))
+
+    assert result.result.warnings == []
+    assert set(fetched) == {"node-1", "node-2"}
 
 
 def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:
