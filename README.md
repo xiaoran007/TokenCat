@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/tokencat?style=flat-square&logo=pypi&logoColor=white&label=PyPI&color=0f766e)](https://pypi.org/project/tokencat/)
 [![Python](https://img.shields.io/pypi/pyversions/tokencat?style=flat-square&logo=python&logoColor=white&label=Python&color=2563eb)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/pypi/l/tokencat?style=flat-square&label=License&color=4b5563)](LICENSE)
-[![macOS first](https://img.shields.io/badge/platform-macOS%20first-111827?style=flat-square&logo=apple&logoColor=white)](#limits)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-111827?style=flat-square&logo=linux&logoColor=white)](#limits)
 [![Local first](https://img.shields.io/badge/privacy-local%20first-16a34a?style=flat-square)](#privacy)
 [![Read only](https://img.shields.io/badge/mode-read%20only-7c3aed?style=flat-square)](#privacy)
 
@@ -252,8 +252,7 @@ This makes TokenCat easy to pipe into local scripts, dashboards, or personal aut
 
 ## Limits
 
-- TokenCat is macOS-first today.
-- Linux path hooks exist, but Linux is not yet a polished target.
+- TokenCat supports macOS and Linux, including typical Docker/containerized Linux environments where the relevant agent state is mounted or available locally.
 - Windows is not yet supported.
 - LAN discovery uses mDNS, which can be unreliable through Docker Desktop, VPNs, or restrictive networks. Use `tokencat nodes --url ... --trust` or SSH nodes in those environments.
 - Copilot CLI usage is counted from shutdown summaries; active CLI sessions without shutdown summaries are detected but not counted yet.
