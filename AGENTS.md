@@ -1,57 +1,13 @@
 # TokenCat Agent Notes
-
-## Product Status
-
-- Current tagged release: `v0.6.1`.
-- Current release maturity: stable.
-- Current working branch is typically `main` unless the user explicitly asks for a feature branch.
-- Project goal: a local-first, read-only CLI for aggregating AI coding agent usage on one machine.
-- Supported Python floor is `3.9+`.
-- Supported in practice:
-  - `Codex`: supported via local session JSONL and SQLite fallback.
-  - `Claude Code`: supported via `CLAUDE_CONFIG_DIR` roots or local Claude project JSONL under `$XDG_CONFIG_HOME/claude` / `~/.config/claude` and legacy `~/.claude`.
-  - `Gemini CLI`: supported via local chat/session files.
-  - `GitHub Copilot`: supported via VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl`.
-  - `GitHub Copilot CLI`: supported via `~/.copilot/session-state/*/events.jsonl` shutdown summaries.
-  - Active Copilot CLI sessions without a `session.shutdown` summary still show as `partial` in `doctor`.
-  - Claude Code support is read-only and based on local session telemetry only; it keeps exact observed model names so redirected/custom backends are shown conservatively instead of guessed.
-
 ## Privacy / Pricing Behavior
 
 - TokenCat is read-only with respect to provider data.
 - It must not proxy requests, rewrite endpoints, or read/report raw prompt-response bodies.
 - It must not read OAuth/session credentials for reporting.
-- Pricing behavior in `v0.6.1`:
-  - package builds do not refresh the bundled pricing catalog automatically;
-  - refresh bundled package pricing explicitly with `make refresh-bundled-pricing`;
-  - first pricing load attempts a silent bootstrap refresh into `~/.tokencat/pricing/`;
-  - silent bootstrap failure falls back to the bundled catalog without surfacing an error.
-  - pricing resolution order is:
-    1. direct source price when that source has explicit pricing;
-    2. official API pricing for the model family;
-    3. OpenRouter pricing as the marketplace fallback;
-    4. otherwise `unknown_model`.
-  - pricing catalog entries are keyed by pricing source, not scan provider;
-  - session/model JSON can include `pricing_source` in addition to `pricing_model`.
-  - Claude Code pricing keeps the observed model string, but pricing normalization can still resolve namespaced forms such as `anthropic/claude-*` and redirected families such as `openai/gpt-*` or `google/gemini-*` when they map cleanly to existing catalog families.
-  - time-windowed `sessions`, `summary`, `models`, and `daily` views now use event/message/request timestamps when local telemetry supports it, instead of assigning whole sessions to `updated_at`.
-  - terminal dashboard usage buckets can adapt between daily, weekly, and monthly views based on the selected time window, with explicit `--daily`, `--weekly`, and `--monthly` overrides.
-  - terminal dashboard uses compact token counts such as `2M` and `837K` on terminals 120 columns wide or narrower.
-  - terminal dashboard hides zero-token model rows so metadata-only Copilot VS Code sessions do not show misleading `0` token lines by default.
-  - terminal dashboard supports `--theme auto|dark|light`; `auto` uses `COLORFGBG` when available and otherwise falls back to the dark palette.
-  - terminal dashboard provider health now uses color-coded dots with provider names only instead of repeating `:supported` / `:partial` / `:not_found`.
-  - terminal dashboard does a silent PyPI version check in styled output mode and only shows an update notice when a newer release exists.
-  - Claude Code session parsing is conservative: only assistant messages with usage are billable, streaming snapshots are deduplicated by message id, and prompt/response bodies remain out of TokenCat output.
 
 ## Release / Versioning Workflow
 
 - Keep user-facing docs in `README.md`.
-- Keep agent/process/project memory in this `AGENTS.md`.
-- Version bumps happen in both:
-  - `pyproject.toml`
-  - `src/tokencat/__init__.py`
-- If refreshing the bundled pricing catalog for a release, commit that generated catalog update before tagging.
-- Tag after the release-related commit chain is complete.
 - Current tag convention: `vX.Y.Z`.
 
 ## Git Hygiene
@@ -73,5 +29,4 @@
   - prefer `.venv/bin/python`
   - prefer `.venv/bin/pytest`
   - avoid falling back to system `python`, `python3`, or global `pytest` unless the user explicitly asks
-- If a future thread needs to inspect pricing/test behavior, assume the local `.venv` is the correct interpreter first.
-- Generated files that may legitimately change during release work include the bundled pricing catalog at `src/tokencat/pricing/catalog.json`.
+- Run and check Unit Tests when any change made. Make sure test cases are passed. 
