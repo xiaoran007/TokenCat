@@ -34,6 +34,7 @@ from tokencat.node.lan import scan_lan
 from tokencat.node.process import NODE_LOG_PATH, read_node_status, start_detached_node, stop_detached_node
 from tokencat.node.server import serve_forever
 from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, save_trusted_nodes
+from tokencat.node.tui import select_nodes_checkbox
 from tokencat.providers.registry import scan_providers
 
 app = typer.Typer(help="TokenCat: local-first, read-only token and usage inspector for AI coding agents.", invoke_without_command=True)
@@ -836,6 +837,9 @@ def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
 def _prompt_for_node_selection(nodes: list[object], trusted_ids: set[str]) -> list[object]:
     if not nodes:
         return []
+    selected = select_nodes_checkbox(nodes, trusted_ids)
+    if selected is not None:
+        return selected
     untrusted = [node for node in nodes if node.node_id not in trusted_ids]
     default = "all" if untrusted else ""
     answer = Prompt.ask("Trust which nodes? Use numbers separated by commas, or 'all'", default=default)
