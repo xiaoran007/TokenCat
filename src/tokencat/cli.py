@@ -45,6 +45,7 @@ app = typer.Typer(help="TokenCat: local-first, read-only token and usage inspect
 pricing_app = typer.Typer(help="Inspect and refresh the local pricing catalog.")
 app.add_typer(pricing_app, name="pricing")
 console = Console(highlight=False)
+DEFAULT_SSH_PROBE_TIMEOUT = 15.0
 
 ProviderOption = Optional[List[ProviderName]]
 
@@ -886,11 +887,12 @@ def _merge_node_endpoints(first: list[object], second: list[object]) -> list[obj
 def _probe_ssh_candidates(candidates: list[NodeCandidate], *, timeout: float) -> tuple[list[tuple[object, str]], list[str]]:
     trusted: list[tuple[object, str]] = []
     warnings: list[str] = []
+    ssh_timeout = max(timeout, DEFAULT_SSH_PROBE_TIMEOUT)
     for candidate in candidates:
         if not candidate.ssh_host:
             continue
         try:
-            remote = fetch_ssh_snapshot(candidate.ssh_host, ScanFilters(), timeout=timeout)
+            remote = fetch_ssh_snapshot(candidate.ssh_host, ScanFilters(), timeout=ssh_timeout)
         except RuntimeError as exc:
             warnings.append(str(exc))
             continue

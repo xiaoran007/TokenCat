@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -9,7 +10,7 @@ from tokencat.cli import app
 from tokencat.node.client import NodeEndpoint
 from tokencat.node.identity import NodeIdentity
 from tokencat.node.process import NodeProcessStatus, start_detached_node
-from tokencat.node.ssh import build_ssh_snapshot_command
+from tokencat.node.ssh import build_ssh_snapshot_command, fetch_ssh_snapshot
 from tokencat.node.ssh_config import SSHHostCandidate, load_ssh_host_candidates
 from tokencat.node.client import RemoteScan
 from tokencat.node.trust import TrustedNode
@@ -131,6 +132,20 @@ def test_ssh_snapshot_command_uses_host_alias_and_filter_args() -> None:
     assert command[4] == 'if [ -n "$SHELL" ]; then exec "$SHELL" -lc \'tokencat snapshot --json\'; else exec sh -c \'tokencat snapshot --json\'; fi'
 
 
+def test_ssh_snapshot_timeout_becomes_runtime_error(monkeypatch) -> None:
+    def fake_run(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr("tokencat.node.ssh.subprocess.run", fake_run)
+
+    try:
+        fetch_ssh_snapshot("macbook-air", ScanFilters(), timeout=2.0)
+    except RuntimeError as exc:
+        assert str(exc) == "macbook-air: SSH snapshot timed out after 2s"
+    else:
+        raise AssertionError("expected timeout to become RuntimeError")
+
+
 def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:
     candidate = SSHHostCandidate(alias="dl-pt280-cu128", hostname="192.168.8.215", user="dev", port="2222")
     remote = RemoteScan(
@@ -165,6 +180,40 @@ def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:
     assert len(trusted) == 1
     assert trusted[0].transport == "ssh"
     assert trusted[0].ssh_host == "dl-pt280-cu128"
+
+
+def test_nodes_trust_uses_longer_ssh_probe_timeout(monkeypatch) -> None:
+    candidate = SSHHostCandidate(alias="macbook-air", hostname="192.168.8.20")
+    remote = RemoteScan(
+        endpoint=NodeEndpoint(
+            node_id="remote-node",
+            name="macbook-air",
+            base_url="ssh://macbook-air",
+            auth="ssh",
+        ),
+        node=NodeIdentity("remote-node", "macbook-air", "0.0.0"),
+        result=ScanResult(statuses=[], sessions=[]),
+    )
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr("tokencat.cli.load_or_create_identity", lambda: NodeIdentity("local", "Local", "0.0.0"))
+    monkeypatch.setattr("tokencat.cli.discover_nodes", lambda timeout: [])
+    monkeypatch.setattr("tokencat.cli.load_ssh_host_candidates", lambda: [candidate])
+    monkeypatch.setattr("tokencat.cli.load_trusted_nodes", lambda: [])
+    monkeypatch.setattr("tokencat.cli.select_nodes_checkbox", lambda nodes, trusted_ids, **kwargs: nodes)
+
+    def fake_fetch(ssh_host, filters, timeout):
+        seen["timeout"] = timeout
+        return remote
+
+    monkeypatch.setattr("tokencat.cli.fetch_ssh_snapshot", fake_fetch)
+    monkeypatch.setattr("tokencat.cli.Confirm.ask", lambda *args, **kwargs: True)
+    monkeypatch.setattr("tokencat.cli.save_trusted_nodes", lambda nodes: None)
+
+    result = CliRunner().invoke(app, ["nodes", "--trust", "--timeout", "0.5"])
+
+    assert result.exit_code == 0
+    assert seen["timeout"] == 15.0
 
 
 def test_nodes_remove_deletes_selected_trusted_nodes(monkeypatch) -> None:

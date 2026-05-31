@@ -20,7 +20,10 @@ def fetch_ssh_snapshot(
     remote_command: str | None = None,
 ) -> RemoteScan:
     command = build_ssh_snapshot_command(ssh_host, filters, remote_command=remote_command)
-    completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"{ssh_host}: SSH snapshot timed out after {timeout:g}s") from exc
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
         raise RuntimeError(f"{ssh_host}: {detail}")
