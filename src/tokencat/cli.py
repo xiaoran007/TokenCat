@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime
 from typing import List, Optional
 
@@ -48,6 +49,10 @@ console = Console(highlight=False)
 DEFAULT_SSH_PROBE_TIMEOUT = 15.0
 
 ProviderOption = Optional[List[ProviderName]]
+
+
+def _emit_json(payload: object) -> None:
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def build_filters(
@@ -189,7 +194,7 @@ def _run_dashboard(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     resolved_theme = resolve_dashboard_theme(theme, os.environ)
@@ -232,7 +237,7 @@ def doctor(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     table = Table(title="TokenCat Doctor")
@@ -277,7 +282,7 @@ def summary(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     overall = Table(title="TokenCat Summary")
@@ -354,7 +359,7 @@ def daily(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     visible_items = [item for item in items if item.token_totals.total or item.models]
@@ -419,7 +424,7 @@ def sessions(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     table = Table(title="TokenCat Sessions")
@@ -492,7 +497,7 @@ def models(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     table = Table(title="TokenCat Models")
@@ -552,7 +557,7 @@ def snapshot(
         filters=filters,
         result=result,
     )
-    console.print_json(json.dumps(payload, ensure_ascii=False))
+    _emit_json(payload)
 
 
 @app.command()
@@ -678,7 +683,7 @@ def nodes(
         ],
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     _render_nodes_intro(identity.name, len(trusted))
@@ -724,7 +729,7 @@ def _remove_trusted_nodes(local_name: str, trusted: list[TrustedNode], *, json_o
         ],
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
 
     _render_nodes_intro(local_name, len(trusted))
@@ -766,7 +771,7 @@ def pricing_show(
         "warnings": result.warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
     render_pricing_summary(console, catalog=catalog, coverage=coverage, unknown_models=unknown)
 
@@ -796,7 +801,7 @@ def pricing_refresh(
         "warnings": warnings,
     }
     if json_output:
-        console.print_json(json.dumps(payload, ensure_ascii=False))
+        _emit_json(payload)
         return
     render_pricing_summary(console, catalog=catalog, coverage=None, unknown_models=[])
     if warnings:
