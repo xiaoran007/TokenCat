@@ -10,6 +10,7 @@ from tokencat.node.client import NodeEndpoint, RemoteScan
 from tokencat.node.snapshot import scan_result_from_snapshot
 
 DEFAULT_REMOTE_COMMAND = "tokencat snapshot --json"
+DEFAULT_SSH_CONNECT_TIMEOUT = 2.0
 
 
 def fetch_ssh_snapshot(
@@ -17,9 +18,10 @@ def fetch_ssh_snapshot(
     filters: ScanFilters,
     *,
     timeout: float = 15.0,
+    connect_timeout: float = DEFAULT_SSH_CONNECT_TIMEOUT,
     remote_command: str | None = None,
 ) -> RemoteScan:
-    command = build_ssh_snapshot_command(ssh_host, filters, remote_command=remote_command)
+    command = build_ssh_snapshot_command(ssh_host, filters, remote_command=remote_command, connect_timeout=connect_timeout)
     try:
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
@@ -50,9 +52,20 @@ def build_ssh_snapshot_command(
     filters: ScanFilters,
     *,
     remote_command: str | None = None,
+    connect_timeout: float = DEFAULT_SSH_CONNECT_TIMEOUT,
 ) -> list[str]:
     remote_shell_command = shlex.join(_remote_snapshot_args(filters, remote_command=remote_command))
-    return ["ssh", "-o", "BatchMode=yes", ssh_host, _login_shell_command(remote_shell_command)]
+    return [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        f"ConnectTimeout={connect_timeout:g}",
+        "-o",
+        "ConnectionAttempts=1",
+        ssh_host,
+        _login_shell_command(remote_shell_command),
+    ]
 
 
 def _login_shell_command(command: str) -> str:

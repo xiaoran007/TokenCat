@@ -130,8 +130,23 @@ def test_ssh_snapshot_command_uses_host_alias_and_filter_args() -> None:
 
     command = build_ssh_snapshot_command("dl-pt280-cu128", filters)
 
-    assert command[:4] == ["ssh", "-o", "BatchMode=yes", "dl-pt280-cu128"]
-    assert command[4] == 'if [ -n "$SHELL" ]; then exec "$SHELL" -lc \'tokencat snapshot --json\'; else exec sh -c \'tokencat snapshot --json\'; fi'
+    assert command[:8] == [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=2",
+        "-o",
+        "ConnectionAttempts=1",
+        "dl-pt280-cu128",
+    ]
+    assert command[8] == 'if [ -n "$SHELL" ]; then exec "$SHELL" -lc \'tokencat snapshot --json\'; else exec sh -c \'tokencat snapshot --json\'; fi'
+
+
+def test_ssh_snapshot_command_accepts_custom_connect_timeout() -> None:
+    command = build_ssh_snapshot_command("macbook-air", ScanFilters(), connect_timeout=0.5)
+
+    assert "ConnectTimeout=0.5" in command
 
 
 def test_ssh_snapshot_timeout_becomes_runtime_error(monkeypatch) -> None:
