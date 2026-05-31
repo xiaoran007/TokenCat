@@ -93,11 +93,27 @@ export TOKENCAT_NODE_TOKEN="choose-a-shared-secret"
 tokencat serve --lan
 ```
 
+`tokencat serve` starts in the background by default. Use these commands to inspect or stop it:
+
+```bash
+tokencat serve --status
+tokencat serve --logs
+tokencat serve --stop
+```
+
+For foreground debugging:
+
+```bash
+tokencat serve --lan --foreground
+```
+
 Discover and trust LAN nodes:
 
 ```bash
 tokencat nodes --trust
 ```
+
+The trust flow uses a checkbox prompt when the terminal supports it.
 
 If mDNS is not available, such as in Docker Desktop, trust a node by URL without editing config files:
 
