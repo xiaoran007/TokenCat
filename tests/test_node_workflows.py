@@ -127,7 +127,7 @@ def test_ssh_snapshot_command_uses_host_alias_and_filter_args() -> None:
     command = build_ssh_snapshot_command("dl-pt280-cu128", filters)
 
     assert command[:4] == ["ssh", "-o", "BatchMode=yes", "dl-pt280-cu128"]
-    assert command[4:] == ["tokencat", "snapshot", "--json"]
+    assert command[4] == 'if [ -n "$SHELL" ]; then exec "$SHELL" -lc \'tokencat snapshot --json\'; else exec sh -c \'tokencat snapshot --json\'; fi'
 
 
 def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:

@@ -48,7 +48,13 @@ def build_ssh_snapshot_command(
     *,
     remote_command: str | None = None,
 ) -> list[str]:
-    return ["ssh", "-o", "BatchMode=yes", ssh_host, *_remote_snapshot_args(filters, remote_command=remote_command)]
+    remote_shell_command = shlex.join(_remote_snapshot_args(filters, remote_command=remote_command))
+    return ["ssh", "-o", "BatchMode=yes", ssh_host, _login_shell_command(remote_shell_command)]
+
+
+def _login_shell_command(command: str) -> str:
+    quoted_command = shlex.quote(command)
+    return f'if [ -n "$SHELL" ]; then exec "$SHELL" -lc {quoted_command}; else exec sh -c {quoted_command}; fi'
 
 
 def _remote_snapshot_args(filters: ScanFilters, *, remote_command: str | None) -> list[str]:
