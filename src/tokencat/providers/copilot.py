@@ -28,6 +28,10 @@ class CopilotAdapter(ProviderAdapter):
         self.config_dir = self.home / ".config"
         self.library_dir = self.home / "Library" / "Application Support"
         self.vscode_workspace_storage_dir = self.library_dir / "Code" / "User" / "workspaceStorage"
+        self._detected_vscode_session_paths: list[Path] | None = None
+        self._detected_vscode_records: list[SessionRecord] | None = None
+        self._detected_cli_session_dirs: list[Path] | None = None
+        self._detected_cli_inspections: list[tuple[SessionRecord | None, bool, bool]] | None = None
 
     def detect(self) -> ProviderStatus:
         found_paths: list[Path] = []
@@ -57,6 +61,10 @@ class CopilotAdapter(ProviderAdapter):
         vscode_records = self._scan_session_paths(vscode_session_paths) if vscode_session_paths else []
         cli_inspections = [self._inspect_cli_session_dir(path) for path in cli_session_dirs]
         cli_records = [record for record, _, _ in cli_inspections if record is not None]
+        self._detected_vscode_session_paths = vscode_session_paths
+        self._detected_vscode_records = vscode_records
+        self._detected_cli_session_dirs = cli_session_dirs
+        self._detected_cli_inspections = cli_inspections
 
         has_vscode_token_usage = any((record.token_totals.total or 0) > 0 for record in vscode_records)
         has_cli_token_usage = any((record.token_totals.total or 0) > 0 for record in cli_records)
@@ -133,15 +141,35 @@ class CopilotAdapter(ProviderAdapter):
 
     def scan(self, filters: ScanFilters) -> list[SessionRecord]:
         sessions: dict[str, SessionRecord] = {}
-        for record in self._scan_session_paths(self._session_paths()):
+        for record in self._consume_detected_vscode_records():
             sessions[record.provider_session_id] = record
-        for record in self._scan_cli_session_dirs(self._cli_session_dirs()):
+        for record in self._consume_detected_cli_records():
             existing = sessions.get(record.provider_session_id)
             if existing is None:
                 sessions[record.provider_session_id] = record
             else:
                 sessions[record.provider_session_id] = _prefer_richer_session(existing, record)
         return list(sessions.values())
+
+    def _consume_detected_vscode_records(self) -> list[SessionRecord]:
+        session_paths = self._session_paths()
+        cached_paths = self._detected_vscode_session_paths
+        cached_records = self._detected_vscode_records
+        self._detected_vscode_session_paths = None
+        self._detected_vscode_records = None
+        if cached_paths == session_paths and cached_records is not None:
+            return cached_records
+        return self._scan_session_paths(session_paths)
+
+    def _consume_detected_cli_records(self) -> list[SessionRecord]:
+        session_dirs = self._cli_session_dirs()
+        cached_dirs = self._detected_cli_session_dirs
+        cached_inspections = self._detected_cli_inspections
+        self._detected_cli_session_dirs = None
+        self._detected_cli_inspections = None
+        if cached_dirs == session_dirs and cached_inspections is not None:
+            return [record for record, _, _ in cached_inspections if record is not None]
+        return self._scan_cli_session_dirs(session_dirs)
 
     def _scan_session_paths(self, session_paths: list[Path]) -> list[SessionRecord]:
         sessions: dict[str, SessionRecord] = {}
