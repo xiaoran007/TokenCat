@@ -27,6 +27,7 @@ from tokencat.core.serialize import (
 )
 from tokencat.core.time import local_now, parse_datetime_value
 from tokencat.core.updates import check_latest_version
+from tokencat.node.candidates import NodeCandidate, http_candidates, ssh_candidates
 from tokencat.node.client import fetch_remote_node
 from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes, register_service
 from tokencat.node.identity import load_or_create_identity
@@ -34,7 +35,9 @@ from tokencat.node.lan import scan_lan
 from tokencat.node.process import NODE_LOG_PATH, read_node_status, start_detached_node, stop_detached_node
 from tokencat.node.server import serve_forever
 from tokencat.node.snapshot import build_snapshot_payload
-from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, save_trusted_nodes
+from tokencat.node.ssh import fetch_ssh_snapshot
+from tokencat.node.ssh_config import load_ssh_host_candidates
+from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, merge_trusted_ssh_nodes, save_trusted_nodes
 from tokencat.node.tui import select_nodes_checkbox
 from tokencat.providers.registry import scan_providers
 
@@ -625,38 +628,44 @@ def nodes(
     url: Optional[List[str]] = typer.Option(None, "--url", help="Trust a node by base URL, useful for Docker or networks without mDNS."),
     timeout: float = typer.Option(2.0, "--timeout", min=0.5, help="Seconds to wait for LAN discovery."),
     token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable trusted nodes should use for bearer tokens."),
+    ssh_config: bool = typer.Option(True, "--ssh-config/--no-ssh-config", help="Include hosts from ~/.ssh/config as SSH snapshot candidates."),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON instead of a table."),
 ) -> None:
     identity = load_or_create_identity()
     discovery_warnings: list[str] = []
+    trusted = load_trusted_nodes()
+    ssh_hosts = load_ssh_host_candidates() if ssh_config else []
     try:
         discovered = [node for node in discover_nodes(timeout=timeout) if node.node_id != identity.node_id]
     except DiscoveryUnavailable as exc:
         discovered = []
         discovery_warnings.append(str(exc))
-        if not url:
+        if not url and not ssh_hosts:
             console.print(str(exc))
             raise typer.Exit(code=2) from exc
 
     url_nodes, url_warnings = _fetch_url_nodes(url or [], timeout=timeout)
     discovered = _merge_node_endpoints(discovered, url_nodes)
-    trusted = load_trusted_nodes()
-    trusted_ids = {node.node_id for node in trusted}
+    candidates = [
+        *http_candidates(discovered, trusted),
+        *ssh_candidates(ssh_hosts, trusted),
+    ]
+    trusted_ids = {candidate.node_id for candidate in candidates if candidate.trusted}
     payload = {
         "generated_at": local_now().isoformat(),
         "local_node": identity.to_dict(),
         "warnings": discovery_warnings + url_warnings,
         "nodes": [
             {
-                "id": node.node_id,
-                "name": node.name,
-                "base_url": node.base_url,
-                "version": node.version,
-                "api_version": node.api_version,
-                "auth": node.auth,
-                "trusted": node.node_id in trusted_ids,
+                "id": candidate.node_id,
+                "name": candidate.name,
+                "transport": candidate.transport,
+                "address": candidate.address,
+                "version": candidate.version,
+                "auth": candidate.auth,
+                "trusted": candidate.trusted,
             }
-            for node in discovered
+            for candidate in candidates
         ],
     }
     if json_output:
@@ -664,22 +673,28 @@ def nodes(
         return
 
     _render_nodes_intro(identity.name, len(trusted))
-    _render_nodes_table(discovered, trusted_ids)
+    _render_nodes_table(candidates, trusted_ids)
     for warning in discovery_warnings + url_warnings:
         console.print(f"Warning: {warning}")
     if not trust:
         return
-    selected = _prompt_for_node_selection(discovered, trusted_ids)
+    selected = _prompt_for_node_selection(candidates, trusted_ids)
     if not selected:
         console.print("No nodes selected.")
         return
-    token_env_value = _prompt_for_token_env(selected, default=token_env)
+    http_selected = [candidate.endpoint for candidate in selected if candidate.transport == "http" and candidate.endpoint is not None]
+    ssh_selected = [candidate for candidate in selected if candidate.transport == "ssh" and candidate.ssh_host]
+    token_env_value = _prompt_for_token_env(http_selected, default=token_env)
     if not Confirm.ask("Save selected nodes to the local trust store?", default=True):
         console.print("Trust store unchanged.")
         return
-    updated = merge_trusted_nodes(trusted, selected, token_env=token_env_value)
+    updated = merge_trusted_nodes(trusted, http_selected, token_env=token_env_value)
+    ssh_trusted, ssh_warnings = _probe_ssh_candidates(ssh_selected, timeout=timeout)
+    for warning in ssh_warnings:
+        console.print(f"Warning: {warning}")
+    updated = merge_trusted_ssh_nodes(updated, ssh_trusted)
     save_trusted_nodes(updated)
-    console.print(f"Trusted {len(selected)} node(s).")
+    console.print(f"Trusted {len(http_selected) + len(ssh_trusted)} node(s).")
 
 
 @pricing_app.command("show")
@@ -824,6 +839,21 @@ def _merge_node_endpoints(first: list[object], second: list[object]) -> list[obj
     return sorted(by_id.values(), key=lambda item: (item.name.lower(), item.node_id))
 
 
+def _probe_ssh_candidates(candidates: list[NodeCandidate], *, timeout: float) -> tuple[list[tuple[object, str]], list[str]]:
+    trusted: list[tuple[object, str]] = []
+    warnings: list[str] = []
+    for candidate in candidates:
+        if not candidate.ssh_host:
+            continue
+        try:
+            remote = fetch_ssh_snapshot(candidate.ssh_host, ScanFilters(), timeout=timeout)
+        except RuntimeError as exc:
+            warnings.append(str(exc))
+            continue
+        trusted.append((remote.endpoint, candidate.ssh_host))
+    return trusted, warnings
+
+
 def _render_nodes_intro(local_name: str, trusted_count: int) -> None:
     console.print(
         Panel(
@@ -836,6 +866,7 @@ def _render_nodes_intro(local_name: str, trusted_count: int) -> None:
 def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
     table = Table(title="TokenCat LAN Nodes")
     table.add_column("#", justify="right")
+    table.add_column("Transport")
     table.add_column("Name")
     table.add_column("Address")
     table.add_column("Version")
@@ -844,14 +875,15 @@ def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
     for index, node in enumerate(nodes, start=1):
         table.add_row(
             str(index),
+            getattr(node, "transport", "http"),
             node.name,
-            node.base_url,
+            getattr(node, "address", None) or getattr(node, "base_url", "-"),
             node.version or "-",
             node.auth,
-            "yes" if node.node_id in trusted_ids else "no",
+            "yes" if node.node_id in trusted_ids or getattr(node, "trusted", False) else "no",
         )
     if not nodes:
-        table.add_row("-", "No nodes discovered", "-", "-", "-", "-")
+        table.add_row("-", "-", "No nodes discovered", "-", "-", "-", "-")
     console.print(table)
 
 
@@ -881,6 +913,8 @@ def _prompt_for_node_selection(nodes: list[object], trusted_ids: set[str]) -> li
 
 
 def _prompt_for_token_env(nodes: list[object], *, default: str) -> str | None:
+    if not nodes:
+        return None
     needs_token = any(node.auth == "token" for node in nodes)
     if not needs_token and not Confirm.ask("Use a bearer token environment variable for these nodes?", default=False):
         return None

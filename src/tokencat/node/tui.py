@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from tokencat.node.client import NodeEndpoint
-
-
-def select_nodes_checkbox(nodes: list[NodeEndpoint], trusted_ids: set[str]) -> list[NodeEndpoint] | None:
+def select_nodes_checkbox(nodes: list[object], trusted_ids: set[str]) -> list[object] | None:
     try:
         import questionary
     except ImportError:
@@ -28,6 +25,8 @@ def select_nodes_checkbox(nodes: list[NodeEndpoint], trusted_ids: set[str]) -> l
     return [node for node in nodes if node.node_id in selected]
 
 
-def _node_choice_title(node: NodeEndpoint, *, trusted: bool) -> str:
+def _node_choice_title(node: object, *, trusted: bool) -> str:
     marker = "trusted" if trusted else "new"
-    return f"{node.name}  {node.base_url}  {node.auth}  {marker}"
+    transport = getattr(node, "transport", "http")
+    address = getattr(node, "address", None) or getattr(node, "base_url", "")
+    return f"{node.name}  {transport}  {address}  {node.auth}  {marker}"

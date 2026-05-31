@@ -6,6 +6,7 @@ from tokencat.core.models import ScanFilters, ScanResult
 from tokencat.node.client import NodeEndpoint, fetch_remote_snapshot
 from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes
 from tokencat.node.identity import NodeIdentity, apply_node_identity
+from tokencat.node.ssh import fetch_ssh_snapshot
 from tokencat.node.trust import TrustedNode, load_trusted_nodes
 from tokencat.providers.registry import scan_providers
 
@@ -45,6 +46,23 @@ def scan_lan(
     discovered_by_id = {endpoint.node_id: endpoint for endpoint in discovered}
     for trusted_node in trusted:
         if trusted_node.node_id == identity.node_id:
+            continue
+        if trusted_node.transport == "ssh":
+            if not trusted_node.ssh_host:
+                warnings.append(f"{trusted_node.name}: missing ssh host")
+                continue
+            try:
+                remote = fetch_ssh_snapshot(
+                    trusted_node.ssh_host,
+                    filters,
+                    remote_command=trusted_node.remote_command,
+                )
+            except RuntimeError as exc:
+                warnings.append(str(exc))
+                continue
+            statuses.extend(remote.result.statuses)
+            sessions.extend(remote.result.sessions)
+            warnings.extend(f"{remote.node.name}: {warning}" for warning in remote.result.warnings)
             continue
         endpoint = discovered_by_id.get(trusted_node.node_id) or trusted_node.to_endpoint()
         token = trusted_node.token()

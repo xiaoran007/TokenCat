@@ -4,10 +4,14 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from tokencat.core.models import ScanFilters, ScanResult
 from tokencat.cli import app
 from tokencat.node.client import NodeEndpoint
 from tokencat.node.identity import NodeIdentity
 from tokencat.node.process import NodeProcessStatus, start_detached_node
+from tokencat.node.ssh import build_ssh_snapshot_command
+from tokencat.node.ssh_config import SSHHostCandidate, load_ssh_host_candidates
+from tokencat.node.client import RemoteScan
 
 
 def test_start_detached_node_writes_pid_and_uses_foreground_child(tmp_path: Path, monkeypatch) -> None:
@@ -66,8 +70,9 @@ def test_nodes_trust_uses_checkbox_selection(monkeypatch) -> None:
 
     monkeypatch.setattr("tokencat.cli.load_or_create_identity", lambda: NodeIdentity("local", "Local", "0.0.0"))
     monkeypatch.setattr("tokencat.cli.discover_nodes", lambda timeout: [endpoint])
+    monkeypatch.setattr("tokencat.cli.load_ssh_host_candidates", lambda: [])
     monkeypatch.setattr("tokencat.cli.load_trusted_nodes", lambda: [])
-    monkeypatch.setattr("tokencat.cli.select_nodes_checkbox", lambda nodes, trusted_ids: [endpoint])
+    monkeypatch.setattr("tokencat.cli.select_nodes_checkbox", lambda nodes, trusted_ids: nodes)
     monkeypatch.setattr("tokencat.cli.Prompt.ask", lambda *args, **kwargs: "TOKENCAT_NODE_TOKEN")
     monkeypatch.setattr("tokencat.cli.Confirm.ask", lambda *args, **kwargs: True)
 
@@ -84,3 +89,78 @@ def test_nodes_trust_uses_checkbox_selection(monkeypatch) -> None:
     assert len(trusted) == 1
     assert trusted[0].node_id == "node-1"
     assert trusted[0].token_env == "TOKENCAT_NODE_TOKEN"
+
+
+def test_ssh_config_candidates_parse_common_host_block(tmp_path: Path) -> None:
+    config = tmp_path / "config"
+    config.write_text(
+        """
+Host dl-pt280-cu128
+    HostName 192.168.8.215
+    Port 2222
+    User dev
+    IdentityFile ~/.ssh/id_ed25519
+
+Host *
+    User ignored
+""",
+        encoding="utf-8",
+    )
+
+    candidates = load_ssh_host_candidates(config)
+
+    assert candidates == [
+        SSHHostCandidate(
+            alias="dl-pt280-cu128",
+            hostname="192.168.8.215",
+            user="dev",
+            port="2222",
+            identity_file="~/.ssh/id_ed25519",
+        )
+    ]
+    assert candidates[0].address == "dev@192.168.8.215:2222"
+
+
+def test_ssh_snapshot_command_uses_host_alias_and_filter_args() -> None:
+    filters = ScanFilters(providers=set(), since=None, until=None)
+
+    command = build_ssh_snapshot_command("dl-pt280-cu128", filters)
+
+    assert command[:4] == ["ssh", "-o", "BatchMode=yes", "dl-pt280-cu128"]
+    assert command[4:] == ["tokencat", "snapshot", "--json"]
+
+
+def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:
+    candidate = SSHHostCandidate(alias="dl-pt280-cu128", hostname="192.168.8.215", user="dev", port="2222")
+    remote = RemoteScan(
+        endpoint=NodeEndpoint(
+            node_id="remote-node",
+            name="dl-pt280-cu128",
+            base_url="ssh://dl-pt280-cu128",
+            auth="ssh",
+        ),
+        node=NodeIdentity("remote-node", "dl-pt280-cu128", "0.0.0"),
+        result=ScanResult(statuses=[], sessions=[]),
+    )
+    saved: dict[str, object] = {}
+
+    monkeypatch.setattr("tokencat.cli.load_or_create_identity", lambda: NodeIdentity("local", "Local", "0.0.0"))
+    monkeypatch.setattr("tokencat.cli.discover_nodes", lambda timeout: [])
+    monkeypatch.setattr("tokencat.cli.load_ssh_host_candidates", lambda: [candidate])
+    monkeypatch.setattr("tokencat.cli.load_trusted_nodes", lambda: [])
+    monkeypatch.setattr("tokencat.cli.select_nodes_checkbox", lambda nodes, trusted_ids: nodes)
+    monkeypatch.setattr("tokencat.cli.fetch_ssh_snapshot", lambda ssh_host, filters, timeout: remote)
+    monkeypatch.setattr("tokencat.cli.Confirm.ask", lambda *args, **kwargs: True)
+
+    def fake_save(nodes):
+        saved["nodes"] = nodes
+
+    monkeypatch.setattr("tokencat.cli.save_trusted_nodes", fake_save)
+
+    result = CliRunner().invoke(app, ["nodes", "--trust", "--timeout", "0.5"])
+
+    assert result.exit_code == 0
+    trusted = saved["nodes"]
+    assert len(trusted) == 1
+    assert trusted[0].transport == "ssh"
+    assert trusted[0].ssh_host == "dl-pt280-cu128"
