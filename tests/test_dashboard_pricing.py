@@ -353,7 +353,7 @@ def test_root_command_defaults_to_dashboard_json(sample_home: Path, monkeypatch)
     result = runner.invoke(app, ["--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert set(payload["summary"]) == {"overview", "daily", "top_models", "recent_sessions", "pricing"}
+    assert set(payload["summary"]) == {"overview", "daily", "top_models", "nodes", "recent_sessions", "pricing"}
     assert payload["summary"]["overview"]["pricing_coverage"]["priced_tokens"] > 0
     assert payload["summary"]["overview"]["top_models"][0]["model"] in {"gpt-5.3-codex", "gemini-2.5-pro"}
 
@@ -367,7 +367,7 @@ def test_summary_keeps_envelope_and_adds_pricing_coverage(sample_home: Path, mon
     result = runner.invoke(app, ["summary", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert set(payload) == {"generated_at", "filters", "providers", "summary", "warnings"}
+    assert set(payload) == {"generated_at", "filters", "providers", "summary", "nodes", "warnings"}
     assert "pricing_coverage" in payload["summary"]
     assert payload["summary"]["estimated_cost"]["total_cost"] > 0
 

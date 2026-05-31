@@ -17,6 +17,7 @@ from tokencat.core.models import (
     DailyUsageRecord,
     PricingCatalog,
     PricingCoverage,
+    ProviderName,
     ProviderStatus,
     SessionRecord,
 )
@@ -491,7 +492,16 @@ def _dedupe_provider_statuses(statuses: list[ProviderStatus]) -> list[ProviderSt
         current = best_by_provider.get(status.provider)
         if current is None or _provider_status_rank(status) > _provider_status_rank(current):
             best_by_provider[status.provider] = status
-    return [best_by_provider[provider] for provider in sorted(best_by_provider, key=lambda value: value.value)]
+    provider_order = {
+        ProviderName.CODEX: 0,
+        ProviderName.CLAUDE: 1,
+        ProviderName.GEMINI: 2,
+        ProviderName.COPILOT: 3,
+    }
+    return [
+        best_by_provider[provider]
+        for provider in sorted(best_by_provider, key=lambda value: (provider_order.get(value, 99), value.value))
+    ]
 
 
 def _provider_status_rank(status: ProviderStatus) -> int:
