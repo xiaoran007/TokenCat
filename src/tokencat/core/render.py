@@ -353,8 +353,8 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     header.append(f"coverage {_format_ratio((record.priced_tokens / record.total_tokens) if record.total_tokens else 0.0)}", style=palette.muted)
 
     table = Table(box=box.SIMPLE_HEAVY, expand=True, pad_edge=False, collapse_padding=True, padding=(0, 1))
-    model_width = 26 if compact_tokens else 38
-    token_width = 8 if compact_tokens else 13
+    model_width = 18 if compact_tokens else 26
+    token_width = 10 if compact_tokens else 16
     table.add_column("Model", style=palette.accent, width=model_width, no_wrap=True, overflow="ellipsis")
     table.add_column("Input", justify="right", width=token_width, no_wrap=True)
     table.add_column("Output", justify="right", width=token_width, no_wrap=True)
