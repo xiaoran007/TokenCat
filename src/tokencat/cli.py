@@ -33,6 +33,7 @@ from tokencat.node.identity import load_or_create_identity
 from tokencat.node.lan import scan_lan
 from tokencat.node.process import NODE_LOG_PATH, read_node_status, start_detached_node, stop_detached_node
 from tokencat.node.server import serve_forever
+from tokencat.node.snapshot import build_snapshot_payload
 from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, save_trusted_nodes
 from tokencat.node.tui import select_nodes_checkbox
 from tokencat.providers.registry import scan_providers
@@ -528,6 +529,26 @@ def models(
             row.append(_format_ratio(item.get("priced_token_coverage", 0.0)))
         table.add_row(*row)
     console.print(table)
+
+
+@app.command()
+def snapshot(
+    providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
+    since: Optional[str] = typer.Option(None, "--since", help="Relative like 7d/24h or ISO date/datetime."),
+    until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
+    json_output: bool = typer.Option(True, "--json", help="Emit a TokenCat snapshot JSON payload."),
+) -> None:
+    if not json_output:
+        console.print("The snapshot command only supports JSON output.")
+        raise typer.Exit(code=2)
+    filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
+    result = scan_providers(filters)
+    payload = build_snapshot_payload(
+        identity=load_or_create_identity(),
+        filters=filters,
+        result=result,
+    )
+    console.print_json(json.dumps(payload, ensure_ascii=False))
 
 
 @app.command()
