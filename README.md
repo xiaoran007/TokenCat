@@ -11,7 +11,8 @@ TokenCat is a local-first CLI that shows how your AI coding agents use tokens ac
 
 Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, GitHub Copilot Chat/Agent, and GitHub Copilot CLI. TokenCat reads the telemetry files those tools already keep locally; it does not proxy requests, rewrite endpoints, read credentials, or print prompt and response bodies.
 
-![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png)
+<!-- ![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png) -->
+![TokenCat dashboard demo](https://files.catbox.moe/wo8lwy.png)
 
 ## Why TokenCat
 
@@ -54,9 +55,69 @@ Look farther back:
 
 ```bash
 tokencat --since 30d
-tokencat dashboard --since 2026-01-01
+tokencat --since 2026-01-01
 ```
 
+Check what TokenCat can see on this machine:
+
+```bash
+tokencat doctor
+```
+
+## LAN and SSH Nodes
+
+TokenCat can roll up trusted machines without sending prompts or responses. Each node exposes or returns a read-only snapshot.
+
+SSH-configured machines and containers do not need a long-running HTTP server. If a host appears in `~/.ssh/config` and has `tokencat` available remotely, `tokencat nodes --trust` can add it as an SSH snapshot node. Later, `tokencat --lan` runs `ssh <host> tokencat snapshot --json` and aggregates the returned snapshot.
+
+Aggregate trusted nodes:
+
+```bash
+tokencat dashboard --lan
+tokencat summary --lan
+tokencat sessions --lan
+```
+
+Remove trusted nodes:
+
+```bash
+tokencat nodes --remove
+```
+
+You can also start an HTTP node on another machine:
+
+```bash
+export TOKENCAT_NODE_TOKEN="choose-a-shared-secret"
+tokencat serve --lan
+```
+
+`tokencat serve` starts in the background by default:
+
+```bash
+tokencat serve --status
+tokencat serve --logs
+tokencat serve --stop
+```
+
+For foreground debugging:
+
+```bash
+tokencat serve --lan --foreground
+```
+
+Discover and trust nodes:
+
+```bash
+tokencat nodes --trust
+```
+
+If mDNS is blocked by Docker Desktop, VPNs, or network policy, trust a node by URL:
+
+```bash
+tokencat nodes --url http://127.0.0.1:8765 --trust
+```
+
+## Advanced Usage
 Focus on one provider:
 
 ```bash
@@ -80,11 +141,17 @@ tokencat summary --json
 tokencat sessions --json --show-title --show-path
 ```
 
-Check what TokenCat can see on this machine:
+## JSON Output
 
-```bash
-tokencat doctor
-```
+Commands with `--json` emit stable envelopes with:
+
+- `generated_at`
+- `filters`
+- `providers`
+- `summary` or `items`
+- `warnings`
+
+This makes TokenCat easy to pipe into local scripts, dashboards, or personal automation.
 
 ## Configuration
 
@@ -173,59 +240,6 @@ Current pricing references:
 - [OpenRouter pricing](https://openrouter.ai/pricing)
 - [GitHub Copilot plans](https://docs.github.com/en/copilot/about-github-copilot/subscription-plans-for-github-copilot)
 
-## LAN and SSH Nodes
-
-TokenCat can roll up trusted machines without sending prompts or responses. Each node exposes or returns a read-only snapshot.
-
-Start an HTTP node on another machine:
-
-```bash
-export TOKENCAT_NODE_TOKEN="choose-a-shared-secret"
-tokencat serve --lan
-```
-
-`tokencat serve` starts in the background by default:
-
-```bash
-tokencat serve --status
-tokencat serve --logs
-tokencat serve --stop
-```
-
-For foreground debugging:
-
-```bash
-tokencat serve --lan --foreground
-```
-
-Discover and trust nodes:
-
-```bash
-tokencat nodes --trust
-```
-
-If mDNS is blocked by Docker Desktop, VPNs, or network policy, trust a node by URL:
-
-```bash
-tokencat nodes --url http://127.0.0.1:8765 --trust
-```
-
-SSH-configured machines and containers do not need a long-running HTTP server. If a host appears in `~/.ssh/config` and has `tokencat` available remotely, `tokencat nodes --trust` can add it as an SSH snapshot node. Later, `tokencat --lan` runs `ssh <host> tokencat snapshot --json` and aggregates the returned snapshot.
-
-Aggregate trusted nodes:
-
-```bash
-tokencat dashboard --lan
-tokencat summary --lan
-tokencat sessions --lan
-```
-
-Remove trusted nodes:
-
-```bash
-tokencat nodes --remove
-```
-
 ## Privacy
 
 TokenCat is intentionally conservative.
@@ -237,18 +251,6 @@ TokenCat is intentionally conservative.
 - Does not print raw prompt or response bodies.
 - Uses anonymous session IDs by default.
 - Shows titles and paths only when you pass `--show-title` or `--show-path`.
-
-## JSON Output
-
-Commands with `--json` emit stable envelopes with:
-
-- `generated_at`
-- `filters`
-- `providers`
-- `summary` or `items`
-- `warnings`
-
-This makes TokenCat easy to pipe into local scripts, dashboards, or personal automation.
 
 ## Limits
 
