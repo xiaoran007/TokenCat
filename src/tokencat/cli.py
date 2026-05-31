@@ -31,6 +31,7 @@ from tokencat.node.client import fetch_remote_node
 from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes, register_service
 from tokencat.node.identity import load_or_create_identity
 from tokencat.node.lan import scan_lan
+from tokencat.node.process import NODE_LOG_PATH, read_node_status, start_detached_node, stop_detached_node
 from tokencat.node.server import serve_forever
 from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, save_trusted_nodes
 from tokencat.providers.registry import scan_providers
@@ -534,7 +535,34 @@ def serve(
     port: int = typer.Option(8765, "--port", min=0, help="Port to listen on."),
     lan: bool = typer.Option(False, "--lan", help="Bind to the LAN and advertise via mDNS."),
     token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable containing the bearer token."),
+    foreground: bool = typer.Option(False, "--foreground", help="Run in the foreground and stream logs to this terminal."),
+    status: bool = typer.Option(False, "--status", help="Show the detached node process status."),
+    stop: bool = typer.Option(False, "--stop", help="Stop the detached node process."),
+    logs: bool = typer.Option(False, "--logs", help="Show the detached node log path."),
 ) -> None:
+    if status:
+        _print_node_process_status()
+        return
+    if stop:
+        stopped = stop_detached_node()
+        if stopped.running:
+            console.print(f"TokenCat node still appears to be running with pid {stopped.pid}.")
+        else:
+            console.print("TokenCat node stopped.")
+        return
+    if logs:
+        console.print(str(NODE_LOG_PATH))
+        return
+    if not foreground:
+        detached_args = _serve_detached_args(host=host, port=port, lan=lan, token_env=token_env)
+        started = start_detached_node(detached_args)
+        if started.running:
+            console.print(f"TokenCat node running in the background with pid {started.pid}.")
+            console.print(f"Logs: {started.log_path}")
+        else:
+            console.print("TokenCat node did not start.")
+        return
+
     identity = load_or_create_identity()
     bind_host = "0.0.0.0" if lan and host == "127.0.0.1" else host
     token = os.environ.get(token_env)
@@ -706,6 +734,25 @@ def _scan_with_pricing(
     catalog = load_pricing_catalog()
     coverage = apply_pricing(result.sessions, catalog)
     return result, catalog, coverage
+
+
+def _serve_detached_args(*, host: str, port: int, lan: bool, token_env: str) -> list[str]:
+    args = ["--host", host, "--port", str(port), "--token-env", token_env]
+    if lan:
+        args.append("--lan")
+    return args
+
+
+def _print_node_process_status() -> None:
+    status = read_node_status()
+    if status.running:
+        console.print(f"TokenCat node is running with pid {status.pid}.")
+    elif status.pid is not None:
+        console.print(f"TokenCat node is not running; stale pid file contains {status.pid}.")
+    else:
+        console.print("TokenCat node is not running.")
+    console.print(f"PID file: {status.pid_path}")
+    console.print(f"Logs: {status.log_path}")
 
 
 def _resolve_dashboard_usage_granularity(
