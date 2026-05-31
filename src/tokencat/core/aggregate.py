@@ -149,9 +149,9 @@ def aggregate_models(records: list[SessionRecord]) -> list[dict[str, object]]:
 
 def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
     buckets: dict[date, DailyUsageRecord] = {}
-    model_buckets: dict[date, dict[tuple[ProviderName, str], DailyModelUsageRecord]] = defaultdict(dict)
+    model_buckets: dict[date, dict[tuple[ProviderName, str, str | None], DailyModelUsageRecord]] = defaultdict(dict)
     session_days: dict[date, set[str]] = defaultdict(set)
-    model_session_days: dict[date, dict[tuple[ProviderName, str], set[str]]] = defaultdict(lambda: defaultdict(set))
+    model_session_days: dict[date, dict[tuple[ProviderName, str, str | None], set[str]]] = defaultdict(lambda: defaultdict(set))
     for record in records:
         if record.usage_slices:
             _accumulate_sliced_daily_record(record, buckets, model_buckets, session_days, model_session_days)
@@ -171,7 +171,7 @@ def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
             bucket.estimated_cost.add(record.estimated_cost)
         priced_tokens = 0
         for model_name, usage in record.model_usage.items():
-            key = (record.provider, model_name)
+            key = _daily_model_key(record.provider, model_name, record.node_name)
             model_bucket = model_buckets[day].setdefault(
                 key,
                 DailyModelUsageRecord(
@@ -204,6 +204,7 @@ def aggregate_daily(records: list[SessionRecord]) -> list[DailyUsageRecord]:
                 -(item.token_totals.total or 0),
                 item.provider.value,
                 item.model,
+                tuple(sorted(item.node_names)),
             ),
         )
         bucket.models = day_models
@@ -235,11 +236,11 @@ def aggregate_dashboard_usage(records: list[SessionRecord], granularity: Dashboa
         bucket.priced_tokens += record.priced_tokens
         bucket.total_tokens += record.total_tokens
 
-        model_buckets: dict[tuple[ProviderName, str], DailyModelUsageRecord] = {
-            (item.provider, item.model): item for item in bucket.models
+        model_buckets: dict[tuple[ProviderName, str, tuple[str, ...]], DailyModelUsageRecord] = {
+            _daily_bucket_model_key(item): item for item in bucket.models
         }
         for model in record.models:
-            key = (model.provider, model.model)
+            key = _daily_bucket_model_key(model)
             model_bucket = model_buckets.get(key)
             if model_bucket is None:
                 model_bucket = DailyModelUsageRecord(
@@ -263,6 +264,7 @@ def aggregate_dashboard_usage(records: list[SessionRecord], granularity: Dashboa
                 -(item.token_totals.total or 0),
                 item.provider.value,
                 item.model,
+                tuple(sorted(item.node_names)),
             ),
         )
 
@@ -272,9 +274,9 @@ def aggregate_dashboard_usage(records: list[SessionRecord], granularity: Dashboa
 def _accumulate_sliced_daily_record(
     record: SessionRecord,
     buckets: dict[date, DailyUsageRecord],
-    model_buckets: dict[date, dict[tuple[ProviderName, str], DailyModelUsageRecord]],
+    model_buckets: dict[date, dict[tuple[ProviderName, str, str | None], DailyModelUsageRecord]],
     session_days: dict[date, set[str]],
-    model_session_days: dict[date, dict[tuple[ProviderName, str], set[str]]],
+    model_session_days: dict[date, dict[tuple[ProviderName, str, str | None], set[str]]],
 ) -> None:
     usage_by_model = record.model_usage
 
@@ -290,7 +292,7 @@ def _accumulate_sliced_daily_record(
         if slice_record.model is None:
             continue
 
-        key = (record.provider, slice_record.model)
+        key = _daily_model_key(record.provider, slice_record.model, record.node_name)
         model_bucket = model_buckets[day].setdefault(
             key,
             DailyModelUsageRecord(
@@ -349,6 +351,14 @@ def _add_model_node(model: DailyModelUsageRecord, record: SessionRecord) -> None
     node_name = record.node_name
     if node_name:
         model.node_names.add(node_name)
+
+
+def _daily_model_key(provider: ProviderName, model: str, node_name: str | None) -> tuple[ProviderName, str, str | None]:
+    return provider, model, node_name or None
+
+
+def _daily_bucket_model_key(model: DailyModelUsageRecord) -> tuple[ProviderName, str, tuple[str, ...]]:
+    return model.provider, model.model, tuple(sorted(model.node_names))
 
 
 def _scale_cost_component(total_cost: float, slice_amount: int, aggregate_amount: int) -> float:

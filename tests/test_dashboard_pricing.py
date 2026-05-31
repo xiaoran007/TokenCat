@@ -1863,6 +1863,46 @@ def test_aggregate_daily_includes_model_subrows_and_preserves_day_totals(sample_
     assert codex_day.models[0].token_totals.total == 180
 
 
+def test_aggregate_daily_keeps_same_model_split_by_node() -> None:
+    started_at = datetime.fromisoformat("2026-03-15T12:00:00+00:00")
+    records = [
+        SessionRecord(
+            provider=ProviderName.CODEX,
+            provider_session_id="studio-session",
+            anon_session_id="studio-session",
+            started_at=started_at,
+            updated_at=started_at,
+            token_totals=TokenTotals(input=100, output=50, total=150),
+            model_usage={"gpt-5.5": ModelUsage(model="gpt-5.5", tokens=TokenTotals(input=100, output=50, total=150))},
+            node_name="Mac-Studio-M1-Max",
+        ),
+        SessionRecord(
+            provider=ProviderName.CODEX,
+            provider_session_id="air-session",
+            anon_session_id="air-session",
+            started_at=started_at,
+            updated_at=started_at,
+            token_totals=TokenTotals(input=200, output=60, total=260),
+            model_usage={"gpt-5.5": ModelUsage(model="gpt-5.5", tokens=TokenTotals(input=200, output=60, total=260))},
+            node_name="69f843fb0b16",
+        ),
+    ]
+
+    daily = aggregate_daily(records)
+    weekly = aggregate_dashboard_usage(records, DashboardUsageGranularity.WEEKLY)
+
+    assert len(daily) == 1
+    assert daily[0].token_totals.total == 410
+    assert [(item.model, sorted(item.node_names), item.token_totals.total) for item in daily[0].models] == [
+        ("gpt-5.5", ["69f843fb0b16"], 260),
+        ("gpt-5.5", ["Mac-Studio-M1-Max"], 150),
+    ]
+    assert [(item.model, sorted(item.node_names), item.token_totals.total) for item in weekly[0].models] == [
+        ("gpt-5.5", ["69f843fb0b16"], 260),
+        ("gpt-5.5", ["Mac-Studio-M1-Max"], 150),
+    ]
+
+
 def test_claude_cross_day_window_projection_uses_assistant_message_timestamps(sample_home: Path, monkeypatch) -> None:
     write_claude_session_jsonl(
         sample_home,
