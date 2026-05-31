@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from multiprocessing import get_context
+from multiprocessing.context import BaseContext
 from pathlib import Path
 
 from tokencat.core.models import (
@@ -22,6 +26,8 @@ from tokencat.providers.base import ProviderAdapter
 
 SESSION_ID_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 LEGACY_FALLBACK_MODEL = "gpt-5"
+PARALLEL_PARSE_MIN_FILES = 8
+PARALLEL_PARSE_MAX_WORKERS = 8
 
 
 @dataclass
@@ -86,8 +92,7 @@ class CodexAdapter(ProviderAdapter):
         sqlite_rows = self._load_state_rows()
         sessions: dict[str, SessionRecord] = {}
 
-        for path in self._jsonl_session_paths():
-            session = self._parse_session_file(path, title_index)
+        for session in self._parse_session_files(self._jsonl_session_paths(), title_index):
             if session is None:
                 continue
             existing = sessions.get(session.provider_session_id)
@@ -133,6 +138,18 @@ class CodexAdapter(ProviderAdapter):
                 record.attribution_status = "unattributed"
 
         return list(sessions.values())
+
+    def _parse_session_files(self, paths: list[Path], title_index: dict[str, str]) -> list[SessionRecord | None]:
+        if len(paths) < PARALLEL_PARSE_MIN_FILES:
+            return [self._parse_session_file(path, title_index) for path in paths]
+
+        max_workers = min(len(paths), os.cpu_count() or 1, PARALLEL_PARSE_MAX_WORKERS)
+        if max_workers <= 1:
+            return [self._parse_session_file(path, title_index) for path in paths]
+
+        args = [(str(path), title_index) for path in paths]
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=_process_pool_context()) as executor:
+            return list(executor.map(_parse_session_file_worker, args))
 
     def _parse_session_file(self, path: Path, title_index: dict[str, str]) -> SessionRecord | None:
         session_id = _session_id_from_name(path.name)
@@ -339,6 +356,18 @@ class CodexAdapter(ProviderAdapter):
 
     def _state_db_paths(self) -> list[Path]:
         return sorted(self.codex_dir.glob("state_*.sqlite"))
+
+
+def _process_pool_context() -> BaseContext:
+    try:
+        return get_context("fork")
+    except ValueError:
+        return get_context()
+
+
+def _parse_session_file_worker(args: tuple[str, dict[str, str]]) -> SessionRecord | None:
+    path_text, title_index = args
+    return CodexAdapter()._parse_session_file(Path(path_text), title_index)
 
 
 def _session_id_from_name(name: str) -> str | None:
