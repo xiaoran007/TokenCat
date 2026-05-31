@@ -18,16 +18,27 @@ def build_providers() -> list[ProviderAdapter]:
     ]
 
 
+def build_provider_map() -> dict[ProviderName, ProviderAdapter]:
+    return {
+        ProviderName.CODEX: CodexAdapter(),
+        ProviderName.CLAUDE: ClaudeAdapter(),
+        ProviderName.GEMINI: GeminiAdapter(),
+        ProviderName.COPILOT: CopilotAdapter(),
+    }
+
+
 def scan_providers(filters: ScanFilters) -> ScanResult:
     statuses = []
     sessions = []
     warnings = []
     selected = filters.providers or {ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.GEMINI, ProviderName.COPILOT}
 
-    for adapter in build_providers():
-        status = adapter.detect()
-        if status.provider not in selected:
+    providers = build_provider_map()
+    for provider in (ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.GEMINI, ProviderName.COPILOT):
+        if provider not in selected:
             continue
+        adapter = providers[provider]
+        status = adapter.detect()
         statuses.append(status)
         warnings.extend(status.warnings)
         sessions.extend(adapter.scan(filters))
