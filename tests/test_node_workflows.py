@@ -12,6 +12,7 @@ from tokencat.node.process import NodeProcessStatus, start_detached_node
 from tokencat.node.ssh import build_ssh_snapshot_command
 from tokencat.node.ssh_config import SSHHostCandidate, load_ssh_host_candidates
 from tokencat.node.client import RemoteScan
+from tokencat.node.trust import TrustedNode
 
 
 def test_start_detached_node_writes_pid_and_uses_foreground_child(tmp_path: Path, monkeypatch) -> None:
@@ -164,3 +165,40 @@ def test_nodes_trust_can_select_ssh_config_candidate(monkeypatch) -> None:
     assert len(trusted) == 1
     assert trusted[0].transport == "ssh"
     assert trusted[0].ssh_host == "dl-pt280-cu128"
+
+
+def test_nodes_remove_deletes_selected_trusted_nodes(monkeypatch) -> None:
+    trusted_nodes = [
+        TrustedNode(
+            node_id="node-1",
+            name="Air",
+            transport="http",
+            base_url="http://air.local:8765",
+            token_env="TOKENCAT_NODE_TOKEN",
+        ),
+        TrustedNode(
+            node_id="node-2",
+            name="Studio",
+            transport="ssh",
+            ssh_host="studio",
+        ),
+    ]
+    saved: dict[str, object] = {}
+
+    monkeypatch.setattr("tokencat.cli.load_or_create_identity", lambda: NodeIdentity("local", "Local", "0.0.0"))
+    monkeypatch.setattr("tokencat.cli.load_trusted_nodes", lambda: trusted_nodes)
+    monkeypatch.setattr("tokencat.cli.select_nodes_checkbox", lambda nodes, trusted_ids, **kwargs: [nodes[0]])
+    monkeypatch.setattr("tokencat.cli.Confirm.ask", lambda *args, **kwargs: True)
+
+    def fake_save(nodes):
+        saved["nodes"] = nodes
+
+    monkeypatch.setattr("tokencat.cli.save_trusted_nodes", fake_save)
+
+    result = CliRunner().invoke(app, ["nodes", "--remove"])
+
+    assert result.exit_code == 0
+    assert "Removed 1 node(s)." in result.stdout
+    remaining = saved["nodes"]
+    assert len(remaining) == 1
+    assert remaining[0].node_id == "node-2"

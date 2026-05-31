@@ -115,6 +115,12 @@ tokencat nodes --trust
 
 The trust flow uses a checkbox prompt when the terminal supports it. The same `nodes` entry point shows mDNS peers, explicit URLs, and SSH hosts from `~/.ssh/config`.
 
+Remove trusted nodes with the same interactive flow:
+
+```bash
+tokencat nodes --remove
+```
+
 If mDNS is not available, such as in Docker Desktop, trust a node by URL without editing config files:
 
 ```bash

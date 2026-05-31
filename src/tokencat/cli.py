@@ -27,7 +27,7 @@ from tokencat.core.serialize import (
 )
 from tokencat.core.time import local_now, parse_datetime_value
 from tokencat.core.updates import check_latest_version
-from tokencat.node.candidates import NodeCandidate, http_candidates, ssh_candidates
+from tokencat.node.candidates import NodeCandidate, http_candidates, ssh_candidates, trusted_node_candidates
 from tokencat.node.client import fetch_remote_node
 from tokencat.node.discovery import DiscoveryUnavailable, discover_nodes, register_service
 from tokencat.node.identity import load_or_create_identity
@@ -37,7 +37,7 @@ from tokencat.node.server import serve_forever
 from tokencat.node.snapshot import build_snapshot_payload
 from tokencat.node.ssh import fetch_ssh_snapshot
 from tokencat.node.ssh_config import load_ssh_host_candidates
-from tokencat.node.trust import DEFAULT_TOKEN_ENV, load_trusted_nodes, merge_trusted_nodes, merge_trusted_ssh_nodes, save_trusted_nodes
+from tokencat.node.trust import DEFAULT_TOKEN_ENV, TrustedNode, load_trusted_nodes, merge_trusted_nodes, merge_trusted_ssh_nodes, save_trusted_nodes
 from tokencat.node.tui import select_nodes_checkbox
 from tokencat.providers.registry import scan_providers
 
@@ -625,6 +625,7 @@ def serve(
 @app.command()
 def nodes(
     trust: bool = typer.Option(False, "--trust", help="Interactively trust discovered nodes."),
+    remove: bool = typer.Option(False, "--remove", help="Interactively remove trusted nodes."),
     url: Optional[List[str]] = typer.Option(None, "--url", help="Trust a node by base URL, useful for Docker or networks without mDNS."),
     timeout: float = typer.Option(2.0, "--timeout", min=0.5, help="Seconds to wait for LAN discovery."),
     token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable trusted nodes should use for bearer tokens."),
@@ -634,6 +635,13 @@ def nodes(
     identity = load_or_create_identity()
     discovery_warnings: list[str] = []
     trusted = load_trusted_nodes()
+    if trust and remove:
+        console.print("Use either --trust or --remove, not both.")
+        raise typer.Exit(code=2)
+    if remove:
+        _remove_trusted_nodes(identity.name, trusted, json_output=json_output)
+        return
+
     ssh_hosts = load_ssh_host_candidates() if ssh_config else []
     try:
         discovered = [node for node in discover_nodes(timeout=timeout) if node.node_id != identity.node_id]
@@ -673,7 +681,7 @@ def nodes(
         return
 
     _render_nodes_intro(identity.name, len(trusted))
-    _render_nodes_table(candidates, trusted_ids)
+    _render_nodes_table(candidates, trusted_ids, empty_label="No trusted nodes")
     for warning in discovery_warnings + url_warnings:
         console.print(f"Warning: {warning}")
     if not trust:
@@ -695,6 +703,42 @@ def nodes(
     updated = merge_trusted_ssh_nodes(updated, ssh_trusted)
     save_trusted_nodes(updated)
     console.print(f"Trusted {len(http_selected) + len(ssh_trusted)} node(s).")
+
+
+def _remove_trusted_nodes(local_name: str, trusted: list[TrustedNode], *, json_output: bool) -> None:
+    candidates = trusted_node_candidates(trusted)
+    trusted_ids = {candidate.node_id for candidate in candidates}
+    payload = {
+        "generated_at": local_now().isoformat(),
+        "nodes": [
+            {
+                "id": candidate.node_id,
+                "name": candidate.name,
+                "transport": candidate.transport,
+                "address": candidate.address,
+                "auth": candidate.auth,
+                "trusted": candidate.trusted,
+            }
+            for candidate in candidates
+        ],
+    }
+    if json_output:
+        console.print_json(json.dumps(payload, ensure_ascii=False))
+        return
+
+    _render_nodes_intro(local_name, len(trusted))
+    _render_nodes_table(candidates, trusted_ids)
+    selected = _prompt_for_node_removal(candidates)
+    if not selected:
+        console.print("No nodes selected.")
+        return
+    selected_ids = {candidate.node_id for candidate in selected}
+    if not Confirm.ask("Remove selected nodes from the local trust store?", default=True):
+        console.print("Trust store unchanged.")
+        return
+    updated = [node for node in trusted if node.node_id not in selected_ids]
+    save_trusted_nodes(updated)
+    console.print(f"Removed {len(trusted) - len(updated)} node(s).")
 
 
 @pricing_app.command("show")
@@ -863,7 +907,7 @@ def _render_nodes_intro(local_name: str, trusted_count: int) -> None:
     )
 
 
-def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
+def _render_nodes_table(nodes: list[object], trusted_ids: set[str], *, empty_label: str = "No nodes discovered") -> None:
     table = Table(title="TokenCat LAN Nodes")
     table.add_column("#", justify="right")
     table.add_column("Transport")
@@ -883,7 +927,7 @@ def _render_nodes_table(nodes: list[object], trusted_ids: set[str]) -> None:
             "yes" if node.node_id in trusted_ids or getattr(node, "trusted", False) else "no",
         )
     if not nodes:
-        table.add_row("-", "-", "No nodes discovered", "-", "-", "-", "-")
+        table.add_row("-", "-", empty_label, "-", "-", "-", "-")
     console.print(table)
 
 
@@ -910,6 +954,30 @@ def _prompt_for_node_selection(nodes: list[object], trusted_ids: set[str]) -> li
         if 1 <= index <= len(nodes):
             selected.append(nodes[index - 1])
     return selected
+
+
+def _prompt_for_node_removal(nodes: list[object]) -> list[object]:
+    if not nodes:
+        return []
+    trusted_ids = {node.node_id for node in nodes}
+    selected = select_nodes_checkbox(nodes, trusted_ids, prompt="Remove which trusted nodes?", checked_ids=set())
+    if selected is not None:
+        return selected
+    answer = Prompt.ask("Remove which nodes? Use numbers separated by commas, or 'all'", default="")
+    normalized = answer.strip().lower()
+    if not normalized:
+        return []
+    if normalized in {"a", "all"}:
+        return nodes
+    selected_nodes: list[object] = []
+    for part in normalized.split(","):
+        try:
+            index = int(part.strip())
+        except ValueError:
+            continue
+        if 1 <= index <= len(nodes):
+            selected_nodes.append(nodes[index - 1])
+    return selected_nodes
 
 
 def _prompt_for_token_env(nodes: list[object], *, default: str) -> str | None:

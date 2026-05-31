@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-def select_nodes_checkbox(nodes: list[object], trusted_ids: set[str]) -> list[object] | None:
+def select_nodes_checkbox(
+    nodes: list[object],
+    trusted_ids: set[str],
+    *,
+    prompt: str = "Trust which nodes?",
+    checked_ids: set[str] | None = None,
+) -> list[object] | None:
     try:
         import questionary
     except ImportError:
@@ -10,12 +16,12 @@ def select_nodes_checkbox(nodes: list[object], trusted_ids: set[str]) -> list[ob
         questionary.Choice(
             title=_node_choice_title(node, trusted=node.node_id in trusted_ids),
             value=node.node_id,
-            checked=node.node_id not in trusted_ids,
+            checked=node.node_id in checked_ids if checked_ids is not None else node.node_id not in trusted_ids,
         )
         for node in nodes
     ]
     selected_ids = questionary.checkbox(
-        "Trust which nodes?",
+        prompt,
         choices=choices,
         instruction="Use space to toggle, enter to confirm.",
     ).ask()

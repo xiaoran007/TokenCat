@@ -61,3 +61,26 @@ def ssh_candidates(hosts: list[SSHHostCandidate], trusted: list[TrustedNode]) ->
         )
         for host in hosts
     ]
+
+
+def trusted_node_candidates(nodes: list[TrustedNode]) -> list[NodeCandidate]:
+    candidates: list[NodeCandidate] = []
+    for node in nodes:
+        if node.transport == "ssh":
+            address = node.ssh_host or "-"
+            auth = "ssh"
+        else:
+            address = node.base_url or "-"
+            auth = "token" if node.token_env else "none"
+        candidates.append(
+            NodeCandidate(
+                key=node.node_id,
+                name=node.name,
+                transport=node.transport,
+                address=address,
+                auth=auth,
+                trusted=True,
+                ssh_host=node.ssh_host,
+            )
+        )
+    return candidates
