@@ -139,8 +139,8 @@ class CodexAdapter(ProviderAdapter):
         record: SessionRecord | None = None
         current_model: str | None = None
         current_model_is_fallback = False
-        first_seen = None
-        last_seen = None
+        first_seen_raw: str | None = None
+        last_seen_raw: str | None = None
         previous_totals: RawUsage | None = None
 
         try:
@@ -158,9 +158,10 @@ class CodexAdapter(ProviderAdapter):
                 except json.JSONDecodeError:
                     continue
 
-                timestamp = parse_iso_datetime(payload.get("timestamp"))
-                first_seen = _pick_earliest(first_seen, timestamp)
-                last_seen = _pick_latest(last_seen, timestamp)
+                raw_timestamp = _as_non_empty_string(payload.get("timestamp"))
+                if raw_timestamp is not None:
+                    first_seen_raw = raw_timestamp if first_seen_raw is None else min(first_seen_raw, raw_timestamp)
+                    last_seen_raw = raw_timestamp if last_seen_raw is None else max(last_seen_raw, raw_timestamp)
 
                 event_type = payload.get("type")
                 event_payload = payload.get("payload")
@@ -235,6 +236,7 @@ class CodexAdapter(ProviderAdapter):
                 usage.add(tokens, message_count=1)
                 usage.is_fallback_model = usage.is_fallback_model or is_fallback_model
                 usage.attribution_status = "fallback" if usage.is_fallback_model else "exact"
+                timestamp = parse_iso_datetime(raw_timestamp)
                 if timestamp is not None:
                     record.usage_slices.append(
                         UsageSlice(
@@ -252,8 +254,8 @@ class CodexAdapter(ProviderAdapter):
         if record is None:
             return None
 
-        record.started_at = _pick_earliest(record.started_at, first_seen)
-        record.updated_at = _pick_latest(record.updated_at, last_seen)
+        record.started_at = _pick_earliest(record.started_at, parse_iso_datetime(first_seen_raw))
+        record.updated_at = _pick_latest(record.updated_at, parse_iso_datetime(last_seen_raw))
         record.title = record.title or title_index.get(record.provider_session_id)
         record.source_refs.append(path)
         if record.model_usage:

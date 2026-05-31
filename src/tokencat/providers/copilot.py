@@ -282,11 +282,11 @@ class CopilotAdapter(ProviderAdapter):
                 if event_type is None:
                     continue
                 has_activity = True
-                event_timestamp = _parse_timestamp(raw_event.get("timestamp"))
                 data = raw_event.get("data")
                 safe_data = data if isinstance(data, dict) else {}
 
                 if event_type == "session.start":
+                    event_timestamp = _parse_timestamp(raw_event.get("timestamp"))
                     session_id = _as_non_empty_string(safe_data.get("sessionId")) or session_id
                     started_at = _pick_earliest(
                         started_at,
@@ -295,7 +295,7 @@ class CopilotAdapter(ProviderAdapter):
                 elif event_type == "session.shutdown":
                     has_shutdown_summary = True
                     shutdown_data = safe_data
-                    shutdown_timestamp = event_timestamp
+                    shutdown_timestamp = _parse_timestamp(raw_event.get("timestamp"))
 
         if shutdown_data is None:
             return None, has_activity, has_shutdown_summary
