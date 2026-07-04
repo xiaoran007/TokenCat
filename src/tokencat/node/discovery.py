@@ -144,5 +144,5 @@ def _import_zeroconf():
     try:
         import zeroconf
     except ImportError as exc:
-        raise DiscoveryUnavailable("LAN discovery requires the zeroconf package. Reinstall TokenCat with current dependencies.") from exc
+        raise DiscoveryUnavailable("mDNS discovery requires the optional dependency. Install TokenCat with 'tokencat[mdns]'.") from exc
     return zeroconf

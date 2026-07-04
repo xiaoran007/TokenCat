@@ -39,7 +39,6 @@ dependencies = [
   "questionary>=2.0.0,<3",
   "rich>=14.2.0,<16",
   "typer>=0.12.0,<0.24",
-  "zeroconf>=0.132.0,<1",
 ]
 
 [project.urls]
@@ -48,6 +47,9 @@ Repository = "https://github.com/xiaoran007/TokenCat"
 Issues = "https://github.com/xiaoran007/TokenCat/issues"
 
 [project.optional-dependencies]
+mdns = [
+  "zeroconf>=0.132.0,<1",
+]
 dev = [
   "pytest>=8.0.0,<9",
 ]

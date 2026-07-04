@@ -564,7 +564,7 @@ def snapshot(
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Host interface to bind."),
     port: int = typer.Option(8765, "--port", min=0, help="Port to listen on."),
-    lan: bool = typer.Option(False, "--lan", help="Bind to the LAN and advertise via mDNS."),
+    lan: bool = typer.Option(False, "--lan", help="Bind to the LAN and advertise via mDNS when tokencat[mdns] is installed."),
     token_env: str = typer.Option(DEFAULT_TOKEN_ENV, "--token-env", help="Environment variable containing the bearer token."),
     foreground: bool = typer.Option(False, "--foreground", help="Run in the foreground and stream logs to this terminal."),
     status: bool = typer.Option(False, "--status", help="Show the detached node process status."),
