@@ -37,10 +37,22 @@ Upgrade later with:
 pipx upgrade tokencat
 ```
 
+Optional mDNS discovery and advertising for HTTP LAN nodes requires the `mdns` extra:
+
+```bash
+pipx install "tokencat[mdns]"
+```
+
 To try a checkout of this repository:
 
 ```bash
 pipx install .
+```
+
+With mDNS support from a checkout:
+
+```bash
+pipx install ".[mdns]"
 ```
 
 ## Quick Start
@@ -68,7 +80,7 @@ tokencat doctor
 
 TokenCat can roll up trusted machines without sending prompts or responses. Each node exposes or returns a read-only snapshot.
 
-SSH-configured machines and containers do not need a long-running HTTP server. If a host appears in `~/.ssh/config` and has `tokencat` available remotely, `tokencat nodes --trust` can add it as an SSH snapshot node. Later, `tokencat --lan` runs `ssh <host> tokencat snapshot --json` and aggregates the returned snapshot.
+SSH-configured machines and containers are the recommended path and do not need a long-running HTTP server or mDNS. If a host appears in `~/.ssh/config` and has `tokencat` available remotely, `tokencat nodes --trust` can add it as an SSH snapshot node. Later, `tokencat --lan` runs `ssh <host> tokencat snapshot --json` and aggregates the returned snapshot.
 
 Aggregate trusted nodes:
 
@@ -84,7 +96,7 @@ Remove trusted nodes:
 tokencat nodes --remove
 ```
 
-You can also start an HTTP node on another machine:
+You can also start an HTTP node on another machine. Install `tokencat[mdns]` when you want the node to advertise itself over mDNS:
 
 ```bash
 export TOKENCAT_NODE_TOKEN="choose-a-shared-secret"
@@ -110,6 +122,8 @@ Discover and trust nodes:
 ```bash
 tokencat nodes --trust
 ```
+
+Without the `mdns` extra, `tokencat nodes --trust` still lists SSH candidates from `~/.ssh/config`; it only skips automatic mDNS discovery.
 
 If mDNS is blocked by Docker Desktop, VPNs, or network policy, trust a node by URL:
 
@@ -256,7 +270,8 @@ TokenCat is intentionally conservative.
 
 - TokenCat supports macOS and Linux, including typical Docker/containerized Linux environments where the relevant agent state is mounted or available locally.
 - Windows is not yet supported.
-- LAN discovery uses mDNS, which can be unreliable through Docker Desktop, VPNs, or restrictive networks. Use `tokencat nodes --url ... --trust` or SSH nodes in those environments.
+- SSH LAN rollups work in the base install. mDNS discovery and advertising for HTTP LAN nodes requires `tokencat[mdns]`.
+- mDNS can be unreliable through Docker Desktop, VPNs, or restrictive networks. Use `tokencat nodes --url ... --trust` or SSH nodes in those environments.
 - Copilot CLI usage is counted from shutdown summaries; active CLI sessions without shutdown summaries are detected but not counted yet.
 - Cost is an estimate, not your actual bill.
 
