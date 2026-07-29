@@ -30,12 +30,14 @@ LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/mo
 LEGACY_PROVIDER_SOURCE_MAP: dict[str, PricingSourceName] = {
     ProviderName.CODEX.value: "openai",
     ProviderName.GEMINI.value: "gemini",
+    ProviderName.ANTIGRAVITY.value: "gemini",
     ProviderName.COPILOT.value: "github_copilot",
 }
 DIRECT_SOURCES_BY_PROVIDER: dict[ProviderName, tuple[PricingSourceName, ...]] = {
     ProviderName.CODEX: ("openai",),
     ProviderName.CLAUDE: (),
     ProviderName.GEMINI: ("gemini",),
+    ProviderName.ANTIGRAVITY: ("gemini",),
     ProviderName.COPILOT: ("github_copilot",),
 }
 OFFICIAL_SOURCES_BY_FAMILY: dict[str, tuple[PricingSourceName, ...]] = {

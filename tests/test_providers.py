@@ -1,15 +1,74 @@
 from __future__ import annotations
 
+import base64
 import json
+import sqlite3
 from pathlib import Path
 
-from tokencat.core.models import ScanFilters
+from tokencat.core.models import ProviderName, ScanFilters
+from tokencat.providers.antigravity import AntigravityAdapter
 from tokencat.providers.claude import ClaudeAdapter
 from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
 
 from conftest import create_codex_state_db, write_claude_session_jsonl, write_copilot_cli_session_state, write_json, write_jsonl
+
+
+def _encode_varint(value: int) -> bytes:
+    encoded = bytearray()
+    while value >= 0x80:
+        encoded.append((value & 0x7F) | 0x80)
+        value >>= 7
+    encoded.append(value)
+    return bytes(encoded)
+
+
+def _protobuf_varint(field_number: int, value: int) -> bytes:
+    return _encode_varint(field_number << 3) + _encode_varint(value)
+
+
+def _protobuf_bytes(field_number: int, value: bytes) -> bytes:
+    return _encode_varint((field_number << 3) | 2) + _encode_varint(len(value)) + value
+
+
+def _antigravity_generation(
+    *,
+    timestamp: int,
+    model: str | None,
+    non_cached_input: int,
+    cached_input: int,
+    output: int,
+) -> bytes:
+    usage = b"".join(
+        (
+            _protobuf_varint(1, 1071),
+            _protobuf_varint(2, non_cached_input),
+            _protobuf_varint(3, output),
+            _protobuf_varint(5, cached_input) if cached_input else b"",
+            _protobuf_varint(6, 24),
+        )
+    )
+    timestamp_payload = _protobuf_varint(1, timestamp) + _protobuf_varint(2, 0)
+    timing = _protobuf_bytes(4, timestamp_payload)
+    envelope = _protobuf_bytes(4, usage) + _protobuf_bytes(9, timing)
+    if model is not None:
+        envelope += _protobuf_bytes(19, model.encode("utf-8"))
+    return _protobuf_bytes(1, envelope)
+
+
+def _write_antigravity_database(home: Path, root_name: str, session_id: str, generations: list[bytes]) -> Path:
+    path = home / ".gemini" / root_name / "conversations" / f"{session_id}.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    with connection:
+        connection.execute("CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB, size INTEGER NOT NULL DEFAULT 0)")
+        connection.executemany(
+            "INSERT INTO gen_metadata (idx, data, size) VALUES (?, ?, ?)",
+            [(index, generation, len(generation)) for index, generation in enumerate(generations)],
+        )
+    connection.close()
+    return path
 
 
 def write_copilot_session_json(
@@ -266,6 +325,134 @@ def test_gemini_adapter_aggregates_message_level_tokens(sample_home: Path) -> No
     assert record.token_totals.total == 17682
     assert record.token_totals.cached == 5978
     assert record.metadata["default_model"] == "gemini-3.1-pro-preview"
+
+
+def test_antigravity_adapter_scans_app_and_cli_databases(sample_home: Path) -> None:
+    app_path = _write_antigravity_database(
+        sample_home,
+        "antigravity",
+        "app-session",
+        [
+            _antigravity_generation(
+                timestamp=1773590861,
+                model="gemini-3.6-flash",
+                non_cached_input=100,
+                cached_input=0,
+                output=30,
+            ),
+            _antigravity_generation(
+                timestamp=1773590871,
+                model="gemini-3.6-flash",
+                non_cached_input=200,
+                cached_input=50,
+                output=40,
+            ),
+        ],
+    )
+    cli_path = _write_antigravity_database(
+        sample_home,
+        "antigravity-cli",
+        "cli-session",
+        [
+            _antigravity_generation(
+                timestamp=1773590881,
+                model="gemini-3.6-flash",
+                non_cached_input=300,
+                cached_input=75,
+                output=50,
+            )
+        ],
+    )
+
+    adapter = AntigravityAdapter(home=sample_home)
+    status = adapter.detect()
+    sessions = {record.provider_session_id: record for record in adapter.scan(ScanFilters())}
+
+    assert status.provider is ProviderName.ANTIGRAVITY
+    assert status.status.value == "supported"
+    assert status.found_paths == [sample_home / ".gemini" / "antigravity", sample_home / ".gemini" / "antigravity-cli"]
+    assert set(sessions) == {"app-session", "cli-session"}
+
+    app = sessions["app-session"]
+    assert app.provider is ProviderName.ANTIGRAVITY
+    assert app.source_refs == [app_path]
+    assert app.primary_model == "gemini-3.6-flash"
+    assert app.token_totals.input == 2540
+    assert app.token_totals.output == 70
+    assert app.token_totals.cached == 50
+    assert app.token_totals.total == 2610
+    assert app.model_usage["gemini-3.6-flash"].message_count == 2
+    assert len(app.usage_slices) == 2
+    assert app.started_at is not None
+    assert app.updated_at is not None
+    assert app.started_at < app.updated_at
+
+    cli = sessions["cli-session"]
+    assert cli.source_refs == [cli_path]
+    assert cli.token_totals.input == 1470
+    assert cli.token_totals.output == 50
+    assert cli.token_totals.cached == 75
+    assert cli.token_totals.total == 1520
+
+
+def test_antigravity_adapter_deduplicates_conversation_ids_across_roots(sample_home: Path) -> None:
+    generation = _antigravity_generation(
+        timestamp=1773590861,
+        model="gemini-3.6-flash",
+        non_cached_input=100,
+        cached_input=0,
+        output=30,
+    )
+    app_path = _write_antigravity_database(sample_home, "antigravity", "shared-session", [generation])
+    _write_antigravity_database(sample_home, "antigravity-cli", "shared-session", [generation])
+
+    sessions = AntigravityAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    assert sessions[0].source_refs == [app_path]
+
+
+def test_antigravity_adapter_parses_sanitized_real_generation_fixture(sample_home: Path) -> None:
+    fixture_path = Path(__file__).parent / "fixtures" / "antigravity_gen_metadata.b64"
+    generation = base64.b64decode(fixture_path.read_text(encoding="ascii").strip())
+    _write_antigravity_database(sample_home, "antigravity", "fixture-session", [generation])
+
+    sessions = AntigravityAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.primary_model == "gemini-3.6-flash"
+    assert record.token_totals.input == 31020
+    assert record.token_totals.output == 442
+    assert record.token_totals.cached == 0
+    assert record.token_totals.total == 31462
+    assert record.started_at is not None
+    assert int(record.started_at.timestamp()) == 1785291033
+
+
+def test_antigravity_adapter_marks_partially_attributed_sessions(sample_home: Path) -> None:
+    generations = [
+        _antigravity_generation(
+            timestamp=1773590861,
+            model="gemini-3.6-flash",
+            non_cached_input=100,
+            cached_input=0,
+            output=30,
+        ),
+        _antigravity_generation(
+            timestamp=1773590871,
+            model=None,
+            non_cached_input=50,
+            cached_input=0,
+            output=10,
+        ),
+    ]
+    _write_antigravity_database(sample_home, "antigravity", "partial-session", generations)
+
+    record = AntigravityAdapter(home=sample_home).scan(ScanFilters())[0]
+
+    assert record.attribution_status == "partial"
+    assert [usage.attribution_status for usage in record.usage_slices] == ["exact", "unattributed"]
 
 
 def test_claude_detect_supports_modern_and_legacy_roots(sample_home: Path) -> None:

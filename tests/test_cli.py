@@ -372,6 +372,7 @@ def test_doctor_and_models_commands_report_provider_status_and_model_usage(sampl
     doctor_payload = json.loads(doctor_result.stdout)
     statuses = {item["provider"]: item["status"] for item in doctor_payload["providers"]}
     assert statuses["gemini"] == "supported"
+    assert statuses["antigravity"] == "not_found"
     assert statuses["copilot"] == "not_found"
 
     models_result = runner.invoke(app, ["models", "--provider", "gemini", "--since", "365d", "--json"])
@@ -383,6 +384,7 @@ def test_doctor_and_models_commands_report_provider_status_and_model_usage(sampl
     doctor_text = runner.invoke(app, ["doctor"])
     assert doctor_text.exit_code == 0
     assert "Gemini CLI" in doctor_text.stdout
+    assert "Antigravity" in doctor_text.stdout
     assert "GitHub Copilot" in doctor_text.stdout
 
 

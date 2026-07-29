@@ -2,7 +2,7 @@
 │ tokencat  local usage cockpit                                                                    │
 │ window: 7d                                                                                       │
 │ compact tokens: narrow terminal                                                                  │
-│ ● Codex  ● Claude Code  ● Gemini CLI  ● GitHub Copilot CLI                                       │
+│ ● Codex  ● Claude Code  ● Gemini CLI  ● Antigravity  ● GitHub Copilot CLI                        │
 │ pricing: cache  refreshed 2026-03-15T00:00:00+00:00                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
