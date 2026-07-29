@@ -9,14 +9,14 @@
 
 TokenCat is a local-first CLI that shows how your AI coding agents use tokens across one machine, and optionally across trusted machines on your LAN.
 
-Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, GitHub Copilot Chat/Agent, and GitHub Copilot CLI. TokenCat reads the telemetry files those tools already keep locally; it does not proxy requests, rewrite endpoints, read credentials, or print prompt and response bodies.
+Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, Antigravity, GitHub Copilot Chat/Agent, and GitHub Copilot CLI. TokenCat reads the telemetry files those tools already keep locally; it does not proxy requests, rewrite endpoints, read credentials, or print prompt and response bodies.
 
 <!-- ![TokenCat dashboard demo](https://files.catbox.moe/rsuhuk.png) -->
 ![TokenCat dashboard demo](https://files.catbox.moe/wo8lwy.png)
 
 ## Why TokenCat
 
-- One dashboard for several coding agents: Codex, Claude Code, Gemini CLI, VS Code Copilot Chat/Agent, and Copilot CLI.
+- One dashboard for several coding agents: Codex, Claude Code, Gemini CLI, Antigravity, VS Code Copilot Chat/Agent, and Copilot CLI.
 - Zero-provider setup for normal use: install it and run `tokencat`.
 - Privacy-first scanning: local files only, anonymous session IDs by default, no OAuth/session token reporting.
 - Cost estimates with clear coverage: bundled pricing works offline, and unknown models stay visible instead of being guessed.
@@ -176,6 +176,7 @@ Most users do not need a config file. TokenCat discovers local agent data from t
 | Codex | `~/.codex/sessions/**/*.jsonl`, `~/.codex/archived_sessions/*.jsonl`, and `~/.codex/state_*.sqlite` as a fallback. | None. |
 | Claude Code | `projects/**/*.jsonl` under the Claude config root. | Set `CLAUDE_CONFIG_DIR` to one or more comma-separated roots. Without it, TokenCat checks `$XDG_CONFIG_HOME/claude`, `~/.config/claude`, and legacy `~/.claude`. |
 | Gemini CLI | `~/.gemini/tmp/**/chats/session-*.json` plus non-sensitive settings metadata from `~/.gemini/settings.json`. | None. |
+| Antigravity | Usage metadata from `conversations/*.db` under `~/.gemini/antigravity` and `~/.gemini/antigravity-cli`. TokenCat queries only the `gen_metadata` table. | None. |
 | GitHub Copilot | VS Code `workspaceStorage/*/chatSessions/*.json|*.jsonl` and Copilot CLI shutdown summaries under `~/.copilot/session-state/*/events.jsonl`. | None. Active Copilot CLI sessions without a shutdown summary are reported as partial in `doctor`. |
 
 Common environment variables:
@@ -213,7 +214,7 @@ Local TokenCat state is kept under `~/.tokencat/`:
 Useful flags:
 
 ```bash
---provider codex|claude|gemini|copilot
+--provider codex|claude|gemini|antigravity|copilot
 --since 7d
 --until 2026-05-31
 --daily | --weekly | --monthly    # dashboard usage buckets
