@@ -242,6 +242,7 @@ TokenCat estimates API-equivalent cost when a model can be matched to known pric
 - If the refresh fails, it quietly falls back to the bundled catalog.
 - `tokencat pricing refresh` refreshes the local cache manually.
 - Resolution is source-aware: direct source pricing first, then official API pricing for the model family, then OpenRouter as the marketplace fallback.
+- The internal `codex-auto-review` label is estimated using `gpt-5.4-mini` pricing because OpenAI does not publish a direct model mapping for that label.
 - JSON output includes `pricing_source` and `pricing_model` when a row is priced.
 - Unknown, renamed, redirected, or unattributed models remain visible with explicit pricing status.
 

@@ -73,6 +73,7 @@ SOURCE_ALIASES: dict[str, PricingSourceName] = {
     "github_copilot": "github_copilot",
 }
 MODEL_ALIASES: dict[str, str] = {
+    "codex-auto-review": "gpt-5.4-mini",
     "gpt-5-codex": "gpt-5",
     "gpt-5.3-codex": "gpt-5.2-codex",
 }

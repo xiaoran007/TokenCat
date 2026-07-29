@@ -125,6 +125,32 @@ def test_antigravity_uses_gemini_pricing_source(sample_home: Path) -> None:
     assert lookup.is_fallback is False
 
 
+def test_codex_auto_review_uses_gpt_5_4_mini_pricing_alias() -> None:
+    entry = PricingEntry(
+        pricing_source="openai",
+        model="gpt-5.4-mini",
+        input_per_1m=0.75,
+        output_per_1m=4.5,
+        cached_input_per_1m=0.075,
+        currency="USD",
+        effective_date="2026-03-17",
+        source_url="https://openai.com/index/introducing-gpt-5-4-mini-and-nano/",
+    )
+    catalog = PricingCatalog(
+        source="builtin",
+        loaded_at=datetime.now().astimezone(),
+        entries={("openai", "gpt-5.4-mini"): entry},
+    )
+
+    lookup = lookup_pricing_entry(catalog, ProviderName.CODEX, "codex-auto-review")
+
+    assert lookup is not None
+    assert lookup.entry is entry
+    assert lookup.resolved_source == "openai"
+    assert lookup.resolved_model == "gpt-5.4-mini"
+    assert lookup.is_fallback is True
+
+
 def seed_dashboard_sample(home: Path, *, unknown_gemini: bool = False) -> None:
     codex_dir = home / ".codex"
     write_jsonl(
