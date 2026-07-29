@@ -29,6 +29,7 @@ from tokencat.core.pricing import (
     apply_pricing,
     estimate_cost,
     load_pricing_catalog,
+    lookup_pricing_entry,
     pricing_bootstrap_path,
     refresh_bundled_pricing_catalog,
     refresh_builtin_pricing,
@@ -111,6 +112,17 @@ def seed_pricing_cache(home: Path, *, include_gemini_preview: bool = False) -> N
             "entries": entries,
         },
     )
+
+
+def test_antigravity_uses_gemini_pricing_source(sample_home: Path) -> None:
+    seed_pricing_cache(sample_home)
+
+    lookup = lookup_pricing_entry(load_pricing_catalog(sample_home), ProviderName.ANTIGRAVITY, "gemini-2.5-pro")
+
+    assert lookup is not None
+    assert lookup.resolved_source == "gemini"
+    assert lookup.resolved_model == "gemini-2.5-pro"
+    assert lookup.is_fallback is False
 
 
 def seed_dashboard_sample(home: Path, *, unknown_gemini: bool = False) -> None:
