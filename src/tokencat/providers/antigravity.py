@@ -96,6 +96,13 @@ class AntigravityAdapter(ProviderAdapter):
 
         session_id = path.stem
         timestamps = [generation.timestamp for generation in generations if generation.timestamp is not None]
+        attributed_generations = sum(generation.model is not None for generation in generations)
+        if attributed_generations == len(generations):
+            attribution_status = "exact"
+        elif attributed_generations:
+            attribution_status = "partial"
+        else:
+            attribution_status = "unattributed"
         record = SessionRecord(
             provider=ProviderName.ANTIGRAVITY,
             provider_session_id=session_id,
@@ -105,7 +112,7 @@ class AntigravityAdapter(ProviderAdapter):
             token_totals=TokenTotals.zero(),
             source_refs=[path],
             metadata={"generation_count": len(generations)},
-            attribution_status="exact",
+            attribution_status=attribution_status,
         )
 
         for generation in generations:

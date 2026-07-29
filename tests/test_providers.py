@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from pathlib import Path
@@ -34,7 +35,7 @@ def _protobuf_bytes(field_number: int, value: bytes) -> bytes:
 def _antigravity_generation(
     *,
     timestamp: int,
-    model: str,
+    model: str | None,
     non_cached_input: int,
     cached_input: int,
     output: int,
@@ -50,13 +51,9 @@ def _antigravity_generation(
     )
     timestamp_payload = _protobuf_varint(1, timestamp) + _protobuf_varint(2, 0)
     timing = _protobuf_bytes(4, timestamp_payload)
-    envelope = b"".join(
-        (
-            _protobuf_bytes(4, usage),
-            _protobuf_bytes(9, timing),
-            _protobuf_bytes(19, model.encode("utf-8")),
-        )
-    )
+    envelope = _protobuf_bytes(4, usage) + _protobuf_bytes(9, timing)
+    if model is not None:
+        envelope += _protobuf_bytes(19, model.encode("utf-8"))
     return _protobuf_bytes(1, envelope)
 
 
@@ -413,6 +410,49 @@ def test_antigravity_adapter_deduplicates_conversation_ids_across_roots(sample_h
 
     assert len(sessions) == 1
     assert sessions[0].source_refs == [app_path]
+
+
+def test_antigravity_adapter_parses_sanitized_real_generation_fixture(sample_home: Path) -> None:
+    fixture_path = Path(__file__).parent / "fixtures" / "antigravity_gen_metadata.b64"
+    generation = base64.b64decode(fixture_path.read_text(encoding="ascii").strip())
+    _write_antigravity_database(sample_home, "antigravity", "fixture-session", [generation])
+
+    sessions = AntigravityAdapter(home=sample_home).scan(ScanFilters())
+
+    assert len(sessions) == 1
+    record = sessions[0]
+    assert record.primary_model == "gemini-3.6-flash"
+    assert record.token_totals.input == 31020
+    assert record.token_totals.output == 442
+    assert record.token_totals.cached == 0
+    assert record.token_totals.total == 31462
+    assert record.started_at is not None
+    assert int(record.started_at.timestamp()) == 1785291033
+
+
+def test_antigravity_adapter_marks_partially_attributed_sessions(sample_home: Path) -> None:
+    generations = [
+        _antigravity_generation(
+            timestamp=1773590861,
+            model="gemini-3.6-flash",
+            non_cached_input=100,
+            cached_input=0,
+            output=30,
+        ),
+        _antigravity_generation(
+            timestamp=1773590871,
+            model=None,
+            non_cached_input=50,
+            cached_input=0,
+            output=10,
+        ),
+    ]
+    _write_antigravity_database(sample_home, "antigravity", "partial-session", generations)
+
+    record = AntigravityAdapter(home=sample_home).scan(ScanFilters())[0]
+
+    assert record.attribution_status == "partial"
+    assert [usage.attribution_status for usage in record.usage_slices] == ["exact", "unattributed"]
 
 
 def test_claude_detect_supports_modern_and_legacy_roots(sample_home: Path) -> None:
