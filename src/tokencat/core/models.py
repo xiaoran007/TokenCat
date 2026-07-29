@@ -12,6 +12,7 @@ class ProviderName(str, Enum):
     CODEX = "codex"
     CLAUDE = "claude"
     GEMINI = "gemini"
+    ANTIGRAVITY = "antigravity"
     COPILOT = "copilot"
 
     @property
@@ -22,6 +23,8 @@ class ProviderName(str, Enum):
             return "Claude Code"
         if self is ProviderName.GEMINI:
             return "Gemini CLI"
+        if self is ProviderName.ANTIGRAVITY:
+            return "Antigravity"
         return "GitHub Copilot CLI"
 
 

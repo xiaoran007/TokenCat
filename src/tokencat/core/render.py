@@ -496,7 +496,8 @@ def _dedupe_provider_statuses(statuses: list[ProviderStatus]) -> list[ProviderSt
         ProviderName.CODEX: 0,
         ProviderName.CLAUDE: 1,
         ProviderName.GEMINI: 2,
-        ProviderName.COPILOT: 3,
+        ProviderName.ANTIGRAVITY: 3,
+        ProviderName.COPILOT: 4,
     }
     return [
         best_by_provider[provider]
