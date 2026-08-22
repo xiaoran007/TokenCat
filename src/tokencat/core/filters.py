@@ -17,10 +17,20 @@ def apply_filters(records: list[SessionRecord], filters: ScanFilters) -> list[Se
             continue
         filtered.append(projected)
 
-    filtered.sort(key=lambda record: record.updated_at or record.started_at, reverse=True)
+    filtered.sort(key=_record_sort_key, reverse=True)
     if filters.limit is not None:
         return filtered[: filters.limit]
     return filtered
+
+
+def _record_sort_key(record: SessionRecord) -> tuple[bool, float]:
+    timestamp = record.updated_at or record.started_at
+    if timestamp is None:
+        return False, 0.0
+    try:
+        return True, timestamp.timestamp()
+    except (OSError, OverflowError, ValueError):
+        return True, 0.0
 
 
 def _project_record_to_window(record: SessionRecord, since, until) -> SessionRecord | None:
