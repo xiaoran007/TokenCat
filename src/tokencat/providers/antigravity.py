@@ -96,6 +96,10 @@ class AntigravityAdapter(ProviderAdapter):
 
         session_id = path.stem
         timestamps = [generation.timestamp for generation in generations if generation.timestamp is not None]
+        fallback_timestamp = _database_modified_at(path) if not timestamps else None
+        metadata: dict[str, str | int] = {"generation_count": len(generations)}
+        if fallback_timestamp is not None:
+            metadata["timestamp_source"] = "database_mtime"
         attributed_generations = sum(generation.model is not None for generation in generations)
         if attributed_generations == len(generations):
             attribution_status = "exact"
@@ -107,11 +111,11 @@ class AntigravityAdapter(ProviderAdapter):
             provider=ProviderName.ANTIGRAVITY,
             provider_session_id=session_id,
             anon_session_id=anonymize_session_id(ProviderName.ANTIGRAVITY, session_id),
-            started_at=min(timestamps) if timestamps else None,
-            updated_at=max(timestamps) if timestamps else None,
+            started_at=min(timestamps) if timestamps else fallback_timestamp,
+            updated_at=max(timestamps) if timestamps else fallback_timestamp,
             token_totals=TokenTotals.zero(),
             source_refs=[path],
-            metadata={"generation_count": len(generations)},
+            metadata=metadata,
             attribution_status=attribution_status,
         )
 
@@ -135,6 +139,13 @@ class AntigravityAdapter(ProviderAdapter):
                 )
 
         return record
+
+
+def _database_modified_at(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return None
 
 
 def _parse_generation(data: bytes) -> _GenerationUsage | None:
