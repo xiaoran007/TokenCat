@@ -3,8 +3,10 @@ from __future__ import annotations
 import base64
 import json
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from tokencat.core.filters import apply_filters
 from tokencat.core.models import ProviderName, ScanFilters
 from tokencat.providers.antigravity import AntigravityAdapter
 from tokencat.providers.claude import ClaudeAdapter
@@ -34,7 +36,7 @@ def _protobuf_bytes(field_number: int, value: bytes) -> bytes:
 
 def _antigravity_generation(
     *,
-    timestamp: int,
+    timestamp: int | None,
     model: str | None,
     non_cached_input: int,
     cached_input: int,
@@ -49,9 +51,11 @@ def _antigravity_generation(
             _protobuf_varint(6, 24),
         )
     )
-    timestamp_payload = _protobuf_varint(1, timestamp) + _protobuf_varint(2, 0)
-    timing = _protobuf_bytes(4, timestamp_payload)
-    envelope = _protobuf_bytes(4, usage) + _protobuf_bytes(9, timing)
+    envelope = _protobuf_bytes(4, usage)
+    if timestamp is not None:
+        timestamp_payload = _protobuf_varint(1, timestamp) + _protobuf_varint(2, 0)
+        timing = _protobuf_bytes(4, timestamp_payload)
+        envelope += _protobuf_bytes(9, timing)
     if model is not None:
         envelope += _protobuf_bytes(19, model.encode("utf-8"))
     return _protobuf_bytes(1, envelope)
@@ -428,6 +432,26 @@ def test_antigravity_adapter_parses_sanitized_real_generation_fixture(sample_hom
     assert record.token_totals.total == 31462
     assert record.started_at is not None
     assert int(record.started_at.timestamp()) == 1785291033
+
+
+def test_antigravity_adapter_uses_database_mtime_when_generation_timestamps_are_missing(sample_home: Path) -> None:
+    generation = _antigravity_generation(
+        timestamp=None,
+        model="gemini-3.7-flash-control",
+        non_cached_input=100,
+        cached_input=50,
+        output=30,
+    )
+    database_path = _write_antigravity_database(sample_home, "antigravity", "modern-session", [generation])
+    expected_timestamp = datetime.fromtimestamp(database_path.stat().st_mtime, tz=timezone.utc)
+
+    record = AntigravityAdapter(home=sample_home).scan(ScanFilters())[0]
+
+    assert record.started_at == expected_timestamp
+    assert record.updated_at == expected_timestamp
+    assert record.metadata["timestamp_source"] == "database_mtime"
+    assert record.usage_slices == []
+    assert apply_filters([record], ScanFilters(since=expected_timestamp - timedelta(seconds=1))) == [record]
 
 
 def test_antigravity_adapter_marks_partially_attributed_sessions(sample_home: Path) -> None:
