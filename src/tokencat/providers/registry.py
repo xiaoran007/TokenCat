@@ -8,6 +8,17 @@ from tokencat.providers.claude import ClaudeAdapter
 from tokencat.providers.codex import CodexAdapter
 from tokencat.providers.copilot import CopilotAdapter
 from tokencat.providers.gemini import GeminiAdapter
+from tokencat.providers.opencode import OpenCodeAdapter
+
+
+PROVIDER_ORDER = (
+    ProviderName.CODEX,
+    ProviderName.CLAUDE,
+    ProviderName.GEMINI,
+    ProviderName.ANTIGRAVITY,
+    ProviderName.COPILOT,
+    ProviderName.OPENCODE,
+)
 
 
 def build_providers() -> list[ProviderAdapter]:
@@ -17,6 +28,7 @@ def build_providers() -> list[ProviderAdapter]:
         GeminiAdapter(),
         AntigravityAdapter(),
         CopilotAdapter(),
+        OpenCodeAdapter(),
     ]
 
 
@@ -27,6 +39,7 @@ def build_provider_map() -> dict[ProviderName, ProviderAdapter]:
         ProviderName.GEMINI: GeminiAdapter(),
         ProviderName.ANTIGRAVITY: AntigravityAdapter(),
         ProviderName.COPILOT: CopilotAdapter(),
+        ProviderName.OPENCODE: OpenCodeAdapter(),
     }
 
 
@@ -34,10 +47,10 @@ def scan_providers(filters: ScanFilters) -> ScanResult:
     statuses = []
     sessions = []
     warnings = []
-    selected = filters.providers or {ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.GEMINI, ProviderName.ANTIGRAVITY, ProviderName.COPILOT}
+    selected = filters.providers or set(PROVIDER_ORDER)
 
     providers = build_provider_map()
-    for provider in (ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.GEMINI, ProviderName.ANTIGRAVITY, ProviderName.COPILOT):
+    for provider in PROVIDER_ORDER:
         if provider not in selected:
             continue
         adapter = providers[provider]
