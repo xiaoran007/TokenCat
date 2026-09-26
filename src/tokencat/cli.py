@@ -375,12 +375,12 @@ def daily(
     if not no_price:
         table.add_column("Est Cost", justify="right")
         table.add_column("Coverage", justify="right")
-    table.add_column("Top Models")
+    table.add_column("Models")
 
     for item in visible_items:
-        models = ", ".join(
+        models = "\n".join(
             _daily_model_display(model)
-            for model in item.models[:3]
+            for model in item.models
         ) or "-"
         table.add_row(
             item.label or item.date.isoformat(),

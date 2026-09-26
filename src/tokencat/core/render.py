@@ -362,8 +362,7 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     table.add_column("Total", justify="right", width=token_width, no_wrap=True)
     table.add_column("Est Cost", justify="right", width=8, no_wrap=True)
 
-    visible_models = record.models[:5]
-    for model in visible_models:
+    for model in record.models:
         table.add_row(
             _daily_model_label(model),
             _format_token_count(model.token_totals.input, compact=compact_tokens),
@@ -372,16 +371,6 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
             _format_token_count(model.token_totals.total, compact=compact_tokens),
             _cost_text(model.estimated_cost.total_cost, model.pricing_status, palette),
         )
-    if len(record.models) > len(visible_models):
-        table.add_row(
-            f"+{len(record.models) - len(visible_models)} more models",
-            "",
-            "",
-            "",
-            "",
-            "",
-        )
-
     return Group(header, table)
 
 
