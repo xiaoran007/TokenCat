@@ -14,6 +14,7 @@ class ProviderName(str, Enum):
     GEMINI = "gemini"
     ANTIGRAVITY = "antigravity"
     COPILOT = "copilot"
+    OPENCODE = "opencode"
 
     @property
     def display_name(self) -> str:
@@ -25,6 +26,8 @@ class ProviderName(str, Enum):
             return "Gemini CLI"
         if self is ProviderName.ANTIGRAVITY:
             return "Antigravity"
+        if self is ProviderName.OPENCODE:
+            return "OpenCode"
         return "GitHub Copilot CLI"
 
 
