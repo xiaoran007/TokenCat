@@ -41,7 +41,7 @@ struct MenuPanel: View {
     private var header: some View {
         let s = settings.strings
         return HStack(spacing: 10) {
-            Image(systemName: "cat.fill").font(.title3).foregroundStyle(TokenCatTheme.accent)
+            TokenCatLogo(size: 28)
             Text(s.text("app.name")).font(.headline)
             Spacer(minLength: 8)
             Picker(s.text("period.title"), selection: $model.window) {

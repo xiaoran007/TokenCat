@@ -29,7 +29,7 @@ struct TokenCatApp: App {
                 if settings.showMenuCost, let today = model.today {
                     Text(settings.strings.cost(today.summary.cost, compact: true)).monospacedDigit()
                 } else { Text(settings.strings.text("app.name")) }
-            } icon: { Image(systemName: "cat.fill") }
+            } icon: { Image(nsImage: TokenCatBrand.menuMark).renderingMode(.template) }
                 .accessibilityLabel(settings.strings.text("accessibility.menu"))
         }
         .menuBarExtraStyle(.window)

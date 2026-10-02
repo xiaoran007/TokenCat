@@ -17,6 +17,8 @@ swift_output="$(swift build --package-path "$project_root/macos" --configuration
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$swift_output/TokenCat" "$app_path/Contents/MacOS/TokenCat"
 cp "$project_root/macos/Info.plist" "$app_path/Contents/Info.plist"
+cp "$project_root/macos/Branding/TokenCat.icns" "$app_path/Contents/Resources/"
+cp -R "$swift_output/TokenCatMac_TokenCat.bundle" "$app_path/Contents/Resources/"
 cp -R "$swift_output/TokenCatMac_TokenCatKit.bundle" "$app_path/Contents/Resources/"
 
 # Local source builds use an ad-hoc signature; no publisher certificate is needed.

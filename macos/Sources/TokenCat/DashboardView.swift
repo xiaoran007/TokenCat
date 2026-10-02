@@ -35,7 +35,7 @@ struct DashboardView: View {
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 10) {
-                    Image(systemName: "cat.fill").font(.title2).foregroundStyle(TokenCatTheme.accent)
+                    TokenCatLogo(size: 28)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("TokenCat").font(.headline)
                         Text(s.text("app.localOnly")).font(.caption2).foregroundStyle(.secondary)
@@ -147,7 +147,11 @@ struct DashboardView: View {
                     }
                     if dashboard.summary.eventCount == 0 {
                         ContentUnavailableView {
-                            Label(s.text("usage.noEvents"), systemImage: "cat")
+                            Label {
+                                Text(s.text("usage.noEvents"))
+                            } icon: {
+                                TokenCatLogo(size: 48)
+                            }
                         } description: {
                             Text(s.text("usage.emptyDescription"))
                         } actions: {

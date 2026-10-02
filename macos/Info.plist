@@ -6,6 +6,7 @@
     <key>CFBundleDisplayName</key><string>TokenCat</string>
     <key>CFBundleIdentifier</key><string>dev.tokencat.app</string>
     <key>CFBundleExecutable</key><string>TokenCat</string>
+    <key>CFBundleIconFile</key><string>TokenCat</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>

@@ -12,6 +12,7 @@ let package = Package(
         .systemLibrary(name: "CTokenCat"),
         .target(name: "TokenCatKit", resources: [.process("Resources")]),
         .executableTarget(name: "TokenCat", dependencies: ["TokenCatKit", "CTokenCat"],
+            resources: [.process("Resources")],
             linkerSettings: [.unsafeFlags(["-L", root.appendingPathComponent("native/target/release").path]),
                              .linkedLibrary("tokencat_core"), .linkedLibrary("sqlite3"),
                              .linkedFramework("Security"), .linkedFramework("SystemConfiguration")]),
