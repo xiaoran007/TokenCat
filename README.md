@@ -7,7 +7,7 @@
 [![Local first](https://img.shields.io/badge/privacy-local%20first-16a34a?style=flat-square)](#privacy)
 [![Read only](https://img.shields.io/badge/mode-read%20only-7c3aed?style=flat-square)](#privacy)
 
-TokenCat is a local-first CLI that shows how your AI coding agents use tokens across one machine, and optionally across trusted machines on your LAN.
+TokenCat is a local-first usage inspector for AI coding agents. This branch adds an independent native macOS menu bar app backed by a shared Rust core. The existing Python CLI remains available while CLI integration with the new core is developed separately.
 
 Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, Antigravity, OpenCode, GitHub Copilot Chat/Agent, and GitHub Copilot CLI. TokenCat reads the telemetry files those tools already keep locally; it does not proxy requests, rewrite endpoints, read credentials, or print prompt and response bodies.
 
@@ -24,6 +24,40 @@ Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, A
 - Multi-machine rollups: trusted TokenCat nodes can be aggregated with `--lan`, including SSH snapshot hosts from `~/.ssh/config`.
 
 ## Install
+
+### Native macOS app (source build)
+
+The native app requires macOS 14 or newer, a Rust toolchain, and Xcode's Swift toolchain. It runs independently of Python and pipx. Build it locally from this checkout:
+
+```bash
+bash macos/scripts/build-app.sh
+open build/TokenCat.app
+```
+
+The script compiles the Rust static library and Swift app, bundles localization resources, and applies a local ad-hoc signature. Local source builds do not require a publisher's Developer ID certificate or notarization. Distribution of prebuilt apps is a separate release workflow. Move the app to `/Applications` before enabling **Launch at Login** in Settings.
+
+The menu bar focuses on today's estimated API-equivalent cost, with a usage timeline, provider breakdown, cache usage, and recent tasks. Open the dashboard for model, project, session, and subagent details. English (US) and Simplified Chinese are included, with system language, appearance, number formatting, and time zone support.
+
+The first native adapters support **Codex and Claude Code**. Antigravity and OpenCode are the next priority; Copilot CLI and Gemini remain supported by the existing CLI. LAN aggregation and CLI packaging changes are deferred.
+
+Native collection uses a persistent SQLite ledger in `~/Library/Application Support/TokenCat/usage.sqlite3`. Complete JSONL records, parser state, and file offsets are committed together. Refresh defaults to two seconds and resumes immediately on wake. Incomplete trailing records wait for completion; repeated responses, archived copies, and Claude message revisions reconcile by logical event identity. Provider log rotation does not erase previously collected usage.
+
+Settings can override the local data roots and select a custom pricing catalog. Collection reads only allowlisted usage and session metadata from Codex `sessions` / `archived_sessions` and Claude `projects` directories. It does not read credentials or retain prompt, response, or tool bodies. Project paths are hidden in the interface by default.
+
+Costs use a versioned offline snapshot of standard global API prices, with source links and a retrieval date in the dashboard. These are API-equivalent estimates, including for subscription users. Unknown models and unsupported categories remain unpriced; missing cache TTL or incomplete long-context information produces uncertainty instead of a guessed exact amount. Reasoning is part of output, and cached input is separated from uncached input. The native catalog never silently substitutes another model or downloads prices in the background.
+
+The selected price snapshot applies to every displayed period; it is not a reconstruction of historical invoices. Published promotional prices can be time limited. Select an updated catalog in Settings when you want to use a different snapshot; the underlying token ledger remains unchanged.
+
+Run the test suites from the checkout:
+
+```bash
+.venv/bin/pytest -q
+bash macos/scripts/test.sh
+```
+
+The native test script links the Swift package to the exact Rust archive produced by the tests. On Linux, run `cargo test --locked --manifest-path native/Cargo.toml` for the core alone. The Rust collector supports macOS and Linux; the SwiftUI app currently targets macOS only.
+
+### Existing CLI
 
 TokenCat requires Python 3.9 or newer.
 
