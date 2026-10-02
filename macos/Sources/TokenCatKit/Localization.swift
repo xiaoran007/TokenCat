@@ -29,7 +29,11 @@ public struct Localizer: Sendable {
         format("events.count", count)
     }
     public func count(_ value: UInt64) -> String { value.formatted(.number.locale(locale)) }
-    public func compactCount(_ value: UInt64) -> String { value.formatted(.number.notation(.compactName).locale(locale)) }
+    /// Token magnitudes use the same K/M/B/T notation in every interface language.
+    public func compactCount(_ value: UInt64) -> String {
+        value.formatted(.number.notation(.compactName).precision(.fractionLength(0...2))
+            .rounded(rule: .toNearestOrAwayFromZero).locale(Locale(identifier: "en-US")))
+    }
     public func percent(_ value: Double) -> String { value.formatted(.percent.precision(.fractionLength(0)).locale(locale)) }
     public func money(_ value: Double, compact: Bool = false) -> String {
         if value > 0 && value < 0.0001 {

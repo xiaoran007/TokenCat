@@ -48,12 +48,19 @@ struct TokenUsageHero: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(s.text("tokens.total")).font(.caption.weight(.medium))
                 .textCase(.uppercase).tracking(0.8).foregroundStyle(.secondary)
-            Text(s.count(summary.cost.totalTokens))
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
-                .monospacedDigit().contentTransition(.numericText())
-                .lineLimit(1).minimumScaleFactor(0.5)
-                .help(s.text("tokens.reportedOnly"))
-                .accessibilityLabel(s.text("tokens.total") + ", " + s.count(summary.cost.totalTokens))
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    abbreviatedCount
+                    exactCount
+                }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 4) {
+                    abbreviatedCount
+                    exactCount
+                }
+            }
+            .help(s.text("tokens.reportedOnly"))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(s.text("tokens.total") + ", " + s.count(summary.cost.totalTokens))
             Button { showDetails.toggle() } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(s.cost(summary.cost, compact: true)).font(.title3.weight(.medium)).monospacedDigit()
@@ -72,6 +79,22 @@ struct TokenUsageHero: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .popover(isPresented: $showDetails, arrowEdge: .trailing) {
             CostBreakdown(summary: summary).padding(20).frame(width: 350).environmentObject(settings)
+        }
+    }
+
+    private var abbreviatedCount: some View {
+        Text(settings.strings.compactCount(summary.cost.totalTokens))
+            .font(.system(size: 44, weight: .semibold, design: .rounded))
+            .monospacedDigit().contentTransition(.numericText())
+            .lineLimit(1).minimumScaleFactor(0.5)
+    }
+
+    @ViewBuilder
+    private var exactCount: some View {
+        if summary.cost.totalTokens >= 1_000 {
+            Text(settings.strings.count(summary.cost.totalTokens))
+                .font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                .textSelection(.enabled)
         }
     }
 }
