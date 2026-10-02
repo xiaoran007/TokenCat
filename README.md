@@ -1,5 +1,7 @@
 # TokenCat
 
+<img src="macos/Branding/TokenCatAppIcon.png" width="96" height="96" alt="TokenCat's round, front-facing cat logo">
+
 [![PyPI](https://img.shields.io/pypi/v/tokencat?style=flat-square&logo=pypi&logoColor=white&label=PyPI&color=0f766e)](https://pypi.org/project/tokencat/)
 [![Python](https://img.shields.io/pypi/pyversions/tokencat?style=flat-square&logo=python&logoColor=white&label=Python&color=2563eb)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/pypi/l/tokencat?style=flat-square&label=License&color=4b5563)](LICENSE)
@@ -34,7 +36,9 @@ bash macos/scripts/build-app.sh
 open build/TokenCat.app
 ```
 
-The script compiles the Rust static library and Swift app, bundles localization resources, and applies a local ad-hoc signature. Local source builds do not require a publisher's Developer ID certificate or notarization. Distribution of prebuilt apps is a separate release workflow. Move the app to `/Applications` before enabling **Launch at Login** in Settings.
+The script compiles the Rust static library and Swift app, bundles the app icon, vector logos and localization resources, and applies a local ad-hoc signature. Local source builds do not require a publisher's Developer ID certificate or notarization. Distribution of prebuilt apps is a separate release workflow. Move the app to `/Applications` before enabling **Launch at Login** in Settings.
+
+The round, front-facing cat appears in the app icon, menu panel and dashboard. The menu bar uses a monochrome vector template that follows the system appearance, with wider facial cutouts for small sizes. Editable SVG artwork and the app icon live in [`macos/Branding`](macos/Branding); regenerate the SVG, PDF templates, PNG and ICNS after changing the curves with `swift macos/scripts/generate-icons.swift` on macOS. The generator uses only system frameworks and `iconutil`.
 
 The menu bar label shows today's estimated API-equivalent cost. Its panel leads with recorded tokens and a secondary cost estimate, followed by coding tools, top models, a token timeline, and recent tasks. The panel and dashboard share a Today / 7 days / 30 days selector; opening a task preserves that selected period. Open the dashboard for model, project, session, and subagent details. English (US) and Simplified Chinese are included, with system language, appearance, number formatting, and time zone support.
 
