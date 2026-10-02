@@ -1,0 +1,4 @@
+module CTokenCat {
+    header "shim.h"
+    export *
+}
