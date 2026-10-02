@@ -7,8 +7,12 @@ struct CoreFailure: Error, LocalizedError {
     var errorDescription: String? { message }
 }
 
+protocol UsageLoading: Sendable {
+    func refresh(configuration: CoreConfiguration, queries: [CoreQuery]) async throws -> [Dashboard]
+}
+
 /// Owns the Rust handle on one queue. Scanning and querying never block the main actor.
-final class CoreWorker: @unchecked Sendable {
+final class CoreWorker: UsageLoading, @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.tokencat.core", qos: .utility)
     private var handle: UnsafeMutableRawPointer?
     private var configuration: CoreConfiguration?

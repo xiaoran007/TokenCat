@@ -95,14 +95,15 @@ final class AppModel: ObservableObject {
         requestRefresh()
     } }
     @Published var selectedTaskId: String?
-    private let worker = CoreWorker()
+    private let worker: any UsageLoading
     private var pollTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var observers: [NSObjectProtocol] = []
     private var refreshPending = false
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, worker: any UsageLoading = CoreWorker()) {
         self.settings = settings
+        self.worker = worker
         settings.snapshotSettingsDidChange.sink { [weak self] in self?.invalidateSnapshots() }.store(in: &cancellables)
         settings.snapshotSettingsDidChange.debounce(for: .milliseconds(400), scheduler: RunLoop.main)
             .sink { [weak self] in self?.requestRefresh() }.store(in: &cancellables)
@@ -174,7 +175,10 @@ final class AppModel: ObservableObject {
         }
     }
     var selectedTask: BreakdownRow? { dashboard?.sessions.first { $0.id == selectedTaskId } }
-    func openTask(_ id: String) { selectedTaskId = id; window = .today }
+    func openTask(_ id: String, window: TimeWindow = .today) {
+        selectedTaskId = id
+        self.window = window
+    }
     deinit {
         pollTask?.cancel()
         for observer in observers {
