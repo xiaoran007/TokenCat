@@ -27,7 +27,7 @@ Run `tokencat` to get a terminal dashboard for Codex, Claude Code, Gemini CLI, A
 
 ### Native macOS app (source build)
 
-The native app requires macOS 14 or newer, a Rust toolchain, and Xcode's Swift toolchain. It runs independently of Python and pipx. Build it locally from this checkout:
+The native app requires macOS 14 or newer, a Rust toolchain, and Xcode's Swift toolchain with the macOS 26 SDK or newer. It runs independently of Python and pipx. Build it locally from this checkout:
 
 ```bash
 bash macos/scripts/build-app.sh
@@ -39,6 +39,8 @@ The script compiles the Rust static library and Swift app, bundles localization 
 The menu bar label shows today's estimated API-equivalent cost. Its panel leads with recorded tokens and a secondary cost estimate, followed by coding tools, top models, a token timeline, and recent tasks. The panel and dashboard share a Today / 7 days / 30 days selector; opening a task preserves that selected period. Open the dashboard for model, project, session, and subagent details. English (US) and Simplified Chinese are included, with system language, appearance, number formatting, and time zone support.
 
 The menu reserves a visible content viewport and keeps its refresh and dashboard controls visible while longer content scrolls. It contains local usage statistics, with no account, subscription, or quota-management sections. The dashboard adapts its overview cards to the window width. Switch the dashboard activity chart between known API cost and recorded tokens, then hover or click to inspect a time bucket in the configured time zone. Usage without matching prices remains explicitly unpriced.
+
+Token totals lead with K/M/B/T notation and show the exact count in smaller text. These abbreviations and familiar terms such as Token, Dashboard, Cache read/write, and Subagent stay in English in the Chinese interface. The settings button and **Command–comma** open the same reusable settings window. On macOS 26 and 27, the menu uses native Liquid Glass; earlier systems retain the existing material. Reduce Transparency and increased contrast use an opaque surface for readability.
 
 Model, project, and task pages have independent searches and can sort by cost, tokens, or latest usage. Task search includes subagents; task rows show the whole linked family's cost, while task details separate direct usage from the family total and let you navigate between parents and children. Changing the time range or data settings clears incompatible snapshots while fresh data loads. Turning off project paths immediately clears snapshots containing visible paths.
 
