@@ -17,6 +17,7 @@ struct TokenCatApp: App {
             MenuPanel()
                 .environmentObject(model).environmentObject(settings)
                 .environment(\.locale, settings.language.locale)
+                .tint(TokenCatTheme.accent)
                 .preferredColorScheme(settings.colorScheme)
                 .task { model.start() }
         } label: {
@@ -33,6 +34,10 @@ struct TokenCatApp: App {
             DashboardView()
                 .environmentObject(model).environmentObject(settings)
                 .environment(\.locale, settings.language.locale)
+                .transformEnvironment(\.timeZone) { timeZone in
+                    if let configuredTimeZone = settings.timeZone { timeZone = configuredTimeZone }
+                }
+                .tint(TokenCatTheme.accent)
                 .preferredColorScheme(settings.colorScheme)
                 .task { model.start() }
         }
@@ -44,6 +49,7 @@ struct TokenCatApp: App {
             SettingsView()
                 .environmentObject(model).environmentObject(settings)
                 .environment(\.locale, settings.language.locale)
+                .tint(TokenCatTheme.accent)
                 .preferredColorScheme(settings.colorScheme)
         }
     }

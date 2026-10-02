@@ -2,6 +2,26 @@ import SwiftUI
 import Charts
 import TokenCatKit
 
+enum TokenCatTheme {
+    static let accent = Color(red: 0.08, green: 0.48, blue: 0.46)
+}
+
+struct SurfaceCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.07), lineWidth: 1))
+    }
+}
+
 extension Harness {
     var tint: Color { self == .codex ? .indigo : .orange }
 }
@@ -51,7 +71,8 @@ struct CostHero: View {
         }
         .buttonStyle(.plain)
         .help(s.text("cost.explanation"))
-        .accessibilityLabel(s.format("accessibility.todayCost", s.cost(summary.cost)))
+        .accessibilityLabel(s.text(titleKey) + ", " + s.cost(summary.cost))
+        .accessibilityHint(s.text("cost.details"))
         .popover(isPresented: $showDetails, arrowEdge: .trailing) {
             CostBreakdown(summary: summary).padding(20).frame(width: 350)
                 .environmentObject(settings)
@@ -104,35 +125,190 @@ struct CostBreakdown: View {
 struct UsageChart: View {
     let buckets: [TimelineBucket]
     var compact = false
+    var window: TimeWindow = .today
     @EnvironmentObject private var settings: AppSettings
+    @State private var metric: Metric = .cost
+    @State private var selectedDate: Date?
+
+    private enum Metric: String, CaseIterable {
+        case cost, tokens
+        var key: String { "chart.\(rawValue)" }
+    }
+
+    private var activeMetric: Metric { compact ? .cost : metric }
+    private var component: Calendar.Component { window == .today ? .hour : .day }
+    private var hasValues: Bool {
+        buckets.contains { bucket in
+            activeMetric == .tokens
+                ? bucket.summary.cost.totalTokens > 0
+                : bucket.summary.cost.pricedTokens > 0 || bucket.summary.cost.maxUsd > 0
+        }
+    }
+
     var body: some View {
         let s = settings.strings
-        Chart(buckets) { bucket in
-            BarMark(x: .value(s.text("chart.time"), bucket.date), y: .value(s.text("chart.cost"), bucket.summary.cost.minUsd))
-                .foregroundStyle(Color.accentColor.gradient).cornerRadius(2)
-            if bucket.summary.cost.hasRange {
-                RuleMark(x: .value(s.text("chart.time"), bucket.date),
-                         yStart: .value(s.text("chart.cost"), bucket.summary.cost.minUsd),
-                         yEnd: .value(s.text("chart.cost"), bucket.summary.cost.maxUsd))
-                    .foregroundStyle(.secondary).lineStyle(StrokeStyle(lineWidth: 1.5))
+        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
+            if !compact {
+                HStack {
+                    Text(s.text("chart.activity")).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Picker(s.text("chart.metric"), selection: $metric) {
+                        ForEach(Metric.allCases, id: \.self) { Text(s.text($0.key)).tag($0) }
+                    }.pickerStyle(.segmented).frame(width: 190)
+                }
+            }
+            if let timeZone = settings.timeZone {
+                if hasValues {
+                    plot(timeZone: timeZone)
+                    if !compact { selectionDetail(timeZone: timeZone) }
+                } else { emptyChart }
+            } else {
+                Text(s.text("settings.invalidTimezone")).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onChange(of: window) { _, _ in selectedDate = nil }
+        .onChange(of: metric) { _, _ in selectedDate = nil }
+    }
+
+    private var emptyChart: some View {
+        let s = settings.strings
+        let hasEvents = buckets.contains { $0.summary.eventCount > 0 }
+        let descriptionKey = hasEvents
+            ? (activeMetric == .cost ? "chart.unpricedDescription" : "tokens.reportedOnly")
+            : "usage.emptyDescription"
+        return VStack(alignment: compact ? .leading : .center, spacing: 8) {
+            if !compact { Image(systemName: "chart.bar.xaxis").font(.title2).foregroundStyle(TokenCatTheme.accent) }
+            Text(s.text(activeMetric == .tokens ? "chart.noTokens" : "chart.empty"))
+                .font(.subheadline.weight(.medium))
+            if !compact || hasEvents {
+                Text(s.text(descriptionKey))
+                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(compact ? .leading : .center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: compact ? 48 : 190, alignment: compact ? .leading : .center)
+    }
+
+    private func plot(timeZone: TimeZone) -> some View {
+        let s = settings.strings
+        let calendar = calendar(in: timeZone)
+        return Chart {
+            ForEach(buckets) { bucket in
+                if activeMetric == .tokens || bucket.summary.cost.pricedTokens > 0 || bucket.summary.cost.maxUsd > 0 {
+                    BarMark(x: .value(s.text("chart.time"), bucket.date, unit: component, calendar: calendar),
+                            y: .value(s.text(activeMetric.key), value(for: bucket)))
+                        .foregroundStyle(TokenCatTheme.accent.gradient).cornerRadius(compact ? 2 : 4)
+                        .opacity(selectedBucket(in: calendar).map { $0.id == bucket.id ? 1 : 0.45 } ?? 1)
+                        .accessibilityLabel(periodLabel(bucket.date, timeZone: timeZone))
+                        .accessibilityValue(valueLabel(for: bucket))
+                    if activeMetric == .cost && bucket.summary.cost.hasRange {
+                        RuleMark(x: .value(s.text("chart.time"), bucket.date, unit: component, calendar: calendar),
+                                 yStart: .value(s.text("chart.cost"), bucket.summary.cost.minUsd),
+                                 yEnd: .value(s.text("chart.cost"), bucket.summary.cost.maxUsd))
+                            .foregroundStyle(TokenCatTheme.accent).lineStyle(StrokeStyle(lineWidth: 1.5))
+                    }
+                }
+            }
+            if let selected = selectedBucket(in: calendar) {
+                RuleMark(x: .value(s.text("chart.time"), selected.date, unit: component, calendar: calendar))
+                    .foregroundStyle(.secondary.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
             }
         }
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: compact ? 4 : 7)) { _ in
-                if let first = buckets.first, let last = buckets.last, last.date.timeIntervalSince(first.date) > 3 * 86400 {
-                    AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                } else { AxisValueLabel(format: .dateTime.hour(.defaultDigits(amPM: .abbreviated))) }
+            AxisMarks(values: .automatic(desiredCount: compact ? 4 : 6)) { value in
+                AxisValueLabel {
+                    if let date = value.as(Date.self) { Text(axisLabel(date, timeZone: timeZone)) }
+                }
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
                 AxisGridLine().foregroundStyle(.quaternary)
-                if !compact { AxisValueLabel(format: .currency(code: "USD").precision(.fractionLength(2)).locale(s.locale)) }
+                if !compact {
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            Text(activeMetric == .cost ? s.money(number, compact: true) : number.formatted(.number.notation(.compactName).locale(s.locale)))
+                        }
+                    }
+                }
             }
         }
+        .chartXScale(domain: domain(in: calendar))
         .chartYScale(domain: .automatic(includesZero: true))
-        .frame(height: compact ? 72 : 190)
-        .accessibilityLabel(s.text("usage.trend"))
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location): select(at: location, proxy: proxy, geometry: geometry)
+                        case .ended: selectedDate = nil
+                        }
+                    }
+                    .onTapGesture { location in select(at: location, proxy: proxy, geometry: geometry) }
+            }
+        }
+        .frame(height: compact ? 78 : 190)
+        .accessibilityLabel(s.text(activeMetric == .cost ? "usage.trend" : "tokens.total"))
+    }
+
+    private func selectionDetail(timeZone: TimeZone) -> some View {
+        let s = settings.strings
+        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+            if let bucket = selectedBucket(in: calendar(in: timeZone)) {
+                Text(periodLabel(bucket.date, timeZone: timeZone)).foregroundStyle(.secondary)
+                Spacer(minLength: 4)
+                Text(valueLabel(for: bucket)).fontWeight(.medium).monospacedDigit()
+                Text(s.eventCount(bucket.summary.eventCount)).foregroundStyle(.secondary)
+            } else {
+                Text(s.text("chart.inspect")).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+        }.font(.caption).frame(minHeight: 18)
+    }
+
+    private func calendar(in timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    private func domain(in calendar: Calendar) -> ClosedRange<Date> {
+        let dates = buckets.map(\.date)
+        let first = calendar.dateInterval(of: component, for: dates.min()!)!.start
+        let last = calendar.dateInterval(of: component, for: dates.max()!)!.end
+        return first...last
+    }
+
+    private func selectedBucket(in calendar: Calendar) -> TimelineBucket? {
+        guard let selectedDate else { return nil }
+        return buckets.first { calendar.isDate($0.date, equalTo: selectedDate, toGranularity: component) }
+    }
+
+    private func select(at location: CGPoint, proxy: ChartProxy, geometry: GeometryProxy) {
+        guard let plotFrame = proxy.plotFrame, geometry[plotFrame].contains(location) else {
+            selectedDate = nil
+            return
+        }
+        selectedDate = proxy.value(atX: location.x - geometry[plotFrame].minX, as: Date.self)
+    }
+
+    private func value(for bucket: TimelineBucket) -> Double {
+        activeMetric == .cost ? bucket.summary.cost.minUsd : Double(bucket.summary.cost.totalTokens)
+    }
+
+    private func valueLabel(for bucket: TimelineBucket) -> String {
+        let s = settings.strings
+        return activeMetric == .cost ? s.cost(bucket.summary.cost) : s.count(bucket.summary.cost.totalTokens) + " " + s.text("tokens.title")
+    }
+
+    private func axisLabel(_ date: Date, timeZone: TimeZone) -> String {
+        let style = Date.FormatStyle(locale: settings.strings.locale, timeZone: timeZone)
+        return date.formatted(window == .today ? style.hour(.defaultDigits(amPM: .abbreviated)) : style.month(.abbreviated).day())
+    }
+
+    private func periodLabel(_ date: Date, timeZone: TimeZone) -> String {
+        let style = Date.FormatStyle(locale: settings.strings.locale, timeZone: timeZone).month(.abbreviated).day()
+        return date.formatted(window == .today ? style.hour(.defaultDigits(amPM: .abbreviated)).minute() : style)
     }
 }
 
@@ -166,7 +342,7 @@ struct StatusFooter: View {
     var body: some View {
         let s = settings.strings
         HStack(spacing: 7) {
-            Circle().fill(model.error == nil ? (dashboard?.lastScan?.warnings.isEmpty == false ? Color.orange : Color.green) : Color.orange).frame(width: 5, height: 5)
+            Circle().fill(statusColor).frame(width: 5, height: 5).accessibilityHidden(true)
             if let scan = dashboard?.lastScan {
                 Text(s.format("status.checked", s.relative(Date(milliseconds: scan.checkedAtMs)))).lineLimit(1)
             } else { Text(s.text("status.neverChecked")) }
@@ -174,7 +350,7 @@ struct StatusFooter: View {
             if model.refreshing { ProgressView().controlSize(.mini).frame(width: 14) }
             if model.error != nil || dashboard?.lastScan?.warnings.isEmpty == false {
                 Button { showStatus = true } label: { Image(systemName: "exclamationmark.circle") }.buttonStyle(.plain)
-                    .help(s.text("status.warnings"))
+                    .help(s.text("status.warnings")).accessibilityLabel(s.text("status.warnings"))
             }
         }
         .font(.caption2).foregroundStyle(.secondary)
@@ -193,6 +369,11 @@ struct StatusFooter: View {
                 }
             }.padding(18).frame(width: 360)
         }
+    }
+
+    private var statusColor: Color {
+        if model.error != nil || dashboard?.lastScan?.warnings.isEmpty == false { return .orange }
+        return dashboard?.lastScan == nil ? .secondary : .green
     }
 }
 
