@@ -38,6 +38,10 @@ The script compiles the Rust static library and Swift app, bundles localization 
 
 The menu bar focuses on today's estimated API-equivalent cost, with a usage timeline, provider breakdown, cache usage, and recent tasks. Open the dashboard for model, project, session, and subagent details. English (US) and Simplified Chinese are included, with system language, appearance, number formatting, and time zone support.
 
+The menu keeps its refresh and dashboard controls visible while longer content scrolls. The dashboard adapts its overview cards to the window width. Switch the activity chart between known API cost and recorded tokens, then hover or click to inspect a time bucket in the configured time zone. Usage without matching prices remains explicitly unpriced.
+
+Model, project, and task pages have independent searches and can sort by cost, tokens, or latest usage. Task search includes subagents; task rows show the whole linked family's cost, while task details separate direct usage from the family total and let you navigate between parents and children. Changing the time range or data settings clears incompatible snapshots while fresh data loads. Turning off project paths immediately clears snapshots containing visible paths.
+
 The first native adapters support **Codex and Claude Code**. Antigravity and OpenCode are the next priority; Copilot CLI and Gemini remain supported by the existing CLI. LAN aggregation and CLI packaging changes are deferred.
 
 Native collection uses a persistent SQLite ledger in `~/Library/Application Support/TokenCat/usage.sqlite3`. Complete JSONL records, parser state, and file offsets are committed together. Refresh defaults to two seconds and resumes immediately on wake. Incomplete trailing records wait for completion; repeated responses, archived copies, and Claude message revisions reconcile by logical event identity. Provider log rotation does not erase previously collected usage.
