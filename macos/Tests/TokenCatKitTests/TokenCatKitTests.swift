@@ -151,4 +151,13 @@ final class TokenCatKitTests: XCTestCase {
         XCTAssertEqual(week.start, iso.date(from: "2026-03-02T05:00:00Z"))
         XCTAssertEqual(Date(milliseconds: 123456789).milliseconds, 123456789)
     }
+    func testSubsecondRefreshTimesReadAsJustNow() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        for offset in [-0.4, 0, 0.4] {
+            XCTAssertEqual(Localizer(.english).relative(now.addingTimeInterval(offset), now: now), "just now")
+            XCTAssertEqual(Localizer(.simplifiedChinese).relative(now.addingTimeInterval(offset), now: now), "刚刚")
+        }
+        XCTAssertNotEqual(Localizer(.english).relative(now.addingTimeInterval(-120), now: now), "just now")
+        XCTAssertNotEqual(Localizer(.english).relative(now.addingTimeInterval(120), now: now), "just now")
+    }
 }

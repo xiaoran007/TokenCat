@@ -64,6 +64,7 @@ public struct Localizer: Sendable {
         return warnings.isEmpty ? [] : [format("status.warningCount", warnings.count), text("status.privateDiagnostics")]
     }
     public func relative(_ date: Date, now: Date = Date()) -> String {
+        if abs(date.timeIntervalSince(now)) < 1 { return text("status.justNow") }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = locale
         formatter.unitsStyle = .short
