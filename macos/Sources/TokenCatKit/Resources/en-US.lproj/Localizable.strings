@@ -28,9 +28,9 @@
 "tokens.total" = "Recorded tokens";
 "tokens.reportedOnly" = "Counts include only reported token categories. Missing metadata is excluded, not treated as zero.";
 "cache.ratio" = "Cache read share";
-"cache.explanation" = "Cache reads as a share of reported input, including cache writes. Hidden when usage metadata is incomplete.";
+"cache.explanation" = "Cache reads as a share of reported input, including cache writes. Unavailable when usage metadata is incomplete.";
 "usage.trend" = "Known cost over time";
-"usage.harnesses" = "Harnesses";
+"usage.harnesses" = "Coding tools";
 "usage.recentTasks" = "Recent tasks";
 "usage.models" = "Models";
 "usage.projects" = "Projects";
@@ -138,3 +138,8 @@
 "chart.unpricedDescription" = "Recorded usage has no matching API prices. Token counts are still available.";
 "chart.activity" = "Activity";
 "action.more" = "More actions";
+"status.justNow" = "just now";
+"usage.notAvailable" = "Not available";
+"period.sharedSelection" = "Time range shared with the dashboard";
+"usage.topModels" = "Top models by tokens";
+"tokens.share" = "Share of recorded tokens";

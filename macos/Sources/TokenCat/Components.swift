@@ -3,7 +3,11 @@ import Charts
 import TokenCatKit
 
 enum TokenCatTheme {
-    static let accent = Color(red: 0.08, green: 0.48, blue: 0.46)
+    static let accent = Color(nsColor: NSColor(name: "TokenCatAccent") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0.36, green: 0.78, blue: 0.73, alpha: 1)
+            : NSColor(srgbRed: 0.08, green: 0.48, blue: 0.46, alpha: 1)
+    })
 }
 
 struct SurfaceCard<Content: View>: View {
@@ -31,6 +35,44 @@ struct SectionHeading: View {
     var body: some View {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct TokenUsageHero: View {
+    let summary: UsageSummary
+    @EnvironmentObject private var settings: AppSettings
+    @State private var showDetails = false
+
+    var body: some View {
+        let s = settings.strings
+        VStack(alignment: .leading, spacing: 10) {
+            Text(s.text("tokens.total")).font(.caption.weight(.medium))
+                .textCase(.uppercase).tracking(0.8).foregroundStyle(.secondary)
+            Text(s.count(summary.cost.totalTokens))
+                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .monospacedDigit().contentTransition(.numericText())
+                .lineLimit(1).minimumScaleFactor(0.5)
+                .help(s.text("tokens.reportedOnly"))
+                .accessibilityLabel(s.text("tokens.total") + ", " + s.count(summary.cost.totalTokens))
+            Button { showDetails.toggle() } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(s.cost(summary.cost, compact: true)).font(.title3.weight(.medium)).monospacedDigit()
+                    Text(s.text("cost.apiEquivalent")).font(.caption)
+                    Image(systemName: "info.circle").font(.caption)
+                }.foregroundStyle(.secondary)
+            }.buttonStyle(.plain).help(s.text("cost.explanation"))
+                .accessibilityLabel(s.text("cost.apiEquivalent") + ", " + s.cost(summary.cost))
+                .accessibilityHint(s.text("cost.details"))
+            Text(s.eventCount(summary.eventCount)).font(.caption).foregroundStyle(.secondary)
+            if summary.cost.unpricedEvents > 0 {
+                Label(s.format("cost.unpriced", summary.cost.unpricedEvents), systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .popover(isPresented: $showDetails, arrowEdge: .trailing) {
+            CostBreakdown(summary: summary).padding(20).frame(width: 350).environmentObject(settings)
+        }
     }
 }
 
@@ -88,6 +130,10 @@ struct CostBreakdown: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(s.text("cost.details")).font(.headline)
             Text(s.text("cost.explanation")).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if summary.cost.hasRange {
+                Text(s.text("cost.rangeExplanation")).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Divider()
             Text(s.text("tokens.reportedOnly")).font(.caption).foregroundStyle(.secondary)
             costRow("cost.input", summary.inputTokens, summary.cost.inputUsd, summary.cost.inputUsd)
@@ -126,16 +172,17 @@ struct UsageChart: View {
     let buckets: [TimelineBucket]
     var compact = false
     var window: TimeWindow = .today
+    var compactMetric: Metric = .cost
     @EnvironmentObject private var settings: AppSettings
     @State private var metric: Metric = .cost
     @State private var selectedDate: Date?
 
-    private enum Metric: String, CaseIterable {
+    enum Metric: String, CaseIterable {
         case cost, tokens
         var key: String { "chart.\(rawValue)" }
     }
 
-    private var activeMetric: Metric { compact ? .cost : metric }
+    private var activeMetric: Metric { compact ? compactMetric : metric }
     private var component: Calendar.Component { window == .today ? .hour : .day }
     private var hasValues: Bool {
         buckets.contains { bucket in
@@ -343,7 +390,9 @@ struct StatusFooter: View {
         let s = settings.strings
         HStack(spacing: 7) {
             Circle().fill(statusColor).frame(width: 5, height: 5).accessibilityHidden(true)
-            if let scan = dashboard?.lastScan {
+            if model.error != nil {
+                Text(s.text("status.error")).lineLimit(1)
+            } else if let scan = dashboard?.lastScan {
                 Text(s.format("status.checked", s.relative(Date(milliseconds: scan.checkedAtMs)))).lineLimit(1)
             } else { Text(s.text("status.neverChecked")) }
             Spacer(minLength: 4)

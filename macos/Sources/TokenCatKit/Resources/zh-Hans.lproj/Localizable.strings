@@ -28,7 +28,7 @@
 "tokens.total" = "已记录词元";
 "tokens.reportedOnly" = "数量仅包含已报告的词元类别。缺失的元数据不会被当作零。";
 "cache.ratio" = "缓存读取占比";
-"cache.explanation" = "缓存读取占已报告输入的比例，输入包含缓存写入。用量信息不完整时隐藏此比例。";
+"cache.explanation" = "缓存读取占已报告输入的比例，输入包含缓存写入。用量信息不完整时此比例不可用。";
 "usage.trend" = "已定价费用趋势";
 "usage.harnesses" = "编程工具";
 "usage.recentTasks" = "近期任务";
@@ -138,3 +138,8 @@
 "chart.unpricedDescription" = "已记录用量尚无匹配的 API 价格，仍可查看 Token 数。";
 "chart.activity" = "用量趋势";
 "action.more" = "更多操作";
+"status.justNow" = "刚刚";
+"usage.notAvailable" = "暂无数据";
+"period.sharedSelection" = "与面板共用的统计时段";
+"usage.topModels" = "模型用量排行";
+"tokens.share" = "已记录词元占比";

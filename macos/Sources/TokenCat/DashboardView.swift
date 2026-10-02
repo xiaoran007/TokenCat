@@ -117,10 +117,11 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(s.text("app.tagline")).font(.title3.weight(.semibold))
+                        Label(s.text(model.window.localizationKey), systemImage: "calendar")
+                            .font(.subheadline.weight(.medium))
                         Spacer()
                         Text(settings.timezone.isEmpty ? TimeZone.autoupdatingCurrent.identifier : settings.timezone)
-                            .font(.caption).foregroundStyle(.secondary).help(s.text("settings.timezone"))
+                            .font(.caption2).foregroundStyle(.secondary).help(s.text("settings.timezone"))
                     }
                     if wide {
                         HStack(alignment: .top, spacing: 16) {
@@ -131,10 +132,14 @@ struct DashboardView: View {
                         hero(dashboard)
                         providers(dashboard)
                     }
-                    HStack(spacing: 12) {
-                        metric("tokens.total", value: s.compactCount(dashboard.summary.cost.totalTokens), symbol: "number", detail: s.count(dashboard.summary.cost.totalTokens))
-                        metric("usage.sessions", value: s.count(UInt64(dashboard.rootSessions.count)), symbol: "rectangle.stack")
-                        metric("usage.models", value: s.count(UInt64(dashboard.models.count)), symbol: "cpu")
+                    SurfaceCard {
+                        HStack(spacing: 18) {
+                            metric("cache.ratio", value: dashboard.summary.cacheReadRatio.map(s.percent) ?? s.text("usage.notAvailable"), symbol: "arrow.2.circlepath", detail: s.text("cache.explanation"))
+                            Divider()
+                            metric("usage.sessions", value: s.count(UInt64(dashboard.rootSessions.count)), symbol: "rectangle.stack")
+                            Divider()
+                            metric("usage.models", value: s.count(UInt64(dashboard.models.count)), symbol: "cpu")
+                        }.fixedSize(horizontal: false, vertical: true)
                     }
                     SurfaceCard {
                         UsageChart(buckets: dashboard.timeline, window: model.window)
@@ -179,14 +184,11 @@ struct DashboardView: View {
         let s = settings.strings
         return SurfaceCard {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label(s.text(model.window.localizationKey), systemImage: "calendar")
-                    Spacer()
-                    if let coverage = dashboard.summary.cost.coverage {
-                        Text(s.format("cost.coverage", s.percent(coverage))).lineLimit(1)
-                    }
-                }.font(.caption).foregroundStyle(.secondary)
-                CostHero(summary: dashboard.summary, compact: false)
+                TokenUsageHero(summary: dashboard.summary)
+                if let coverage = dashboard.summary.cost.coverage {
+                    Text(s.format("cost.coverage", s.percent(coverage)))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -204,15 +206,13 @@ struct DashboardView: View {
     }
 
     private func metric(_ key: String, value: String, symbol: String, detail: String? = nil) -> some View {
-        SurfaceCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Label(settings.strings.text(key), systemImage: symbol)
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                Text(value).font(.system(.title2, design: .rounded, weight: .semibold))
-                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-                .help(detail ?? value)
-        }
+        VStack(alignment: .leading, spacing: 8) {
+            Label(settings.strings.text(key), systemImage: symbol)
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(value).font(.system(.title2, design: .rounded, weight: .semibold))
+                .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .help(detail ?? value)
     }
 
     private func sectionLink(_ key: String, destination: DashboardPage) -> some View {
