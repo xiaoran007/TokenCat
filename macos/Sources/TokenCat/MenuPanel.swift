@@ -33,7 +33,7 @@ struct MenuPanel: View {
             footer
         }
         .frame(width: 390)
-        .background(.regularMaterial)
+        .modifier(MenuPanelMaterial())
         .tint(TokenCatTheme.accent)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.dashboard?.summary.cost.totalTokens)
     }
