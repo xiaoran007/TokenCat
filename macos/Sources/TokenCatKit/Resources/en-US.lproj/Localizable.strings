@@ -6,6 +6,9 @@
 "cost.apiEquivalent" = "API equivalent cost";
 "cost.explanation" = "Estimated USD cost of recorded usage at the selected API prices. This is not a subscription bill or remaining allowance.";
 "cost.range" = "%@–%@";
+"cost.unavailable" = "Unpriced";
+"cost.knownAmount" = "Known %@";
+"cost.lessThan" = "<%@";
 "cost.unpriced" = "%ld unpriced usage events";
 "cost.uncertain" = "%ld events with estimated pricing";
 "cost.coverage" = "%@ of recorded tokens priced";
@@ -23,9 +26,10 @@
 "cost.sources" = "Price sources";
 "tokens.title" = "Tokens";
 "tokens.total" = "Recorded tokens";
+"tokens.reportedOnly" = "Counts include only reported token categories. Missing metadata is excluded, not treated as zero.";
 "cache.ratio" = "Cache read share";
-"cache.explanation" = "Cache reads as a share of recorded input, including cache writes.";
-"usage.trend" = "Cost over time";
+"cache.explanation" = "Cache reads as a share of reported input, including cache writes. Hidden when usage metadata is incomplete.";
+"usage.trend" = "Known cost over time";
 "usage.harnesses" = "Harnesses";
 "usage.recentTasks" = "Recent tasks";
 "usage.models" = "Models";
@@ -52,6 +56,7 @@
 "status.checked" = "Checked %@";
 "status.neverChecked" = "Waiting for first refresh";
 "status.warnings" = "Collection details";
+"status.privateDiagnostics" = "Enable project names and paths in Settings to view diagnostics, which may include local paths.";
 "status.error" = "Unable to update usage";
 "status.retained" = "Showing the last successful snapshot.";
 "status.sources" = "%ld local log files indexed";

@@ -24,13 +24,18 @@ final class TokenCatKitTests: XCTestCase {
         XCTAssertEqual(snapshot.summary.cost.minUsd, 0.35)
         XCTAssertTrue(snapshot.summary.cost.hasRange)
         XCTAssertEqual(snapshot.summary.cost.coverage, 0.5)
-        XCTAssertEqual(snapshot.summary.cacheReadRatio, 0.6)
+        XCTAssertNil(snapshot.summary.cacheReadRatio)
         XCTAssertEqual(snapshot.summary.reasoningTokens, 200)
         XCTAssertEqual(snapshot.rootSessions.map(\.id), ["parent"])
         XCTAssertEqual(snapshot.children(of: "parent").map(\.id), ["child"])
-        let family = snapshot.familyCost(snapshot.rootSessions[0])
-        XCTAssertEqual(family.min, 0.7, accuracy: 0.000001)
-        XCTAssertEqual(family.max, 0.9, accuracy: 0.000001)
+        let family = snapshot.familySummary(snapshot.rootSessions[0])
+        XCTAssertEqual(family.minUsd, 0.7, accuracy: 0.000001)
+        XCTAssertEqual(family.maxUsd, 0.9, accuracy: 0.000001)
+        XCTAssertEqual(family.unpricedEvents, 2)
+        XCTAssertEqual(family.uncertainEvents, 2)
+        XCTAssertEqual(family.pricedTokens, 1000)
+        XCTAssertEqual(family.totalTokens, 2000)
+        XCTAssertEqual(family.unknownModels, ["unpriced-test-model"])
         XCTAssertEqual(snapshot.timeline[0].date, Date(timeIntervalSince1970: 0))
         XCTAssertEqual(snapshot.lastScan?.checkedAtMs, 2000)
     }
@@ -42,7 +47,58 @@ final class TokenCatKitTests: XCTestCase {
         summary.inputTokens = UInt64.max
         summary.cacheReadTokens = UInt64.max
         summary.cacheWriteTokens = 0
+        summary.incompleteEvents = 0
         XCTAssertEqual(summary.cacheReadRatio, 0.5)
+    }
+    func testUnknownPartialAndVerySmallCostsNeverLookFree() throws {
+        let english = Localizer(.english)
+        let chinese = Localizer(.simplifiedChinese)
+        var cost = try Dashboard.decode(fixture()).summary.cost
+        cost.minUsd = 0; cost.maxUsd = 0; cost.pricedTokens = 0
+        XCTAssertEqual(english.cost(cost, compact: true), "Unpriced")
+        XCTAssertEqual(chinese.cost(cost, compact: true), "尚未定价")
+        cost.minUsd = 0.0025; cost.maxUsd = 0.0025; cost.pricedTokens = 100
+        XCTAssertEqual(english.cost(cost, compact: true), "Known $0.0025")
+        cost.unpricedEvents = 0
+        XCTAssertEqual(english.cost(cost, compact: true), "$0.0025")
+        XCTAssertEqual(english.money(0.000001, compact: true), "<$0.0001")
+        cost.minUsd = 0; cost.maxUsd = 0.00000005
+        XCTAssertEqual(english.cost(cost, compact: true), "$0.00–<$0.0001")
+        XCTAssertTrue(chinese.money(0.000001, compact: true).hasPrefix("小于"))
+        XCTAssertEqual(english.categoryCost(tokens: 100, min: 0, max: 0, hasUnpriced: true), "Unpriced")
+        XCTAssertEqual(english.categoryCost(tokens: 100, min: 0.1, max: 0.1, hasUnpriced: true), "Known $0.10")
+        XCTAssertEqual(english.categoryCost(tokens: 0, min: 0, max: 0, hasUnpriced: true), "$0.00")
+    }
+    func testCycleComponentsRemainReachableExactlyOnce() throws {
+        var snapshot = try Dashboard.decode(fixture())
+        let template = snapshot.sessions[0]
+        func row(_ id: String, parent: String?) -> BreakdownRow {
+            var value = template
+            value.id = id; value.parentId = parent; value.label = "session:" + id
+            return value
+        }
+        snapshot.sessions = [row("z", parent: "a"), row("a", parent: "z"), row("0-child", parent: "z"),
+                             row("self", parent: "self"), row("normal", parent: nil)]
+        XCTAssertEqual(snapshot.rootSessions.map(\.id), ["a", "normal", "self"])
+        let reachable = snapshot.rootSessions.flatMap { snapshot.taskFamily($0).map(\.id) }
+        XCTAssertEqual(reachable.count, 5)
+        XCTAssertEqual(Set(reachable), Set(snapshot.sessions.map(\.id)))
+        XCTAssertEqual(snapshot.familySummary(snapshot.rootSessions[0]).unpricedEvents, 3)
+        XCTAssertEqual(snapshot.taskFamily(snapshot.rootSessions[2]).count, 1)
+    }
+    func testPrivacyDiagnosticsAndUnknownLabelsRespectPresentationContext() throws {
+        let s = Localizer(.english)
+        let warning = "Unable to read /Users/private-person/private-project/session.jsonl"
+        let hidden = s.collectionDiagnostics([warning], showPaths: false)
+        XCTAssertEqual(hidden[0], "1 collection warning")
+        XCTAssertFalse(hidden.joined().contains("private-person"))
+        XCTAssertFalse(hidden.joined().contains("session.jsonl"))
+        XCTAssertEqual(s.collectionDiagnostics([warning], showPaths: true), [warning])
+        XCTAssertEqual(s.collectionDiagnostics([], showPaths: false), [])
+        var row = try Dashboard.decode(fixture()).sessions[0]
+        row.id = "unknown"; row.label = "unknown"; row.provider = nil
+        XCTAssertEqual(s.label(row, kind: .model), "Unknown model")
+        XCTAssertEqual(s.label(row, kind: .project), "Unknown project")
     }
     func testBridgeEncodesNativeConfigurationAndWindowContract() throws {
         let encoder = JSONEncoder()
@@ -82,7 +138,7 @@ final class TokenCatKitTests: XCTestCase {
         XCTAssertEqual(Localizer(.english).money(0.0025), "$0.0025")
         XCTAssertTrue(Localizer(.simplifiedChinese).money(1.25).contains("1.25"))
         let snapshot = try Dashboard.decode(fixture())
-        XCTAssertEqual(Localizer(.english).cost(snapshot.summary.cost, compact: true), "$0.35–$0.45")
+        XCTAssertEqual(Localizer(.english).cost(snapshot.summary.cost, compact: true), "Known $0.35–$0.45")
         XCTAssertEqual(Localizer(.english).count(12345), "12,345")
     }
     func testWindowsUseLocalMidnightAcrossDaylightSaving() {

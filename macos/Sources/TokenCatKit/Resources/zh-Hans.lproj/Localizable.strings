@@ -6,6 +6,9 @@
 "cost.apiEquivalent" = "API 等价费用";
 "cost.explanation" = "按照所选 API 价格估算已记录用量的美元费用。这不是订阅账单，也不表示剩余额度。";
 "cost.range" = "%@–%@";
+"cost.unavailable" = "尚未定价";
+"cost.knownAmount" = "已定价 %@";
+"cost.lessThan" = "小于%@";
 "cost.unpriced" = "%ld 条用量记录尚未定价";
 "cost.uncertain" = "%ld 条记录的费用为估算值";
 "cost.coverage" = "已定价的词元占 %@";
@@ -23,9 +26,10 @@
 "cost.sources" = "价格来源";
 "tokens.title" = "词元";
 "tokens.total" = "已记录词元";
+"tokens.reportedOnly" = "数量仅包含已报告的词元类别。缺失的元数据不会被当作零。";
 "cache.ratio" = "缓存读取占比";
-"cache.explanation" = "缓存读取占已记录输入的比例，输入包含缓存写入。";
-"usage.trend" = "费用趋势";
+"cache.explanation" = "缓存读取占已报告输入的比例，输入包含缓存写入。用量信息不完整时隐藏此比例。";
+"usage.trend" = "已定价费用趋势";
 "usage.harnesses" = "编程工具";
 "usage.recentTasks" = "近期任务";
 "usage.models" = "模型";
@@ -52,6 +56,7 @@
 "status.checked" = "%@检查过";
 "status.neverChecked" = "等待首次刷新";
 "status.warnings" = "采集详情";
+"status.privateDiagnostics" = "诊断信息可能包含本地路径。请在设置中启用项目名称和路径后查看。";
 "status.error" = "无法更新用量";
 "status.retained" = "当前显示上次成功获取的数据。";
 "status.sources" = "已索引 %ld 个本地日志文件";

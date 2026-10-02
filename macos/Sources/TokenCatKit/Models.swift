@@ -19,9 +19,24 @@ public struct CostSummary: Codable, Sendable {
     public var unpricedEvents: Int
     public var uncertainEvents: Int
     public var unknownModels: [String]
-    public var hasRange: Bool { abs(maxUsd - minUsd) > 0.0000001 }
+    public var hasRange: Bool { maxUsd != minUsd }
     public var coverage: Double? { totalTokens == 0 ? nil : Double(pricedTokens) / Double(totalTokens) }
+    public mutating func add(_ other: CostSummary) {
+        minUsd += other.minUsd; maxUsd += other.maxUsd
+        inputUsd += other.inputUsd; cacheReadUsd += other.cacheReadUsd
+        cacheWriteMinUsd += other.cacheWriteMinUsd; cacheWriteMaxUsd += other.cacheWriteMaxUsd
+        outputUsd += other.outputUsd
+        // Native counters saturate at their representable maximum as well.
+        let priced = pricedTokens.addingReportingOverflow(other.pricedTokens)
+        pricedTokens = priced.overflow ? .max : priced.partialValue
+        let total = totalTokens.addingReportingOverflow(other.totalTokens)
+        totalTokens = total.overflow ? .max : total.partialValue
+        unpricedEvents += other.unpricedEvents; uncertainEvents += other.uncertainEvents
+        unknownModels = Array(Set(unknownModels + other.unknownModels)).sorted()
+    }
 }
+
+public enum BreakdownKind { case provider, model, project, session }
 
 public struct UsageSummary: Codable, Sendable {
     public var cost: CostSummary
@@ -34,6 +49,7 @@ public struct UsageSummary: Codable, Sendable {
     public var incompleteEvents: Int
     public var latestEventMs: Int64?
     public var cacheReadRatio: Double? {
+        guard incompleteEvents == 0 else { return nil }
         let input = Double(inputTokens) + Double(cacheReadTokens) + Double(cacheWriteTokens)
         return input == 0 ? nil : Double(cacheReadTokens) / input
     }
@@ -120,8 +136,30 @@ public struct Dashboard: Codable, Sendable {
     public var recentSessions: [BreakdownRow] { sessions.sorted { ($0.summary.latestEventMs ?? 0) > ($1.summary.latestEventMs ?? 0) } }
     public var rootSessions: [BreakdownRow] {
         let ids = Set(sessions.map(\.id))
-        return sessions.filter { $0.parentId == nil || !ids.contains($0.parentId!) }.sorted {
-            (taskFamily($0).compactMap(\.summary.latestEventMs).max() ?? 0) > (taskFamily($1).compactMap(\.summary.latestEventMs).max() ?? 0)
+        let byId = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0) })
+        var roots = sessions.filter { $0.parentId == nil || !ids.contains($0.parentId!) }
+        var visited = Set(roots.flatMap { taskFamily($0).map(\.id) })
+        // Broken parent graphs can contain cycles. Choose a deterministic cycle
+        // member as a display root, keeping every task reachable exactly once.
+        for row in sessions.sorted(by: { $0.id < $1.id }) where !visited.contains(row.id) {
+            var chain: [String] = []
+            var current: String? = row.id
+            while let id = current, !visited.contains(id) {
+                if let cycleStart = chain.firstIndex(of: id) {
+                    let rootId = chain[cycleStart...].min()!
+                    let root = byId[rootId]!
+                    roots.append(root)
+                    visited.formUnion(taskFamily(root).map(\.id))
+                    break
+                }
+                chain.append(id)
+                current = byId[id]?.parentId
+            }
+        }
+        return roots.sorted {
+            let lhs = taskFamily($0).compactMap(\.summary.latestEventMs).max() ?? 0
+            let rhs = taskFamily($1).compactMap(\.summary.latestEventMs).max() ?? 0
+            return lhs == rhs ? $0.id < $1.id : lhs > rhs
         }
     }
     public func children(of id: String) -> [BreakdownRow] { recentSessions.filter { $0.parentId == id } }
@@ -136,10 +174,11 @@ public struct Dashboard: Codable, Sendable {
         collect(row)
         return result
     }
-    public func familyCost(_ row: BreakdownRow) -> (min: Double, max: Double) {
-        taskFamily(row).reduce((min: 0.0, max: 0.0)) { sum, child in
-            (sum.min + child.summary.cost.minUsd, sum.max + child.summary.cost.maxUsd)
-        }
+    public func familySummary(_ row: BreakdownRow) -> CostSummary {
+        let family = taskFamily(row)
+        var total = family[0].summary.cost
+        for child in family.dropFirst() { total.add(child.summary.cost) }
+        return total
     }
 }
 

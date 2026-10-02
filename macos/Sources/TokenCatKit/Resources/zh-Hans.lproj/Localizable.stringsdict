@@ -9,4 +9,12 @@
             <key>other</key><string>%ld 条用量记录</string>
         </dict>
     </dict>
+    <key>status.warningCount</key><dict>
+        <key>NSStringLocalizedFormatKey</key><string>%#@count@</string>
+        <key>count</key><dict>
+            <key>NSStringFormatSpecTypeKey</key><string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key><string>ld</string>
+            <key>other</key><string>%ld 条采集警告</string>
+        </dict>
+    </dict>
 </dict></plist>

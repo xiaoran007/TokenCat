@@ -10,4 +10,13 @@
             <key>other</key><string>%ld usage events</string>
         </dict>
     </dict>
+    <key>status.warningCount</key><dict>
+        <key>NSStringLocalizedFormatKey</key><string>%#@count@</string>
+        <key>count</key><dict>
+            <key>NSStringFormatSpecTypeKey</key><string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key><string>ld</string>
+            <key>one</key><string>%ld collection warning</string>
+            <key>other</key><string>%ld collection warnings</string>
+        </dict>
+    </dict>
 </dict></plist>
