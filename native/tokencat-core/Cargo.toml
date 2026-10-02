@@ -14,4 +14,3 @@ sha2 = "0.10"
 rusqlite = { version = "0.37", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
-
