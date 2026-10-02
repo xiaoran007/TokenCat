@@ -7,16 +7,35 @@ import TokenCatKit
 @MainActor
 final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
+    let snapshotSettingsDidChange = PassthroughSubject<Void, Never>()
     @Published var language: AppLanguage { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var appearance: String { didSet { defaults.set(appearance, forKey: "appearance") } }
     @Published var showMenuCost: Bool { didSet { defaults.set(showMenuCost, forKey: "showMenuCost") } }
-    @Published var showPaths: Bool { didSet { defaults.set(showPaths, forKey: "showPaths") } }
-    @Published var home: String { didSet { defaults.set(home, forKey: "home") } }
-    @Published var codexRoot: String { didSet { defaults.set(codexRoot, forKey: "codexRoot") } }
-    @Published var claudeRoots: String { didSet { defaults.set(claudeRoots, forKey: "claudeRoots") } }
-    @Published var pricingPath: String { didSet { defaults.set(pricingPath, forKey: "pricingPath") } }
+    @Published var showPaths: Bool { didSet {
+        defaults.set(showPaths, forKey: "showPaths")
+        if oldValue != showPaths { snapshotSettingsDidChange.send() }
+    } }
+    @Published var home: String { didSet {
+        defaults.set(home, forKey: "home")
+        if oldValue != home { snapshotSettingsDidChange.send() }
+    } }
+    @Published var codexRoot: String { didSet {
+        defaults.set(codexRoot, forKey: "codexRoot")
+        if oldValue != codexRoot { snapshotSettingsDidChange.send() }
+    } }
+    @Published var claudeRoots: String { didSet {
+        defaults.set(claudeRoots, forKey: "claudeRoots")
+        if oldValue != claudeRoots { snapshotSettingsDidChange.send() }
+    } }
+    @Published var pricingPath: String { didSet {
+        defaults.set(pricingPath, forKey: "pricingPath")
+        if oldValue != pricingPath { snapshotSettingsDidChange.send() }
+    } }
     @Published var refreshSeconds: Int { didSet { defaults.set(refreshSeconds, forKey: "refreshSeconds") } }
-    @Published var timezone: String { didSet { defaults.set(timezone, forKey: "timezone") } }
+    @Published var timezone: String { didSet {
+        defaults.set(timezone, forKey: "timezone")
+        if oldValue != timezone { snapshotSettingsDidChange.send() }
+    } }
     @Published var loginError: String?
     @Published var loginEnabled = SMAppService.mainApp.status == .enabled
 
@@ -69,7 +88,12 @@ final class AppModel: ObservableObject {
     @Published private(set) var dashboard: Dashboard?
     @Published private(set) var refreshing = false
     @Published private(set) var error: String?
-    @Published var window: TimeWindow = .today { didSet { requestRefresh() } }
+    @Published var window: TimeWindow = .today { didSet {
+        guard oldValue != window else { return }
+        dashboard = nil
+        error = nil
+        requestRefresh()
+    } }
     @Published var selectedTaskId: String?
     private let worker = CoreWorker()
     private var pollTask: Task<Void, Never>?
@@ -79,12 +103,18 @@ final class AppModel: ObservableObject {
 
     init(settings: AppSettings) {
         self.settings = settings
-        settings.objectWillChange.debounce(for: .milliseconds(400), scheduler: RunLoop.main).sink { [weak self] _ in self?.requestRefresh() }.store(in: &cancellables)
+        settings.snapshotSettingsDidChange.sink { [weak self] in self?.invalidateSnapshots() }.store(in: &cancellables)
+        settings.snapshotSettingsDidChange.debounce(for: .milliseconds(400), scheduler: RunLoop.main)
+            .sink { [weak self] in self?.requestRefresh() }.store(in: &cancellables)
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.requestRefresh() }
         })
         observers.append(NotificationCenter.default.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.requestRefresh() }
+            Task { @MainActor in
+                guard let self, self.settings.timezone.isEmpty else { return }
+                self.invalidateSnapshots()
+                self.requestRefresh()
+            }
         })
     }
 
@@ -103,28 +133,45 @@ final class AppModel: ObservableObject {
         if refreshing { refreshPending = true; return }
         Task { await refresh() }
     }
-    private func query(for window: TimeWindow, now: Date, timezone: TimeZone) -> CoreQuery {
-        let interval = window.interval(now: now, timeZone: timezone)
-        return CoreQuery(sinceMs: interval.start.milliseconds, untilMs: interval.end.milliseconds,
-                         timezone: timezone.identifier, showPaths: settings.showPaths)
+    private func invalidateSnapshots() {
+        today = nil
+        dashboard = nil
+        selectedTaskId = nil
+        error = nil
+    }
+    private var snapshotContext: SnapshotContext? {
+        guard let timezone = settings.timeZone else { return nil }
+        return SnapshotContext(configuration: settings.coreConfiguration, window: window,
+                               timeZone: timezone, showPaths: settings.showPaths)
     }
     func refresh() async {
         guard !refreshing else { return }
         let strings = settings.strings
-        guard let timezone = settings.timeZone else { error = strings.text("settings.invalidTimezone"); return }
-        guard settings.validHome else { error = strings.text("settings.invalidHome"); return }
+        guard let context = snapshotContext else {
+            invalidateSnapshots()
+            error = strings.text("settings.invalidTimezone")
+            return
+        }
+        guard settings.validHome else {
+            invalidateSnapshots()
+            error = strings.text("settings.invalidHome")
+            return
+        }
         refreshing = true
-        let now = Date()
-        let requestedWindow = window
-        let config = settings.coreConfiguration
+        defer {
+            refreshing = false
+            if refreshPending { refreshPending = false; requestRefresh() }
+        }
         do {
-            let values = try await worker.refresh(configuration: config, queries: [query(for: .today, now: now, timezone: timezone), query(for: requestedWindow, now: now, timezone: timezone)])
+            let values = try await worker.refresh(configuration: context.configuration, queries: context.queries(now: Date()))
+            guard context == snapshotContext else { return }
             today = values[0]
-            if requestedWindow == window { dashboard = values[1] }
+            dashboard = values[1]
             error = nil
-        } catch { self.error = error.localizedDescription }
-        refreshing = false
-        if refreshPending { refreshPending = false; requestRefresh() }
+        } catch {
+            guard context == snapshotContext else { return }
+            self.error = error.localizedDescription
+        }
     }
     var selectedTask: BreakdownRow? { dashboard?.sessions.first { $0.id == selectedTaskId } }
     func openTask(_ id: String) { selectedTaskId = id; window = .today }
