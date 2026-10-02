@@ -21,3 +21,8 @@ htmlcov/
 
 # references
 references/
+
+# Native core and macOS app
+native/target/
+macos/.build/
+macos/.swiftpm/

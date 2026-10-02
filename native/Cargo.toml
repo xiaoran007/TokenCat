@@ -1,0 +1,4 @@
+[workspace]
+members = ["tokencat-core"]
+resolver = "2"
+
