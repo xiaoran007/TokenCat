@@ -5,6 +5,7 @@ import TokenCatKit
 struct MenuPanel: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var settingsWindow: SettingsWindowController
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -63,7 +64,7 @@ struct MenuPanel: View {
                 Text(s.text("usage.noEvents")).font(.subheadline.weight(.medium))
                 Text(s.text("usage.emptyDescription")).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                SettingsLink { Label(s.text("settings.sources"), systemImage: "folder") }
+                Button { settingsWindow.open() } label: { Label(s.text("settings.sources"), systemImage: "folder") }
                     .buttonStyle(.bordered)
             }.padding(.vertical, 12)
         } else {
@@ -157,8 +158,9 @@ struct MenuPanel: View {
                 Button { model.requestRefresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 22, height: 22) }
                     .buttonStyle(.plain).disabled(model.refreshing)
                     .help(s.text("action.refresh")).accessibilityLabel(s.text("accessibility.refresh"))
-                SettingsLink { Image(systemName: "gearshape").frame(width: 22, height: 22) }
+                Button { settingsWindow.open() } label: { Image(systemName: "gearshape").frame(width: 22, height: 22) }
                     .buttonStyle(.plain).help(s.text("action.settings")).accessibilityLabel(s.text("action.settings"))
+                    .keyboardShortcut(",", modifiers: .command)
                 Menu {
                     Button(s.text("action.quit")) { NSApp.terminate(nil) }.keyboardShortcut("q")
                 } label: { Image(systemName: "ellipsis").frame(width: 18, height: 22) }

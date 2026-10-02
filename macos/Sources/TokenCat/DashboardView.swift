@@ -14,6 +14,7 @@ private enum DashboardPage: String, CaseIterable, Identifiable {
 struct DashboardView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var settingsWindow: SettingsWindowController
     @State private var page: DashboardPage? = .overview
     @State private var modelSearch = ""
     @State private var projectSearch = ""
@@ -45,7 +46,7 @@ struct DashboardView: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(alignment: .leading, spacing: 14) {
                     StatusFooter(dashboard: model.dashboard)
-                    SettingsLink { Label(s.text("settings.title"), systemImage: "gearshape") }
+                    Button { settingsWindow.open() } label: { Label(s.text("settings.title"), systemImage: "gearshape") }
                         .buttonStyle(.plain).font(.caption)
                 }.padding(16)
             }
@@ -150,7 +151,7 @@ struct DashboardView: View {
                         } description: {
                             Text(s.text("usage.emptyDescription"))
                         } actions: {
-                            SettingsLink { Text(s.text("settings.sources")) }
+                            Button(s.text("settings.sources")) { settingsWindow.open() }
                         }.frame(maxWidth: .infinity)
                     } else {
                         if wide {
@@ -257,7 +258,7 @@ struct DashboardView: View {
                 HStack(spacing: 8) {
                     Label(s.text("usage.projectDescription"), systemImage: "eye.slash")
                     Spacer()
-                    SettingsLink { Text(s.text("action.settings")) }
+                    Button(s.text("action.settings")) { settingsWindow.open() }
                 }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.bottom, 12)
             }
             if filtered.isEmpty {

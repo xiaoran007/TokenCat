@@ -62,6 +62,7 @@ final class MenuPanelLayoutTests: XCTestCase {
             ? .failure(CoreFailure(message: "Fixture collection failed"))
             : .success(MenuFixtures.dashboard(empty: state == .empty))
         let model = AppModel(settings: settings, worker: FixtureUsageLoader(result: result))
+        let settingsWindow = SettingsWindowController(settings: settings, model: model)
         if state != .loading {
             await model.refresh()
             if state == .failed { XCTAssertNotNil(model.error) }
@@ -73,6 +74,7 @@ final class MenuPanelLayoutTests: XCTestCase {
         let host = NSHostingView(rootView: AnyView(MenuPanel()
             .environmentObject(model)
             .environmentObject(settings)
+            .environmentObject(settingsWindow)
             .environment(\.locale, language.locale)
             .preferredColorScheme(dark ? .dark : .light)))
         host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
