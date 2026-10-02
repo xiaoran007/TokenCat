@@ -47,7 +47,7 @@ struct MenuPanel: View {
                         }
                     } else { LoadingOrEmpty() }
                 }.padding(16)
-            }.frame(maxHeight: contentHeight)
+            }.frame(height: contentHeight)
             Divider()
             footer
         }

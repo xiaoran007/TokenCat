@@ -15,6 +15,7 @@ let package = Package(
             linkerSettings: [.unsafeFlags(["-L", root.appendingPathComponent("native/target/release").path]),
                              .linkedLibrary("tokencat_core"), .linkedLibrary("sqlite3"),
                              .linkedFramework("Security"), .linkedFramework("SystemConfiguration")]),
-        .testTarget(name: "TokenCatKitTests", dependencies: ["TokenCatKit"])
+        .testTarget(name: "TokenCatKitTests", dependencies: ["TokenCatKit"]),
+        .testTarget(name: "TokenCatAppTests", dependencies: ["TokenCat", "TokenCatKit"])
     ]
 )
