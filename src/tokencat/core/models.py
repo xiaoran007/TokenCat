@@ -11,9 +11,7 @@ PricingSourceName = str
 class ProviderName(str, Enum):
     CODEX = "codex"
     CLAUDE = "claude"
-    GEMINI = "gemini"
     ANTIGRAVITY = "antigravity"
-    COPILOT = "copilot"
     OPENCODE = "opencode"
 
     @property
@@ -22,13 +20,9 @@ class ProviderName(str, Enum):
             return "Codex"
         if self is ProviderName.CLAUDE:
             return "Claude Code"
-        if self is ProviderName.GEMINI:
-            return "Gemini CLI"
         if self is ProviderName.ANTIGRAVITY:
             return "Antigravity"
-        if self is ProviderName.OPENCODE:
-            return "OpenCode"
-        return "GitHub Copilot CLI"
+        return "OpenCode"
 
 
 class ProviderSupportLevel(str, Enum):

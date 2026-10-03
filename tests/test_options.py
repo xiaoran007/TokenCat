@@ -5,10 +5,10 @@ import pytest
 
 import tokencat.cli as shared_cli
 from tokencat.core.models import DashboardUsageGranularity, ProviderName, ScanFilters
-from tokencat_native import dashboard
+from tokencat import dashboard
 
 
-def test_candidate_uses_shared_date_parsing_and_inclusive_end(source_home, monkeypatch):
+def test_cli_uses_shared_date_parsing_and_inclusive_end(source_home, monkeypatch):
     filters = shared_cli.build_filters([ProviderName.CLAUDE], "2026-10-02", "2026-10-02", None, None, False, False)
     queries = []
     original = dashboard.Engine.query
@@ -36,7 +36,7 @@ def test_source_configuration_uses_existing_comma_separated_claude_roots(source_
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", f"{source_home / 'one'}, {source_home / 'two'}")
     config = dashboard.configuration()
     assert config["claude_roots"] == [str(source_home / "one"), str(source_home / "two")]
-    assert config["database_path"] == str(source_home / ".tokencat-candidate/usage.sqlite3")
+    assert config["database_path"] == str(source_home / ".tokencat/usage.sqlite3")
 
 
 def test_native_price_ranges_and_unknowns_are_preserved_in_shared_cost_type():

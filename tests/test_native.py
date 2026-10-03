@@ -4,9 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from tokencat_native.engine import Engine
-from tokencat_native.dashboard import configuration
-from tokencat_native.dashboard import adapt
+from tokencat.engine import Engine
+from tokencat.dashboard import configuration
+from tokencat.dashboard import adapt
 from tokencat.core.models import DashboardUsageGranularity
 from tokencat.core.serialize import serialize_session
 from zoneinfo import ZoneInfo
@@ -81,13 +81,13 @@ def test_context_manager_closes_engine_after_query_error(source_home):
 def test_missing_extension_reports_error_without_python_collector_fallback(monkeypatch, source_home):
     original = importlib.import_module
     def missing(name):
-        if name == "tokencat_native._native":
+        if name == "tokencat._native":
             raise ImportError("test missing extension")
         return original(name)
     monkeypatch.setattr(importlib, "import_module", missing)
-    with pytest.raises(RuntimeError, match="Cannot load the native candidate extension"):
+    with pytest.raises(RuntimeError, match="Cannot load the native extension"):
         Engine(config(source_home))
-    assert not (source_home / ".tokencat-candidate").exists()
+    assert not (source_home / ".tokencat").exists()
 
 
 def test_native_parent_relationships_and_anonymous_export(source_home):
@@ -111,4 +111,4 @@ def test_bad_custom_catalog_is_an_error_instead_of_builtin_fallback(source_home)
     catalog.write_text("{}")
     with pytest.raises(RuntimeError):
         Engine({**config(source_home), "pricing_path": str(catalog)})
-    assert not (source_home / ".tokencat-candidate/usage.sqlite3").exists()
+    assert not (source_home / ".tokencat/usage.sqlite3").exists()

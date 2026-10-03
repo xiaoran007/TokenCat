@@ -9,12 +9,12 @@ from typer.testing import CliRunner
 import tokencat.cli as shared_cli
 from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity
 from tokencat.core import render
-from tokencat_native.cli import app
-from tokencat_native.dashboard import load_dashboard
+from tokencat.cli import app
+from tokencat.dashboard import load_dashboard
 from conftest import PRIVATE_BODY, PRIVATE_ID, claude_row, write_rows
 
 
-def render_candidate(monkeypatch, *, width, theme="dark", flags=()):
+def render_cli(monkeypatch, *, width, theme="dark", flags=()):
     console = Console(file=StringIO(), width=width, height=25, force_terminal=True, color_system="truecolor", record=True)
     monkeypatch.setattr(shared_cli, "console", console)
     result = CliRunner().invoke(app, ["dashboard", "--since", "2026-10-02", "--until", "2026-10-02", "--theme", theme, *flags])
@@ -23,8 +23,8 @@ def render_candidate(monkeypatch, *, width, theme="dark", flags=()):
 
 
 @pytest.mark.parametrize("width", [80, 100, 140])
-def test_candidate_restores_existing_dashboard_layout_and_palette(source_home, monkeypatch, width):
-    text, html = render_candidate(monkeypatch, width=width)
+def test_cli_restores_existing_dashboard_layout_and_palette(source_home, monkeypatch, width):
+    text, html = render_cli(monkeypatch, width=width)
     assert "local usage cockpit" in text and "Top Models" in text
     if width >= 100:
         assert any("Overview" in line and "Top Models" in line for line in text.splitlines()), text
@@ -41,11 +41,11 @@ def test_candidate_restores_existing_dashboard_layout_and_palette(source_home, m
     assert text == (Path(__file__).parent / "golden" / f"dashboard-{width}.txt").read_text()
 
 
-def test_candidate_uses_original_light_and_auto_themes(source_home, monkeypatch):
-    _, light = render_candidate(monkeypatch, width=100, theme="light")
+def test_cli_uses_original_light_and_auto_themes(source_home, monkeypatch):
+    _, light = render_cli(monkeypatch, width=100, theme="light")
     assert "#8b5e00" in light and "#f7f3ea" in light
     monkeypatch.setenv("COLORFGBG", "0;15")
-    _, auto = render_candidate(monkeypatch, width=100, theme="auto")
+    _, auto = render_cli(monkeypatch, width=100, theme="auto")
     assert "#8b5e00" in auto and "#f7f3ea" in auto
 
 
@@ -67,7 +67,7 @@ def test_native_adapter_preserves_cache_writes_reasoning_and_price_ranges(all_so
     output_cells = table.columns[2]._cells
     assert sum(int(str(value)) for value in output_cells) == 220
     assert sum(model.token_totals.cache_write for model in models) == 20_000
-    text, _ = render_candidate(monkeypatch, width=140)
+    text, _ = render_cli(monkeypatch, width=140)
     assert "–" in text and "Cache write" in text
 
 

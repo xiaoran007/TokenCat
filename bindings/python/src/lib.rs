@@ -9,7 +9,7 @@ use tokencat_core::{
 };
 
 /// Each Python client owns its engine; all access is serialized without holding the GIL.
-#[pyclass(name = "Engine", module = "tokencat_native._native")]
+#[pyclass(name = "Engine", module = "tokencat._native")]
 struct PythonEngine {
     engine: Mutex<Option<Engine>>,
 }

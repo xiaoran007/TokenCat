@@ -7,11 +7,11 @@ import json
 class Engine:
     def __init__(self, configuration: dict):
         try:
-            native = importlib.import_module("tokencat_native._native")
+            native = importlib.import_module("tokencat._native")
         except ImportError as exc:
             raise RuntimeError(
-                "Cannot load the native candidate extension. Install tokencat-native "
-                "from a compatible wheel or compile the candidate source with Rust. "
+                "Cannot load the native extension. Install tokencat "
+                "from a compatible wheel or compile the source with Rust. "
                 f"Loader error: {exc}"
             ) from exc
         self._engine = native.Engine(json.dumps(configuration))
@@ -33,3 +33,4 @@ class Engine:
 
     def __exit__(self, *_):
         self.close()
+

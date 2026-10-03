@@ -12,7 +12,7 @@ from tokencat.core.models import (
     SessionRecord, TokenTotals,
 )
 from tokencat.core.time import _local_timezone, local_now, parse_unix_timestamp
-from tokencat_native.engine import Engine
+from tokencat.engine import Engine
 
 SUPPORTED = {ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.OPENCODE, ProviderName.ANTIGRAVITY}
 
@@ -22,7 +22,7 @@ def configuration(home=None):
     claude = os.environ.get("CLAUDE_CONFIG_DIR")
     roots = ([Path(root.strip()).expanduser() for root in claude.split(",") if root.strip()] if claude else
              [Path(os.environ.get("XDG_CONFIG_HOME", str(home / ".config"))).expanduser() / "claude", home / ".claude"])
-    return {"home": str(home), "database_path": str(home / ".tokencat-candidate/usage.sqlite3"),
+    return {"home": str(home), "database_path": str(home / ".tokencat/usage.sqlite3"),
             "pricing_path": None, "codex_root": None, "claude_roots": [str(root) for root in roots],
             "opencode_root": None, "antigravity_roots": []}
 
@@ -124,7 +124,7 @@ def adapt(snapshot, daily_snapshot, zone, granularity, *, pricing_enabled):
 
 def load_dashboard(filters, granularity, *, pricing_enabled):
     if filters.providers and not filters.providers <= SUPPORTED:
-        raise typer.BadParameter("The native candidate supports Codex, Claude Code, OpenCode, and Antigravity only.")
+        raise typer.BadParameter("TokenCat supports Codex, Claude Code, OpenCode, and Antigravity only.")
     zone = _local_timezone()
     if zone is None:
         raise typer.BadParameter("Cannot identify the local time zone; set TZ to an IANA time zone.")
@@ -144,6 +144,6 @@ def load_dashboard(filters, granularity, *, pricing_enabled):
                                     DashboardUsageGranularity.MONTHLY: "month"}[granularity]
             snapshot = daily if granularity is DashboardUsageGranularity.DAILY else engine.query(query)
     except (RuntimeError, ValueError, OSError) as exc:
-        typer.echo(f"Candidate error: {exc}", err=True)
+        typer.echo(f"TokenCat error: {exc}", err=True)
         raise typer.Exit(1) from exc
     return adapt(snapshot, daily, zone, granularity, pricing_enabled=pricing_enabled)

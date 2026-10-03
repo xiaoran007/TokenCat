@@ -25,7 +25,7 @@ references/
 # Native core and macOS app
 native/target/
 macos/.build/
-candidate/rust/target/
-candidate/python/tokencat_native/*.so
-candidate/python/tokencat_native/*.dylib
+bindings/python/target/
+src/tokencat/*.so
+src/tokencat/*.dylib
 macos/.swiftpm/

@@ -8,9 +8,7 @@ from tokencat.core.models import DailyModelUsageRecord, DailyUsageRecord, Provid
 FORMAL_PROVIDER_NAMES = {
     ProviderName.CODEX.value: "Codex",
     ProviderName.CLAUDE.value: "Claude Code",
-    ProviderName.GEMINI.value: "Gemini CLI",
     ProviderName.ANTIGRAVITY.value: "Antigravity",
-    ProviderName.COPILOT.value: "GitHub Copilot CLI",
     ProviderName.OPENCODE.value: "OpenCode",
 }
 

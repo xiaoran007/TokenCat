@@ -531,7 +531,7 @@ dependencies = [
 
 [[package]]
 name = "tokencat-python"
-version = "0.9.0-rc.1"
+version = "0.9.0"
 dependencies = [
  "pyo3",
  "serde_json",

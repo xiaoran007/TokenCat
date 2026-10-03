@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=77", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
 
 [project]
 name = "tokencat"
-version = "0.8.0"
+version = "0.9.0"
 description = "Local-first, read-only AI coding agent token and usage inspector."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,7 +16,7 @@ authors = [
 keywords = [
   "cli",
   "codex",
-  "gemini",
+  "claude",
   "tokens",
   "usage",
   "developer-tools",
@@ -26,6 +26,8 @@ classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
   "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Rust",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -36,7 +38,6 @@ classifiers = [
   "Topic :: Utilities",
 ]
 dependencies = [
-  "questionary>=2.0.0,<3",
   "rich>=14.2.0,<16",
   "typer>=0.12.0,<0.24",
 ]
@@ -47,31 +48,28 @@ Repository = "https://github.com/xiaoran007/TokenCat"
 Issues = "https://github.com/xiaoran007/TokenCat/issues"
 
 [project.optional-dependencies]
-mdns = [
-  "zeroconf>=0.132.0,<1",
-]
 dev = [
   "pytest>=8.0.0,<9",
+  "maturin>=1.15,<2",
 ]
 release = [
-  "setuptools>=77",
-  "wheel",
-  "build>=1.2.2,<2",
+  "maturin>=1.15,<2",
   "twine>=5.1.1,<6",
 ]
 
 [project.scripts]
 tokencat = "tokencat.cli:app"
 
-[tool.setuptools]
-package-dir = { "" = "src" }
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-tokencat = ["pricing/catalog.json"]
+[tool.maturin]
+manifest-path = "bindings/python/Cargo.toml"
+python-source = "src"
+module-name = "tokencat._native"
+bindings = "pyo3"
+include = [
+  { path = "tests/**", format = "sdist" },
+  { path = "docs/**", format = "sdist" },
+  { path = "Makefile", format = "sdist" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
