@@ -52,10 +52,6 @@ dev = [
   "pytest>=8.0.0,<9",
   "maturin>=1.15,<2",
 ]
-release = [
-  "maturin>=1.15,<2",
-  "twine>=5.1.1,<6",
-]
 
 [project.scripts]
 tokencat = "tokencat.cli:app"
@@ -67,6 +63,7 @@ module-name = "tokencat._native"
 bindings = "pyo3"
 include = [
   { path = "tests/**", format = "sdist" },
+  { path = "ci/**", format = "sdist" },
   { path = "docs/**", format = "sdist" },
   { path = "Makefile", format = "sdist" },
 ]
