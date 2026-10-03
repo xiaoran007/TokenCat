@@ -44,6 +44,7 @@ clean:
 	rm -rf build/lib build/bdist.* dist *.egg-info src/*.egg-info
 
 candidate-dev:
+	$(PIP) install --no-build-isolation --no-deps -e .
 	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --no-build-isolation --no-deps --config-settings="build-args=--locked" -e ./candidate
 
 candidate-test:

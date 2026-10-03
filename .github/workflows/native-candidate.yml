@@ -78,7 +78,7 @@ jobs:
       - name: Install built wheel into an isolated virtualenv
         run: |
           "${{ steps.python.outputs.python-path }}" -m venv .venv
-          .venv/bin/python -m pip install candidate/dist/*.whl 'pytest>=8,<9'
+          .venv/bin/python -m pip install . candidate/dist/*.whl 'pytest>=8,<9'
       - name: Test installed candidate
         run: .venv/bin/python -m pytest -q candidate/tests
 
