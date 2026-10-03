@@ -252,7 +252,7 @@ fn missing_categories_stay_unknown_and_zero_or_absent_usage_is_ignored() {
     assert_eq!(events[0].tokens.cache_read, None);
     assert_eq!(events[0].tokens.cache_write, None);
     assert_eq!(events[0].tokens.reasoning, None);
-    assert_eq!(events[0].tokens.output, None);
+    assert_eq!(events[0].tokens.output, Some(20));
     assert_eq!(events[0].tokens.total, Some(150));
     assert!(events[0].incomplete);
 }
@@ -271,7 +271,7 @@ fn partial_usage_without_reported_total_retains_known_output_tokens() {
     f.scan(&mut store);
     let events = store.events().unwrap();
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].tokens.output, None);
+    assert_eq!(events[0].tokens.output, Some(20));
     assert_eq!(events[0].tokens.reasoning, None);
     assert_eq!(events[0].tokens.total, Some(120));
     assert!(events[0].incomplete);
@@ -329,4 +329,43 @@ fn explicit_root_deduplicates_copied_database_and_retains_deleted_usage() {
     f.source.execute("DELETE FROM message", []).unwrap();
     f.scan(&mut store);
     assert_eq!(store.events().unwrap().len(), 1);
+}
+
+#[test]
+fn larger_reported_total_is_preserved_without_fabricating_its_category_split() {
+    let f=Fixture::new();
+    f.session("main",None,1000);
+    let mut tokens=usage(30);
+    tokens["total"]=json!(1000); // Known categories sum to700.
+    f.message("message","main",1100,tokens);
+    let mut store=f.store();
+    f.scan(&mut store);
+    let event=store.events().unwrap().pop().unwrap();
+    assert_eq!(event.tokens.total,Some(1000));
+    assert_eq!(event.tokens.known_total(),700);
+    assert!(event.incomplete);
+    let cost=tokencat_core::pricing::PricingCatalog::load(None).unwrap().price(&event);
+    assert_eq!(cost.total_tokens,1000);
+    assert!(cost.tier_max_extra_units > 0);
+    f.scan(&mut store);
+    assert_eq!(store.events().unwrap().len(),1);
+}
+
+#[test]
+fn missing_message_time_uses_session_bounds_and_is_resolved_without_rebilling() {
+    let f=Fixture::new();
+    f.session("main",None,1000);
+    f.message("message","main",0,usage(30));
+    let mut store=f.store();
+    f.scan(&mut store);
+    let event=store.events().unwrap().pop().unwrap();
+    assert_eq!(event.uncertain_time,Some(TimeBounds{since_ms:Some(1000),until_ms:None}));
+    assert!(store.events_between(0,1000).unwrap().is_empty());
+    assert_eq!(store.events_between(1000,2000).unwrap().len(),1);
+    f.message("message","main",1500,usage(30));
+    f.scan(&mut store);
+    let event=store.events().unwrap().pop().unwrap();
+    assert_eq!(event.uncertain_time,None);
+    assert_eq!(event.timestamp_ms,1500);
+    assert_eq!(store.events().unwrap().len(),1);
 }

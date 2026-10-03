@@ -35,9 +35,11 @@ impl Usage {
                     .transpose()
             })
         }
-        let output = sum(&[self.output, self.reasoning])?;
-        // If the source omitted a category and its total, retain all actually
-        // observed tokens as a lower bound without inventing the missing count.
+        let output = if self.output.is_some() || self.reasoning.is_some() {
+            Some(self.output.unwrap_or(0).checked_add(self.reasoning.unwrap_or(0)).ok_or("token count overflow")?)
+        } else { None };
+        // Retain observed categories and any larger reported total. Missing
+        // categories are not fabricated to make the breakdown match the total.
         let observed = [
             self.input,
             self.output,
@@ -56,8 +58,8 @@ impl Usage {
             cache_write: self.write,
             output,
             reasoning: self.reasoning,
-            total: sum(&[self.input, self.read, self.write, output])?
-                .or(Some(self.total.unwrap_or(observed).max(observed))),
+            total: Some(self.total.unwrap_or(observed)
+                .max(sum(&[self.input, self.read, self.write, output])?.unwrap_or(observed))),
             ..Tokens::default()
         })
     }
@@ -229,19 +231,15 @@ fn event(
     }
     let tokens = usage.tokens()?;
     let incomplete = [
-        tokens.input_uncached,
-        tokens.cache_read,
-        tokens.cache_write,
-        tokens.output,
+        usage.input, usage.read, usage.write, usage.output, usage.reasoning,
     ]
     .iter()
     .any(Option::is_none)
         || usage
             .total
-            .zip(tokens.total)
-            .is_some_and(|(reported, total)| reported != total);
+            .is_some_and(|reported| reported != tokens.known_total());
     Ok(Some(UsageEvent {
-        uncertain_time: None,
+        uncertain_time: (timestamp_ms <= 0).then_some(TimeBounds::default()),
         id,
         provider: Provider::OpenCode,
         session_id: message.session_id.clone(),
@@ -327,14 +325,18 @@ pub fn collect(store: &mut Store, config: &CoreConfig, report: &mut ScanReport) 
             };
             // Fork copies retain original creation times but receive new IDs. They
             // are historical context, not new requests charged to the new session.
-            if message.created_ms < session.created_ms || message.created_ms <= 0 {
+            if message.created_ms > 0 && message.created_ms < session.created_ms {
                 continue;
             }
             let record = |event: CoreResult<Option<UsageEvent>>,
                           events: &mut BTreeMap<String, UsageEvent>,
                           warnings: &mut Vec<String>| {
                 match event {
-                    Ok(Some(event)) => {
+                    Ok(Some(mut event)) => {
+                        if let Some(bounds) = &mut event.uncertain_time {
+                            bounds.since_ms = (session.created_ms > 0).then_some(session.created_ms);
+                        }
+                        event.incomplete |= event.uncertain_time.is_some();
                         events.insert(event.id.clone(), event);
                     }
                     Ok(None) => {}
@@ -387,9 +389,10 @@ pub fn collect(store: &mut Store, config: &CoreConfig, report: &mut ScanReport) 
     let encoded = serde_json::to_vec(&(&sessions, &events)).map_err(|error| error.to_string())?;
     let hash = format!("{:x}", Sha256::digest(encoded));
     let identity = format!("opencode:{}", path.display());
-    if store
-        .load_cursor(&identity)?
-        .is_some_and(|cursor| cursor.head_hash == hash)
+    let previous = store.load_cursor(&identity)?;
+    let reparse = previous.as_ref().is_some_and(|old|
+        old.parser_state.get("analysis_version").and_then(|value|value.as_u64()) != Some(crate::parsers::ANALYSIS_VERSION));
+    if !reparse && previous.is_some_and(|cursor| cursor.head_hash == hash)
     {
         return Ok(());
     }
@@ -400,9 +403,13 @@ pub fn collect(store: &mut Store, config: &CoreConfig, report: &mut ScanReport) 
         length: events.len() as u64,
         modified_ns: report.checked_at_ms.to_string(),
         head_hash: hash,
-        parser_state: json!({"generation": 1}),
+        parser_state: json!({"generation": 1,"analysis_version":crate::parsers::ANALYSIS_VERSION}),
     };
-    store.commit_source(&cursor, &sessions, &events, &[])?;
+    if reparse {
+        store.reparse_source(&cursor, &sessions, &events, &[])?;
+    } else {
+        store.commit_source(&cursor, &sessions, &events, &[])?;
+    }
     report.files_changed += 1;
     report.events_upserted += events.len();
     Ok(())
