@@ -64,7 +64,8 @@ def render_dashboard(console: Console, snapshot: dict, query: dict, *, theme: Th
     brand.append(window + "\n", style="dim")
     brand.append(f"Active harnesses: {active}")
     if show_cost:
-        brand.append(f"\nPrices: {snapshot['catalog_id']} · retrieved {snapshot['catalog_retrieved_at']}", style="dim")
+        sources = ", ".join(snapshot["catalog_sources"])
+        brand.append(f"\nPrices: {sources} · retrieved {snapshot['catalog_retrieved_at']}", style="dim")
     panels = [Panel(brand, border_style=accent)]
 
     hero = Table.grid(padding=(0, 3))
