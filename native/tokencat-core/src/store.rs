@@ -80,6 +80,22 @@ impl Store {
         events: &[UsageEvent],
         states: &[ObservedState],
     ) -> CoreResult<()> {
+        self.commit_usage(cursor, sessions, events, states, false)
+    }
+
+    /// Replace results of an older analyzer atomically; ordinary log rotation
+    /// still retains history. Other sources' associations remain intact.
+    pub fn reparse_source(
+        &self, cursor: &SourceCursor, sessions: &[SessionMetadata],
+        events: &[UsageEvent], states: &[ObservedState],
+    ) -> CoreResult<()> {
+        self.commit_usage(cursor, sessions, events, states, true)
+    }
+
+    fn commit_usage(
+        &self, cursor: &SourceCursor, sessions: &[SessionMetadata],
+        events: &[UsageEvent], states: &[ObservedState], replace: bool,
+    ) -> CoreResult<()> {
         let transaction = self
             .connection
             .unchecked_transaction()
@@ -113,24 +129,51 @@ impl Store {
         for identity in retired {
             retire_source(&transaction, &identity)?;
         }
+        let replaced: Vec<(String, String)> = if replace {
+            let mut statement = transaction.prepare("SELECT provider,event_id FROM source_events WHERE identity=?1")
+                .map_err(|e| e.to_string())?;
+            let rows = statement.query_map([&cursor.identity], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?;
+            let ids = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            transaction.execute("DELETE FROM source_events WHERE identity=?1", [&cursor.identity])
+                .map_err(|e| e.to_string())?;
+            ids
+        } else { Vec::new() };
         for session in sessions {
             transaction.execute("INSERT INTO sessions(provider,id,payload) VALUES(?1,?2,?3) ON CONFLICT(provider,id) DO UPDATE SET payload=excluded.payload", params![session.provider.as_str(), session.id, encoded(session)?]).map_err(|error| error.to_string())?;
         }
         for event in events {
             let mut revised = event.clone();
-            let timestamp: Option<i64> = transaction
+            if revised.uncertain_time.is_some() { revised.timestamp_ms = 0; }
+            let old: Option<String> = transaction
                 .query_row(
-                    "SELECT timestamp_ms FROM events WHERE provider=?1 AND id=?2",
+                    "SELECT payload FROM events WHERE provider=?1 AND id=?2",
                     params![event.provider.as_str(), event.id],
                     |row| row.get(0),
                 )
                 .optional()
                 .map_err(|error| error.to_string())?;
-            if let Some(timestamp) = timestamp {
-                revised.timestamp_ms = timestamp;
+            if let Some(old) = old {
+                let old: UsageEvent = decoded(old)?;
+                if old.uncertain_time.is_none() {
+                    revised.timestamp_ms = old.timestamp_ms;
+                    revised.uncertain_time = None;
+                }
+                if old.tokens.upper_key() > revised.tokens.upper_key() {
+                    revised.tokens = old.tokens;
+                    revised.model = old.model.or(revised.model);
+                    revised.model_provider = old.model_provider.or(revised.model_provider);
+                    revised.incomplete = true;
+                }
+                revised.revision_ms = Some(old.revision_ms.unwrap_or(old.timestamp_ms)
+                    .max(event.revision_ms.unwrap_or(event.timestamp_ms)));
             }
-            transaction.execute("INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET revision_ms=excluded.revision_ms,payload=excluded.payload WHERE excluded.revision_ms>=events.revision_ms", params![revised.provider.as_str(), revised.id, revised.timestamp_ms, event.revision_ms.unwrap_or(event.timestamp_ms), encoded(&revised)?]).map_err(|error| error.to_string())?;
+            transaction.execute("INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET timestamp_ms=excluded.timestamp_ms,revision_ms=excluded.revision_ms,payload=excluded.payload", params![revised.provider.as_str(), revised.id, revised.timestamp_ms, revised.revision_ms.unwrap_or(revised.timestamp_ms), encoded(&revised)?]).map_err(|error| error.to_string())?;
             transaction.execute("INSERT OR IGNORE INTO source_events(identity,provider,event_id) VALUES(?1,?2,?3)", params![cursor.identity, event.provider.as_str(), event.id]).map_err(|error| error.to_string())?;
+        }
+        for (provider, id) in replaced {
+            transaction.execute("DELETE FROM events WHERE provider=?1 AND id=?2 AND NOT EXISTS(SELECT 1 FROM source_events WHERE provider=?1 AND event_id=?2)", params![provider,id])
+                .map_err(|e| e.to_string())?;
         }
         for state in states {
             transaction.execute("INSERT INTO states(provider,session_id,kind,timestamp_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,session_id,kind) DO UPDATE SET timestamp_ms=excluded.timestamp_ms,payload=excluded.payload WHERE excluded.timestamp_ms>=states.timestamp_ms", params![state.provider.as_str(), state.session_id, state.kind, state.timestamp_ms, encoded(state)?]).map_err(|error| error.to_string())?;
@@ -163,16 +206,22 @@ impl Store {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             ).optional().map_err(|e| e.to_string())?;
             if let Some((timestamp, revision, payload)) = row {
-                earliest = Some(earliest.map_or(timestamp, |old| old.min(timestamp)));
                 let event: UsageEvent = decoded(payload)?;
-                if best.as_ref().is_none_or(|(old_revision, _)| revision > *old_revision) {
+                if event.uncertain_time.is_none() {
+                    earliest = Some(earliest.map_or(timestamp, |old| old.min(timestamp)));
+                }
+                if best.as_ref().is_none_or(|(old_revision, old)|
+                    (event.tokens.upper_key(), revision) > (old.tokens.upper_key(), *old_revision)) {
                     best = Some((revision, event));
                 }
             }
         }
         if let Some((revision, mut event)) = best {
             event.id = canonical.into();
-            event.timestamp_ms = earliest.expect("a stored event has a timestamp");
+            if let Some(timestamp) = earliest {
+                event.timestamp_ms = timestamp;
+                event.uncertain_time = None;
+            }
             transaction.execute(
                 "INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET timestamp_ms=excluded.timestamp_ms,revision_ms=excluded.revision_ms,payload=excluded.payload",
                 params![provider.as_str(), canonical, event.timestamp_ms, revision, encoded(&event)?],
@@ -207,7 +256,14 @@ impl Store {
         self.records("SELECT payload FROM events ORDER BY timestamp_ms,provider,id")
     }
     pub fn events_between(&self, since: i64, until: i64) -> CoreResult<Vec<UsageEvent>> {
-        let mut statement = self.connection.prepare("SELECT payload FROM events WHERE timestamp_ms>=?1 AND timestamp_ms<?2 ORDER BY timestamp_ms,provider,id").map_err(|error| error.to_string())?;
+        let mut statement = self.connection.prepare("SELECT payload FROM (
+            SELECT payload,timestamp_ms,provider,id FROM events WHERE
+            (json_extract(payload,'$.uncertain_time') IS NULL AND timestamp_ms>=?1 AND timestamp_ms<?2)
+            UNION ALL SELECT payload,timestamp_ms,provider,id FROM events WHERE timestamp_ms=0
+                AND (json_extract(payload,'$.uncertain_time') IS NOT NULL
+                AND (json_extract(payload,'$.uncertain_time.since_ms') IS NULL OR json_extract(payload,'$.uncertain_time.since_ms')<?2)
+                AND (json_extract(payload,'$.uncertain_time.until_ms') IS NULL OR json_extract(payload,'$.uncertain_time.until_ms')>?1))
+            ) ORDER BY timestamp_ms,provider,id").map_err(|error| error.to_string())?;
         let rows = statement
             .query_map(params![since, until], |row| row.get::<_, String>(0))
             .map_err(|error| error.to_string())?;

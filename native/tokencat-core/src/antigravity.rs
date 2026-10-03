@@ -1045,6 +1045,7 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
         let events = records
             .iter()
             .map(|record| UsageEvent {
+                uncertain_time: None,
                 id: record.id.clone(),
                 provider: Provider::Antigravity,
                 session_id: record.session.clone(),

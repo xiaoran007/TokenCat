@@ -46,6 +46,7 @@ fn cursor(identity: &str, generation: u64) -> SourceCursor {
 }
 fn event(id: &str, session: &str, timestamp: i64) -> UsageEvent {
     UsageEvent {
+        uncertain_time: None,
         id: id.into(),
         provider: Provider::Claude,
         session_id: session.into(),
@@ -837,4 +838,65 @@ fn newest_state_wins_independent_of_source_scan_order() {
         .commit_source(&cursor("old", 0), &[], &[], &[state])
         .unwrap();
     assert_eq!(store.states().unwrap()[0].data["used_percent"], 10);
+}
+
+#[test]
+fn uncertain_dates_contribute_once_to_filtered_upper_totals_but_never_to_buckets() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let mut unknown = event("unknown-date", "task", 0);
+    unknown.uncertain_time = Some(TimeBounds { since_ms: Some(1000), until_ms: Some(3000) });
+    unknown.incomplete = true;
+    store.commit_source(&cursor("first", 0), &[], &[unknown.clone()], &[]).unwrap();
+    store.commit_source(&cursor("copy", 0), &[], &[unknown.clone()], &[]).unwrap();
+    let mut request = query(1000, 2000, "UTC");
+    request.include_details = true;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.summary.cost.total_tokens, 8100);
+    assert_eq!(dashboard.summary.event_count, 1);
+    assert_eq!(dashboard.summary.latest_event_ms, None);
+    assert_eq!(dashboard.models[0].summary.cost.total_tokens, 8100);
+    assert_eq!(dashboard.sessions[0].summary.cost.total_tokens, 8100);
+    assert!(dashboard.timeline.iter().all(|bucket| bucket.summary.event_count == 0));
+    assert!(dashboard.last_scan.unwrap().warnings[0].contains("included once"));
+    assert_eq!(query_dashboard(&store, &legacy_catalog(), &query(3000,4000,"UTC")).unwrap().summary.event_count, 0);
+    request.providers = Some(vec![Provider::Codex]);
+    assert_eq!(query_dashboard(&store, &legacy_catalog(), &request).unwrap().summary.event_count, 0);
+    unknown.timestamp_ms = 1500;
+    unknown.uncertain_time = None;
+    store.commit_source(&cursor("first",0), &[], &[unknown], &[]).unwrap();
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &query(1000,2000,"UTC")).unwrap();
+    assert_eq!(dashboard.summary.event_count, 1);
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.summary.event_count).sum::<usize>(),1);
+}
+
+#[test]
+fn smaller_or_older_revisions_keep_the_higher_coherent_observation() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let original = event("response", "task", 1000);
+    store.commit_source(&cursor("first",0), &[], &[original.clone()], &[]).unwrap();
+    let mut smaller = original.clone();
+    smaller.timestamp_ms = 2000;
+    smaller.tokens = Tokens { input_uncached: Some(100), output: Some(1), total: Some(101), ..Tokens::default() };
+    store.commit_source(&cursor("first",0), &[], &[smaller], &[]).unwrap();
+    let stored = store.events().unwrap().pop().unwrap();
+    assert_eq!(stored.tokens, original.tokens);
+    assert_eq!(stored.timestamp_ms,1000);
+    assert!(stored.incomplete);
+}
+
+#[test]
+fn analyzer_replay_replaces_old_ids_atomically_and_keeps_unavailable_sources() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    store.commit_source(&cursor("first",0), &[], &[event("old","task",1)], &[]).unwrap();
+    store.commit_source(&cursor("deleted-source",0), &[], &[event("retained","other",1)], &[]).unwrap();
+    Connection::open(scratch.db()).unwrap().execute_batch("CREATE TRIGGER reject_replay BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'interrupted replay'); END;").unwrap();
+    assert!(store.reparse_source(&cursor("first",0), &[], &[event("new","task",1)], &[]).is_err());
+    assert!(store.events().unwrap().iter().any(|event| event.id=="old"));
+    Connection::open(scratch.db()).unwrap().execute_batch("DROP TRIGGER reject_replay").unwrap();
+    store.reparse_source(&cursor("first",0), &[], &[event("new","task",1)], &[]).unwrap();
+    let ids=store.events().unwrap().into_iter().map(|event|event.id).collect::<Vec<_>>();
+    assert_eq!(ids,vec!["new","retained"]);
 }

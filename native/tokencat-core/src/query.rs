@@ -41,11 +41,11 @@ impl Aggregate {
             .saturating_add(event.tokens.reasoning.unwrap_or(0));
         summary.event_count += 1;
         summary.incomplete_events += usize::from(event.incomplete);
-        summary.latest_event_ms = Some(
+        if event.uncertain_time.is_none() { summary.latest_event_ms = Some(
             summary
                 .latest_event_ms
                 .map_or(event.timestamp_ms, |time| time.max(event.timestamp_ms)),
-        );
+        ); }
         summary.cost.total_tokens = summary.cost.total_tokens.saturating_add(cost.total_tokens);
         summary.cost.priced_tokens = summary
             .cost
@@ -177,6 +177,8 @@ pub fn query_dashboard(
     let mut project_labels = BTreeMap::new();
     let mut session_labels = BTreeMap::new();
     let mut session_providers = BTreeMap::new();
+    let mut uncertain_count = 0;
+    let mut uncertain_tokens = 0_u64;
     for event in store.events_between(query.since_ms, query.until_ms)? {
         if query
             .providers
@@ -186,6 +188,10 @@ pub fn query_dashboard(
             continue;
         }
         let cost = catalog.price(&event);
+        if event.uncertain_time.is_some() {
+            uncertain_count += 1;
+            uncertain_tokens = uncertain_tokens.saturating_add(cost.total_tokens);
+        }
         summary.add(&event, &cost);
         providers
             .entry(event.provider)
@@ -208,13 +214,17 @@ pub fn query_dashboard(
         projects.entry(project_id).or_default().add(&event, &cost);
         session_labels.insert(key.clone(), anonymous("session", &key));
         session_providers.insert(key.clone(), event.provider);
-        let timestamp = bucket_start(event.timestamp_ms, timezone, granularity)?;
-        timeline.entry(timestamp).or_default().add(&event, &cost);
-        if query.include_details {
+        if event.uncertain_time.is_none() {
+          let timestamp = bucket_start(event.timestamp_ms, timezone, granularity)?;
+          timeline.entry(timestamp).or_default().add(&event, &cost);
+          if query.include_details {
             bucket_details
                 .entry(timestamp)
                 .or_default()
                 .add(&event, &cost, &key);
+          }
+        }
+        if query.include_details {
             *session_models
                 .entry(key.clone())
                 .or_default()
@@ -296,6 +306,11 @@ pub fn query_dashboard(
             .cmp(&a.summary.latest_event_ms)
             .then_with(|| a.id.cmp(&b.id))
     });
+    let mut last_scan = store.last_scan()?;
+    if uncertain_count > 0 {
+        let report = last_scan.get_or_insert_with(ScanReport::default);
+        report.warnings.push(format!("{uncertain_count} events ({uncertain_tokens} tokens) have uncertain dates: included once in this window's upper estimate, excluded from the timeline."));
+    }
     Ok(Dashboard {
         schema_version: 1,
         summary: summary.finish(),
@@ -329,7 +344,7 @@ pub fn query_dashboard(
         catalog_id: catalog.id.clone(),
         catalog_retrieved_at: catalog.retrieved_at.clone(),
         catalog_sources: catalog.sources.clone(),
-        last_scan: store.last_scan()?,
+        last_scan,
     })
 }
 

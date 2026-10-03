@@ -322,6 +322,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
             "unknown"
         };
         batch.events.push(UsageEvent {
+            uncertain_time: None,
             id: format!("response:{id}"),
             provider: Provider::Codex,
             session_id: session,
@@ -439,6 +440,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
     let tokens = raw.tokens()?;
     let event_id = digest(&(session.clone(), time, c.epoch, model.clone(), &raw));
     batch.events.push(UsageEvent {
+        uncertain_time: None,
         id: format!("legacy:{event_id}"),
         provider: Provider::Codex,
         session_id: session,
@@ -611,6 +613,7 @@ fn parse_claude(
         total,
     };
     batch.events.push(UsageEvent {
+        uncertain_time: None,
         id: format!("message:{session}:{id}"),
         provider: Provider::Claude,
         session_id: session,

@@ -241,6 +241,7 @@ fn event(
             .zip(tokens.total)
             .is_some_and(|(reported, total)| reported != total);
     Ok(Some(UsageEvent {
+        uncertain_time: None,
         id,
         provider: Provider::OpenCode,
         session_id: message.session_id.clone(),

@@ -46,12 +46,41 @@ pub struct Tokens {
     pub total: Option<u64>,
 }
 
+impl Tokens {
+    pub fn known_total(&self) -> u64 {
+        self.input_uncached.unwrap_or(0)
+            .saturating_add(self.cache_read.unwrap_or(0))
+            .saturating_add(self.cache_write.unwrap_or_else(|| {
+                self.cache_write_5m.unwrap_or(0).saturating_add(self.cache_write_1h.unwrap_or(0))
+            }))
+            .saturating_add(self.output.unwrap_or(0))
+    }
+
+    /// Compare complete observations, never splice conflicting category maxima.
+    pub fn upper_key(&self) -> (u64, usize) {
+        (self.total.unwrap_or(0).max(self.known_total()),
+         [self.input_uncached, self.cache_read, self.cache_write, self.output,
+          self.reasoning, self.cache_write_5m, self.cache_write_1h]
+            .iter().filter(|value| value.is_some()).count())
+    }
+}
+
+/// Possible occurrence interval [since_ms, until_ms); absent bounds are unknown.
+/// This is ledger metadata, not a fabricated occurrence date.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimeBounds {
+    pub since_ms: Option<i64>,
+    pub until_ms: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageEvent {
     pub id: String,
     pub provider: Provider,
     pub session_id: String,
     pub timestamp_ms: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uncertain_time: Option<TimeBounds>,
     pub model: Option<String>,
     #[serde(default)]
     pub revision_ms: Option<i64>,
