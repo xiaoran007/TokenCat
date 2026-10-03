@@ -22,6 +22,8 @@ TokenCat shows how many tokens your AI coding tools use and estimates their API-
 | Gemini CLI | — | Yes |
 | GitHub Copilot Chat/Agent and CLI | — | Yes |
 
+This table describes version 0.8.0. CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The next CLI migration focuses on the local dashboard for Codex, Claude Code, OpenCode, and Antigravity; other commands are deferred, and remote workflows will be redesigned separately.
+
 The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer. Windows is not supported. Multi-machine aggregation is available in the CLI.
 
 ## macOS app

@@ -1,6 +1,21 @@
 # Native architecture and decisions
 
-TokenCat has two independent interfaces: the SwiftUI macOS app uses a Rust core through a C ABI, while the Python CLI retains its own collectors and pricing workflow. Native support covers Codex, Claude Code, OpenCode, and Antigravity. CLI support additionally covers Gemini CLI and GitHub Copilot. Shared CLI/core integration is outside the current implementation.
+In version 0.8.0, the SwiftUI macOS app uses a Rust core through a C ABI, while the Python CLI retains its own collectors and pricing workflow. Native support covers Codex, Claude Code, OpenCode, and Antigravity. The 0.8.0 CLI additionally supports Gemini CLI and GitHub Copilot.
+
+## CLI migration scope
+
+The target architecture is one Rust business core with SwiftUI and CLI interfaces. Python remains the CLI entry point and handles arguments, terminal presentation, and binding lifecycle; collection, filtering, aggregation, and pricing belong to Rust. This integration is planned, not yet implemented.
+
+CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The initial migration targets only the local dashboard (`tokencat` and `tokencat dashboard`). Other CLI commands are deferred. Remote functionality will be developed separately with a new interaction and execution model; preserving the current remote protocol and command behavior is outside this migration.
+
+The existing native `Dashboard` provides token and cost totals, model rankings, per-session summaries, catalog metadata, and scan warnings. Supporting the current terminal dashboard requires these additions or presentation decisions:
+
+- Add harness filtering and explicit calendar granularity to `Query`; current timeline selection is automatic hourly/daily and does not support weekly/monthly buckets. Filtering must happen before all aggregates are calculated.
+- Add model/harness breakdowns and session counts to timeline buckets; current buckets contain only a timestamp and summary. Define whether weekly/monthly session counts mean distinct sessions or summed daily activity before implementing them.
+- Recent-session rows already contain anonymous labels, harnesses, usage, costs, and activity times. Keeping the model column requires additional session model information. The old Python attribution classification has no direct native equivalent.
+- Native harness rows indicate usage within the query window, not source detection status. Preserving the current source-status indicators requires per-harness scan diagnostics; otherwise the interface must label them as active harnesses.
+
+Presentation must follow native semantics: reasoning is already included in output, cache reads and writes are separate, and uncertain prices retain their minimum/maximum range. Session counts must exclude structural ancestor rows with no own events, and model counts must distinguish unidentified models. Pricing coverage can use native priced/total tokens; legacy fallback and attribution metrics should not be inferred from unrelated fields. Python must not rebuild a second aggregation or pricing pipeline to fill these gaps.
 
 ## Privacy and collection
 
