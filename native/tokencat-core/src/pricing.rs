@@ -378,13 +378,9 @@ impl PricingCatalog {
 
     pub fn price(&self, event: &UsageEvent) -> EventCost {
         let tokens = &event.tokens;
-        let known_total = tokens
-            .input_uncached
-            .unwrap_or(0)
-            .saturating_add(tokens.cache_read.unwrap_or(0))
-            .saturating_add(cache_write_total(tokens))
-            .saturating_add(tokens.output.unwrap_or(0));
+        let known_total = tokens.known_total();
         let total = tokens.total.unwrap_or(known_total).max(known_total);
+        let unallocated = total.saturating_sub(known_total);
         let missing = || EventCost {
             total_tokens: total,
             unpriced: true,
@@ -414,7 +410,7 @@ impl PricingCatalog {
             };
         }
         let ambiguous = !price.tiers.is_empty()
-            && (!input_known
+            && (!input_known || unallocated > 0
                 || price
                     .tiers
                     .iter()
@@ -452,6 +448,18 @@ impl PricingCatalog {
             price_rates(tokens, rates)
         };
         cost.total_tokens = total;
+        // A reported total can outlive its category breakdown. Preserve that
+        // total and price its unallocated portion at the highest applicable
+        // model rate for the upper estimate, without inventing token categories.
+        if unallocated > 0 {
+            let rate = std::iter::once(&price.rates).chain(price.tiers.iter().map(|tier| &tier.rates))
+                .flat_map(|rates| [rates.input, rates.cache_read, rates.cache_write_5m,
+                    rates.cache_write_1h, rates.output, rates.reasoning])
+                .flatten().max_by(f64::total_cmp);
+            if let Some(rate) = rate {
+                cost.tier_max_extra_units += charge(unallocated, rate);
+            }
+        }
         cost.uncertain |=
             event.incomplete || !input_known || tokens.output.is_none() || known_total != total;
         cost.unpriced = cost.priced_tokens < total || !input_known || tokens.output.is_none();

@@ -11,6 +11,7 @@ fn rates(provider: &str, input: f64) -> Value {
 }
 fn event(model: &str, provider: Option<&str>) -> UsageEvent {
     UsageEvent {
+        uncertain_time: None,
         id: "event".into(),
         provider: Provider::OpenCode,
         session_id: "task".into(),
@@ -347,4 +348,22 @@ fn bedrock_anthropic_default_write_does_not_fabricate_one_hour_price() {
     assert!(cost.unpriced);
     assert_eq!(cost.priced_tokens, cost.total_tokens - 100);
     assert_eq!(cost.write_min_units, 0);
+}
+
+#[test]
+fn reported_total_without_categories_gets_an_upper_cost_without_invented_buckets() {
+    let prices = catalog(json!({"gpt-example":rates("openai",0.000002)}));
+    let mut sample = event("gpt-example",Some("openai"));
+    sample.tokens = Tokens { total: Some(1000), ..Tokens::default() };
+    let cost = prices.price(&sample);
+    assert_eq!(cost.total_tokens,1000);
+    assert_eq!(cost.priced_tokens,0);
+    assert_eq!(cost.input_units,0);
+    assert_eq!(cost.output_units,0);
+    // Highest model rate is output at $10/million; no fabricated input/output counts.
+    assert_eq!(cost.tier_max_extra_units,10_000_000_000_000);
+    assert!(cost.uncertain && cost.unpriced);
+    let mut unknown = sample;
+    unknown.model=Some("unidentified-model".into());
+    assert_eq!(prices.price(&unknown).tier_max_extra_units,0);
 }
