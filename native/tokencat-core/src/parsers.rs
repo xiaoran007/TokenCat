@@ -112,24 +112,15 @@ impl RawTokens {
     fn tokens(&self) -> CoreResult<Tokens> {
         let cache = self.cached_input_tokens;
         let write = self.cache_write_input_tokens;
-        if let (Some(input), Some(cache)) = (self.input_tokens, cache) {
-            if cache > input {
-                return Err("cached input exceeds input".into());
-            }
-        }
-        if let (Some(output), Some(reasoning)) = (self.output_tokens, self.reasoning_output_tokens)
-        {
-            if reasoning > output {
-                return Err("reasoning exceeds output".into());
-            }
-        }
         // Codex cache writes are separately reported; input includes read/write categories.
         let cached_total = cache
             .unwrap_or(0)
             .checked_add(write.unwrap_or(0))
             .ok_or("token count overflow")?;
-        let uncached = self
-            .input_tokens
+        let input = self.input_tokens.map(|input|input.max(cached_total));
+        let output = self.output_tokens.map(|output|output.max(self.reasoning_output_tokens.unwrap_or(0)))
+            .or(self.reasoning_output_tokens);
+        let uncached = input
             .zip(cache)
             .zip(write)
             .map(|((input, _), _)| input)
@@ -138,9 +129,8 @@ impl RawTokens {
                     .ok_or_else(|| "cached input exceeds input".to_string())
             })
             .transpose()?;
-        let calculated_total = self
-            .input_tokens
-            .zip(self.output_tokens)
+        let calculated_total = input
+            .zip(output)
             .map(|(a, b)| {
                 a.checked_add(b)
                     .ok_or_else(|| "token count overflow".to_string())
@@ -150,9 +140,12 @@ impl RawTokens {
             input_uncached: uncached,
             cache_read: cache,
             cache_write: self.cache_write_input_tokens,
-            output: self.output_tokens,
+            output,
             reasoning: self.reasoning_output_tokens,
-            total: self.total_tokens.or(calculated_total),
+            total: match (self.total_tokens,calculated_total) {
+                (Some(reported),Some(calculated)) => Some(reported.max(calculated)),
+                (reported,calculated) => reported.or(calculated),
+            },
             ..Default::default()
         })
     }
@@ -162,10 +155,20 @@ impl RawTokens {
             self.cached_input_tokens,
             self.cache_write_input_tokens,
             self.output_tokens,
+            self.reasoning_output_tokens,
             self.total_tokens,
         ]
         .iter()
         .any(|v| v.unwrap_or(0) > 0)
+    }
+    fn incomplete(&self) -> bool {
+        self.input_tokens.is_none() || self.cached_input_tokens.is_none()
+            || self.cache_write_input_tokens.is_none() || self.output_tokens.is_none()
+            || self.input_tokens.is_some_and(|input|
+                self.cached_input_tokens.unwrap_or(0).saturating_add(self.cache_write_input_tokens.unwrap_or(0)) > input)
+            || self.output_tokens.zip(self.reasoning_output_tokens).is_some_and(|(output,reasoning)|reasoning>output)
+            || self.total_tokens.zip(self.input_tokens.zip(self.output_tokens))
+                .is_some_and(|(total,(input,output))|total!=input.saturating_add(output))
     }
 }
 
@@ -349,7 +352,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
             model_provider: c.model_provider.clone().or_else(|| Some("openai".into())),
             revision_ms: None,
             attribution: attribution.into(),
-            incomplete: time.is_none() || tokens.input_uncached.is_none() || tokens.output.is_none(),
+            incomplete: time.is_none() || raw.incomplete(),
             tokens,
         });
         return Ok(());
@@ -384,14 +387,16 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
     let mut incomplete_baseline = false;
     let raw = if let Some(ref total) = total {
         match &c.previous {
-            Some(prior) if total == prior => None,
+            Some(prior) if total == prior || (total.total_tokens.is_some()
+                && total.total_tokens == prior.total_tokens
+                && total.input_tokens == prior.input_tokens && total.output_tokens == prior.output_tokens) => None,
             Some(prior) if total.reset_from(prior) => {
                 c.epoch += 1;
                 incomplete_baseline = true;
                 batch
                     .warnings
                     .push("Codex cumulative usage baseline reset; prior ledger retained".into());
-                last.clone()
+                Some(total.difference(prior).upper_candidate(last.as_ref())?)
             }
             Some(prior) => {
                 let delta = total.difference(prior);
@@ -481,8 +486,10 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
     };
     let tokens = raw.tokens()?;
     c.usage_sequence += 1;
-    let event_id = digest(&(session.clone(), time, c.epoch, model.clone(), &raw,
-        time.is_none().then_some(c.usage_sequence)));
+    let event_id = match time {
+        Some(time) => digest(&(session.clone(), time, c.epoch, model.clone(), &raw)),
+        None => digest(&(session.clone(), c.epoch, model.clone(), &raw, c.usage_sequence)),
+    };
     batch.events.push(UsageEvent {
         uncertain_time: time.is_none().then_some(TimeBounds::default()),
         id: p.response_id.map(|id| format!("response:{id}")).unwrap_or_else(|| format!("legacy:{event_id}")),
@@ -494,8 +501,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         revision_ms: None,
         attribution: attribution.into(),
         incomplete: time.is_none() || incomplete_baseline
-            || tokens.input_uncached.is_none()
-            || tokens.output.is_none(),
+            || raw.incomplete(),
         tokens,
     });
     Ok(())

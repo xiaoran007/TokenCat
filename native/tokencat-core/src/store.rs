@@ -72,6 +72,12 @@ impl Store {
         payload.map(decoded).transpose()
     }
 
+    pub fn outdated_source_at(&self, path: &str, version: u64) -> CoreResult<bool> {
+        self.connection.query_row("SELECT EXISTS(SELECT 1 FROM cursors WHERE path=?1
+            AND coalesce(json_extract(payload,'$.parser_state.analysis_version'),0)<>?2)",
+            params![path,version], |row|row.get(0)).map_err(|e|e.to_string())
+    }
+
     /// Usage, parser state and offset become durable in one transaction.
     pub fn commit_source(
         &self,
@@ -84,7 +90,8 @@ impl Store {
     }
 
     /// Replace results of an older analyzer atomically; ordinary log rotation
-    /// still retains history. Other sources' associations remain intact.
+    /// still retains history. Shared obsolete IDs represent copies of the same
+    /// superseded result; retire those too, even when a copy is unavailable.
     pub fn reparse_source(
         &self, cursor: &SourceCursor, sessions: &[SessionMetadata],
         events: &[UsageEvent], states: &[ObservedState],
@@ -126,19 +133,22 @@ impl Store {
             rows.collect::<Result<Vec<_>, _>>()
                 .map_err(|error| error.to_string())?
         };
+        let replaced: Vec<(String, String)> = if replace {
+            let mut ids=Vec::new();
+            for identity in std::iter::once(&cursor.identity).chain(retired.iter()) {
+                let mut statement = transaction.prepare("SELECT provider,event_id FROM source_events WHERE identity=?1")
+                    .map_err(|e| e.to_string())?;
+                let rows = statement.query_map([identity], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?;
+                ids.extend(rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?);
+                transaction.execute("DELETE FROM source_events WHERE identity=?1", [identity])
+                    .map_err(|e| e.to_string())?;
+            }
+            ids
+        } else { Vec::new() };
         for identity in retired {
             retire_source(&transaction, &identity)?;
         }
-        let replaced: Vec<(String, String)> = if replace {
-            let mut statement = transaction.prepare("SELECT provider,event_id FROM source_events WHERE identity=?1")
-                .map_err(|e| e.to_string())?;
-            let rows = statement.query_map([&cursor.identity], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|e| e.to_string())?;
-            let ids = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-            transaction.execute("DELETE FROM source_events WHERE identity=?1", [&cursor.identity])
-                .map_err(|e| e.to_string())?;
-            ids
-        } else { Vec::new() };
         for session in sessions {
             transaction.execute("INSERT INTO sessions(provider,id,payload) VALUES(?1,?2,?3) ON CONFLICT(provider,id) DO UPDATE SET payload=excluded.payload", params![session.provider.as_str(), session.id, encoded(session)?]).map_err(|error| error.to_string())?;
         }
@@ -155,6 +165,8 @@ impl Store {
                 .map_err(|error| error.to_string())?;
             if let Some(old) = old {
                 let old: UsageEvent = decoded(old)?;
+                revised.model = revised.model.or(old.model.clone());
+                revised.model_provider = revised.model_provider.or(old.model_provider.clone());
                 if old.uncertain_time.is_none() {
                     revised.timestamp_ms = old.timestamp_ms;
                     revised.uncertain_time = None;
@@ -172,8 +184,12 @@ impl Store {
             transaction.execute("INSERT OR IGNORE INTO source_events(identity,provider,event_id) VALUES(?1,?2,?3)", params![cursor.identity, event.provider.as_str(), event.id]).map_err(|error| error.to_string())?;
         }
         for (provider, id) in replaced {
-            transaction.execute("DELETE FROM events WHERE provider=?1 AND id=?2 AND NOT EXISTS(SELECT 1 FROM source_events WHERE provider=?1 AND event_id=?2)", params![provider,id])
-                .map_err(|e| e.to_string())?;
+            if !events.iter().any(|event| event.provider.as_str()==provider && event.id==id) {
+                transaction.execute("DELETE FROM source_events WHERE provider=?1 AND event_id=?2", params![provider,id])
+                    .map_err(|e|e.to_string())?;
+                transaction.execute("DELETE FROM events WHERE provider=?1 AND id=?2", params![provider,id])
+                    .map_err(|e|e.to_string())?;
+            }
         }
         for state in states {
             transaction.execute("INSERT INTO states(provider,session_id,kind,timestamp_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,session_id,kind) DO UPDATE SET timestamp_ms=excluded.timestamp_ms,payload=excluded.payload WHERE excluded.timestamp_ms>=states.timestamp_ms", params![state.provider.as_str(), state.session_id, state.kind, state.timestamp_ms, encoded(state)?]).map_err(|error| error.to_string())?;

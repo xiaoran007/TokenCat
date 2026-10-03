@@ -891,6 +891,7 @@ fn analyzer_replay_replaces_old_ids_atomically_and_keeps_unavailable_sources() {
     let scratch = Scratch::new();
     let store = Store::open(&scratch.db()).unwrap();
     store.commit_source(&cursor("first",0), &[], &[event("old","task",1)], &[]).unwrap();
+    store.commit_source(&cursor("unavailable-copy",0), &[], &[event("old","task",1)], &[]).unwrap();
     store.commit_source(&cursor("deleted-source",0), &[], &[event("retained","other",1)], &[]).unwrap();
     Connection::open(scratch.db()).unwrap().execute_batch("CREATE TRIGGER reject_replay BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'interrupted replay'); END;").unwrap();
     assert!(store.reparse_source(&cursor("first",0), &[], &[event("new","task",1)], &[]).is_err());

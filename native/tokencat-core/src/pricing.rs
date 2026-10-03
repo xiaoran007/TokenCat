@@ -461,7 +461,7 @@ impl PricingCatalog {
             }
         }
         cost.uncertain |=
-            event.incomplete || !input_known || tokens.output.is_none() || known_total != total;
+            event.incomplete || event.uncertain_time.is_some() || !input_known || tokens.output.is_none() || known_total != total;
         cost.unpriced = cost.priced_tokens < total || !input_known || tokens.output.is_none();
         cost.pricing_match = Some(PricingMatch {
             model: event.model.clone().unwrap(),

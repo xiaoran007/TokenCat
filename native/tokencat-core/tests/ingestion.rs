@@ -789,3 +789,74 @@ fn analyzer_upgrade_replays_unchanged_jsonl_once_and_replaces_old_event_ids() {
     assert_ne!(store.events().unwrap()[0].id,"old-algorithm");
     assert_eq!(collect(&mut store,&f.config).unwrap().files_changed,0);
 }
+
+#[test]
+fn analyzer_upgrade_replaces_old_results_even_if_file_inode_changed() {
+    let f=Fixture::new();
+    let rows=[meta("one"),context(),count(100,20,100)];
+    let path=f.write(".codex/sessions/one.jsonl",&rows);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let db=rusqlite::Connection::open(&f.config.database_path).unwrap();
+    db.execute("UPDATE cursors SET payload=json_remove(payload,'$.parser_state.analysis_version') WHERE identity LIKE 'codex:%'",[]).unwrap();
+    db.execute("UPDATE source_events SET event_id='old-algorithm' WHERE provider='codex'",[]).unwrap();
+    db.execute("UPDATE events SET id='old-algorithm',payload=json_set(payload,'$.id','old-algorithm') WHERE provider='codex'",[]).unwrap();
+    drop(db);
+    fs::rename(&path,path.with_extension("retired")).unwrap();
+    f.write(".codex/sessions/one.jsonl",&rows);
+    collect(&mut store,&f.config).unwrap();
+    assert_eq!(store.events().unwrap().len(),1);
+    assert_ne!(store.events().unwrap()[0].id,"old-algorithm");
+}
+
+#[test]
+fn category_reset_does_not_discard_a_larger_positive_total_delta() {
+    let f=Fixture::new();
+    let mut first=count(100,20,100);
+    first["payload"]["info"]["total_token_usage"]["cached_input_tokens"]=json!(90);
+    first["payload"]["info"]["last_token_usage"]["cached_input_tokens"]=json!(90);
+    let mut next=count(200,40,50);
+    next["timestamp"]=json!("2026-10-02T10:02:00Z");
+    next["payload"]["info"]["total_token_usage"]["cached_input_tokens"]=json!(80);
+    next["payload"]["info"]["last_token_usage"]=raw(50,10);
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),first,next]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let events=store.events().unwrap();
+    assert_eq!(events.len(),2);
+    assert_eq!(events.iter().map(|event|event.tokens.upper_key().0).sum::<u64>(),240);
+    assert!(events[1].incomplete);
+}
+
+#[test]
+fn contradictory_codex_subsets_are_normalized_upward_and_marked_uncertain() {
+    let f=Fixture::new();
+    let record=json!({"type":"token_usage_record","timestamp":"2026-10-02T10:01:00Z",
+        "payload":{"thread_id":"one","response_id":"response","usage":{
+            "input_tokens":100,"cached_input_tokens":300,"output_tokens":20,
+            "reasoning_output_tokens":30,"total_tokens":120}}});
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),record]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let event=store.events().unwrap().pop().unwrap();
+    assert_eq!(event.tokens.input_uncached,Some(0));
+    assert_eq!(event.tokens.cache_read,Some(300));
+    assert_eq!(event.tokens.output,Some(30));
+    assert_eq!(event.tokens.reasoning,Some(30));
+    assert_eq!(event.tokens.total,Some(330));
+    assert!(event.incomplete);
+}
+
+#[test]
+fn cache_breakdown_reclassification_with_unchanged_consumption_is_not_a_new_request() {
+    let f=Fixture::new();
+    let first=count(100,20,100);
+    let mut updated=first.clone();
+    updated["timestamp"]=json!("2026-10-02T10:02:00Z");
+    updated["payload"]["info"]["total_token_usage"]["cached_input_tokens"]=json!(60);
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),first,updated]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    assert_eq!(store.events().unwrap().len(),1);
+    assert_eq!(store.events().unwrap()[0].tokens.total,Some(120));
+}

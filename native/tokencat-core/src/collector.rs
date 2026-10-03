@@ -141,8 +141,7 @@ fn collect_source(
     }
     report.files_discovered += 1;
     let previous = store.load_cursor(&identity)?;
-    let reparse = previous.as_ref().is_some_and(|old|
-        old.parser_state.get("analysis_version").and_then(|value| value.as_u64()) != Some(ANALYSIS_VERSION));
+    let reparse = store.outdated_source_at(&path.to_string_lossy(), ANALYSIS_VERSION)?;
     // Existing Codex cursors predate model-service attribution. Replay once to
     // read the allowlisted session metadata and revise stable ledger event IDs.
     let refresh_model_provider = provider == Provider::Codex
