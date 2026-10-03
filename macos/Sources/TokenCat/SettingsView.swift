@@ -67,6 +67,17 @@ struct SettingsView: View {
                         .overlay(RoundedRectangle(cornerRadius: 5).stroke(.quaternary))
                     Text(s.text("settings.claudeExplanation")).font(.caption).foregroundStyle(.secondary)
                 }
+                HStack {
+                    TextField(s.text("settings.opencodeRoot"), text: $settings.opencodeRoot,
+                              prompt: Text("~/.local/share/opencode"))
+                    Button(s.text("action.choose")) { chooseDirectory { settings.opencodeRoot = $0 } }
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(s.text("settings.antigravityRoots")).font(.subheadline)
+                    TextEditor(text: $settings.antigravityRoots).font(.system(.caption, design: .monospaced)).frame(height: 48)
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(.quaternary))
+                    Text(s.text("settings.antigravityExplanation")).font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section(s.text("settings.privacy")) {
                 Toggle(s.text("settings.showProjects"), isOn: $settings.showPaths)
@@ -81,10 +92,39 @@ struct SettingsView: View {
     private var pricing: some View {
         let s = settings.strings
         return Form {
+            Section("LiteLLM") {
+                Toggle(s.text("settings.autoUpdateCatalog"), isOn: $settings.autoUpdateCatalog)
+                    .disabled(!settings.pricingPath.isEmpty)
+                Picker(s.text("settings.catalogInterval"), selection: $settings.catalogUpdateHours) {
+                    ForEach([6, 24, 168], id: \.self) { Text(s.format("settings.catalogHours", $0)).tag($0) }
+                }.disabled(!settings.autoUpdateCatalog || !settings.pricingPath.isEmpty)
+                HStack {
+                    Button(s.text("settings.refreshCatalog")) {
+                        Task { await model.catalogUpdater.refresh() }
+                    }.disabled(model.catalogUpdater.state.updating || !settings.pricingPath.isEmpty)
+                    if model.catalogUpdater.state.updating { ProgressView().controlSize(.small) }
+                    Spacer()
+                    if let checked = model.catalogUpdater.state.checkedAt {
+                        Text(s.format("status.checked", s.relative(checked))).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if let retrieved = model.catalogUpdater.state.retrievedAt {
+                    LabeledContent(s.text("settings.catalogDownloaded"), value: retrieved.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                }
+                if let error = model.catalogUpdater.state.error {
+                    DisclosureGroup(s.text("settings.catalogUpdateFailed")) {
+                        Text(error).font(.caption).textSelection(.enabled)
+                    }.font(.caption)
+                }
+                Text(s.text("settings.catalogPolicy")).font(.caption).foregroundStyle(.secondary)
+            }
             Section(s.text("cost.catalog")) {
                 Text(s.text("settings.catalogExplanation")).font(.subheadline).foregroundStyle(.secondary)
                 HStack {
-                    Text(settings.pricingPath.isEmpty ? s.text("settings.bundled") : settings.pricingPath).font(.caption).lineLimit(2).textSelection(.enabled)
+                    Text(settings.pricingPath.isEmpty
+                         ? s.text(model.catalogUpdater.state.hasCache ? "settings.cachedCatalog" : "settings.bundled")
+                         : settings.pricingPath).font(.caption).lineLimit(2).textSelection(.enabled)
                     Spacer()
                     Button(s.text("action.choose")) {
                         let panel = NSOpenPanel()

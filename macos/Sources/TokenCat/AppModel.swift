@@ -27,6 +27,16 @@ final class AppSettings: ObservableObject {
         defaults.set(claudeRoots, forKey: "claudeRoots")
         if oldValue != claudeRoots { snapshotSettingsDidChange.send() }
     } }
+    @Published var opencodeRoot: String { didSet {
+        defaults.set(opencodeRoot, forKey: "opencodeRoot")
+        if oldValue != opencodeRoot { snapshotSettingsDidChange.send() }
+    } }
+    @Published var antigravityRoots: String { didSet {
+        defaults.set(antigravityRoots, forKey: "antigravityRoots")
+        if oldValue != antigravityRoots { snapshotSettingsDidChange.send() }
+    } }
+    @Published var autoUpdateCatalog: Bool { didSet { defaults.set(autoUpdateCatalog, forKey: "autoUpdateCatalog") } }
+    @Published var catalogUpdateHours: Int { didSet { defaults.set(catalogUpdateHours, forKey: "catalogUpdateHours") } }
     @Published var pricingPath: String { didSet {
         defaults.set(pricingPath, forKey: "pricingPath")
         if oldValue != pricingPath { snapshotSettingsDidChange.send() }
@@ -43,6 +53,7 @@ final class AppSettings: ObservableObject {
         self.defaults = defaults
         defaults.register(defaults: ["language": "system", "appearance": "system", "showMenuCost": true,
                                      "showPaths": false, "home": NSHomeDirectory(), "codexRoot": "", "claudeRoots": "", "pricingPath": "",
+                                     "opencodeRoot": "", "antigravityRoots": "", "autoUpdateCatalog": true, "catalogUpdateHours": 24,
                                      "refreshSeconds": 2, "timezone": ""])
         language = AppLanguage(rawValue: defaults.string(forKey: "language")!) ?? .system
         appearance = defaults.string(forKey: "appearance")!
@@ -51,6 +62,10 @@ final class AppSettings: ObservableObject {
         home = defaults.string(forKey: "home")!
         codexRoot = defaults.string(forKey: "codexRoot")!
         claudeRoots = defaults.string(forKey: "claudeRoots")!
+        opencodeRoot = defaults.string(forKey: "opencodeRoot")!
+        antigravityRoots = defaults.string(forKey: "antigravityRoots")!
+        autoUpdateCatalog = defaults.bool(forKey: "autoUpdateCatalog")
+        catalogUpdateHours = defaults.integer(forKey: "catalogUpdateHours")
         pricingPath = defaults.string(forKey: "pricingPath")!
         refreshSeconds = defaults.integer(forKey: "refreshSeconds")
         timezone = defaults.string(forKey: "timezone")!
@@ -66,7 +81,10 @@ final class AppSettings: ObservableObject {
         CoreConfiguration(home: (home as NSString).expandingTildeInPath, databasePath: databaseURL.path,
                           codexRoot: codexRoot.isEmpty ? nil : (codexRoot as NSString).expandingTildeInPath,
                           claudeRoots: claudeRoots.split(whereSeparator: \.isNewline).map { (String($0).trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath }.filter { !$0.isEmpty },
-                          pricingPath: pricingPath.isEmpty ? nil : pricingPath)
+                          pricingPath: pricingPath.isEmpty ? nil : pricingPath,
+                          opencodeRoot: opencodeRoot.isEmpty ? nil : (opencodeRoot as NSString).expandingTildeInPath,
+                          antigravityRoots: antigravityRoots.split(whereSeparator: \.isNewline)
+                            .map { (String($0).trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath }.filter { !$0.isEmpty })
     }
     var validHome: Bool {
         var isDirectory: ObjCBool = false
@@ -84,6 +102,7 @@ final class AppSettings: ObservableObject {
 @MainActor
 final class AppModel: ObservableObject {
     let settings: AppSettings
+    let catalogUpdater: CatalogUpdater
     @Published private(set) var today: Dashboard?
     @Published private(set) var dashboard: Dashboard?
     @Published private(set) var refreshing = false
@@ -97,13 +116,26 @@ final class AppModel: ObservableObject {
     @Published var selectedTaskId: String?
     private let worker: any UsageLoading
     private var pollTask: Task<Void, Never>?
+    private var catalogTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var observers: [NSObjectProtocol] = []
     private var refreshPending = false
 
-    init(settings: AppSettings, worker: any UsageLoading = CoreWorker()) {
+    init(settings: AppSettings, worker: any UsageLoading = CoreWorker(), catalogUpdater: CatalogUpdater? = nil) {
         self.settings = settings
         self.worker = worker
+        self.catalogUpdater = catalogUpdater ?? CatalogUpdater(directory: settings.databaseURL.deletingLastPathComponent().appendingPathComponent("pricing"))
+        self.catalogUpdater.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        self.catalogUpdater.$state.map(\.revision).removeDuplicates().dropFirst()
+            .sink { [weak self] _ in
+                guard let self, self.settings.pricingPath.isEmpty else { return }
+                // @Published delivers before mutation; defer until the new path
+                // and revision are visible to snapshotContext.
+                Task { @MainActor [weak self] in
+                    self?.invalidateSnapshots()
+                    self?.requestRefresh()
+                }
+            }.store(in: &cancellables)
         settings.snapshotSettingsDidChange.sink { [weak self] in self?.invalidateSnapshots() }.store(in: &cancellables)
         settings.snapshotSettingsDidChange.debounce(for: .milliseconds(400), scheduler: RunLoop.main)
             .sink { [weak self] in self?.requestRefresh() }.store(in: &cancellables)
@@ -121,6 +153,12 @@ final class AppModel: ObservableObject {
 
     func start() {
         guard pollTask == nil else { return }
+        catalogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.checkCatalogUpdate()
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+            }
+        }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -142,8 +180,19 @@ final class AppModel: ObservableObject {
     }
     private var snapshotContext: SnapshotContext? {
         guard let timezone = settings.timeZone else { return nil }
-        return SnapshotContext(configuration: settings.coreConfiguration, window: window,
+        let configured = settings.coreConfiguration
+        let useDownloaded = settings.pricingPath.isEmpty
+        let configuration = CoreConfiguration(home: configured.home, databasePath: configured.databasePath,
+            codexRoot: configured.codexRoot, claudeRoots: configured.claudeRoots,
+            pricingPath: useDownloaded ? catalogUpdater.activeURL?.path : configured.pricingPath,
+            pricingRevision: useDownloaded ? catalogUpdater.state.revision : nil,
+            opencodeRoot: configured.opencodeRoot, antigravityRoots: configured.antigravityRoots)
+        return SnapshotContext(configuration: configuration, window: window,
                                timeZone: timezone, showPaths: settings.showPaths)
+    }
+    func checkCatalogUpdate() async {
+        guard settings.autoUpdateCatalog, settings.pricingPath.isEmpty else { return }
+        await catalogUpdater.refreshIfDue(interval: TimeInterval(max(1, settings.catalogUpdateHours)) * 3600)
     }
     func refresh() async {
         guard !refreshing else { return }
@@ -181,6 +230,7 @@ final class AppModel: ObservableObject {
     }
     deinit {
         pollTask?.cancel()
+        catalogTask?.cancel()
         for observer in observers {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             NotificationCenter.default.removeObserver(observer)
