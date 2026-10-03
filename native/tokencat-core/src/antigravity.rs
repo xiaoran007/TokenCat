@@ -233,17 +233,12 @@ fn usage(fields: &Fields) -> CoreResult<Option<(Tokens, Option<String>, bool)>> 
     // Proto3 omits zero-valued counters. Once a usage message has counters, their
     // missing numeric siblings are zero; absence of the usage message is unknown.
     let input = input.unwrap_or(0);
-    let output = match output {
-        Some(value) => value,
-        None if thinking.is_some() || response.is_some() => thinking
+    let split_output = if thinking.is_some() || response.is_some() { Some(thinking
             .unwrap_or(0)
             .checked_add(response.unwrap_or(0))
-            .ok_or("usage overflow")?,
-        None => 0,
-    };
-    let incomplete = thinking.is_some_and(|v| v > output)
-        || (thinking.is_some() || response.is_some())
-            && thinking.unwrap_or(0).checked_add(response.unwrap_or(0)) != Some(output);
+            .ok_or("usage overflow")?) } else { None };
+    let incomplete = output.zip(split_output).is_some_and(|(total, split)| total != split);
+    let output = output.unwrap_or(0).max(split_output.unwrap_or(0));
     let total = input
         .checked_add(cache_read)
         .and_then(|v| v.checked_add(cache_write))
@@ -263,7 +258,7 @@ fn usage(fields: &Fields) -> CoreResult<Option<(Tokens, Option<String>, bool)>> 
             cache_write_5m: if cache_write == 0 { Some(0) } else { None },
             cache_write_1h: if cache_write == 0 { Some(0) } else { None },
             output: Some(output),
-            reasoning: if incomplete { None } else { thinking },
+            reasoning: thinking,
             total: Some(total),
         },
         provider,
@@ -301,13 +296,14 @@ fn read_step(
     session: &str,
     index: i64,
     length: usize,
+    retries: &mut Vec<Record>,
+    warnings: &mut Vec<String>,
 ) -> CoreResult<Option<Record>> {
     let reader = MetadataReader::new(connection, "steps", "metadata", index, length)?;
     let fields = reader.fields(0..length)?;
     let counters = reader.sub(&fields, 9)?;
-    let Some((tokens, provider, incomplete)) = usage(&counters)? else {
-        return Ok(None);
-    };
+    let observed = usage(&counters)?;
+    let (tokens, provider, incomplete) = observed.clone().unwrap_or((Tokens::default(),None,true));
     let request = request_id(&reader, &counters)?;
     let timestamp = reader
         .timestamp(&fields, 32)?
@@ -323,7 +319,7 @@ fn read_step(
     .max();
     let model_info = reader.sub(&fields, 24)?;
     let id = stable_id(session, &request, &format!("step:{index}"));
-    Ok(Some(Record {
+    let record = Record {
         aliases: vec![
             id.clone(),
             stable_id(session, &None, &format!("step:{index}")),
@@ -337,7 +333,40 @@ fn read_step(
         tokens,
         incomplete,
         request_id: request,
-    }))
+    };
+    retries.extend(read_retries(&reader, &fields, 28, &record, &format!("step:{index}"), warnings));
+    Ok(observed.map(|_|record))
+}
+
+// RetryInfo.usage=2; ChatModelMetadata.retry_infos=17 and step.retry_infos=28.
+// Only inspect the nested allowlisted usage; retry bodies/errors stay unread.
+fn read_retries(reader: &MetadataReader<'_>, fields: &Fields, field: u32,
+    parent: &Record, position: &str, warnings: &mut Vec<String>) -> Vec<Record> {
+    let mut records = Vec::new();
+    for (index, value) in fields.get(&field).into_iter().flatten().enumerate() {
+        let parsed = (|| -> CoreResult<Option<Record>> {
+        let Field::Bytes(range) = value else { return Err("invalid retry metadata".into()) };
+        let retry = reader.fields(range.clone())?;
+        let counters = reader.sub(&retry, 2)?;
+        let Some((tokens, provider, incomplete)) = usage(&counters)? else { return Ok(None) };
+        let request = request_id(reader, &counters)?;
+        let position = format!("{position}:retry:{index}");
+        let id = stable_id(&parent.session, &request, &position);
+        Ok(Some(Record {
+            aliases: vec![id.clone(), stable_id(&parent.session,&None,&position)],
+            id, session:parent.session.clone(), timestamp:parent.timestamp,
+            revision:parent.revision, model:parent.model.clone(),
+            model_provider:provider.or(parent.model_provider.clone()),
+            tokens, incomplete:incomplete || request.is_none(), request_id:request,
+        }))
+        })();
+        match parsed {
+            Ok(Some(record)) => records.push(record),
+            Ok(None) => (),
+            Err(_) => warnings.push("Antigravity: one retry has unsupported usage metadata".into()),
+        }
+    }
+    records
 }
 fn read_generation(
     connection: &Connection,
@@ -345,14 +374,15 @@ fn read_generation(
     index: i64,
     length: usize,
     steps: &BTreeMap<i64, Record>,
+    retries: &mut Vec<Record>,
+    warnings: &mut Vec<String>,
 ) -> CoreResult<Option<(Record, Vec<i64>)>> {
     let reader = MetadataReader::new(connection, "gen_metadata", "data", index, length)?;
     let fields = reader.fields(0..length)?;
     let chat = reader.sub(&fields, 1)?;
     let counters = reader.sub(&chat, 4)?;
-    let Some((mut tokens, mut provider, mut incomplete)) = usage(&counters)? else {
-        return Ok(None);
-    };
+    let observed = usage(&counters)?;
+    let (mut tokens, mut provider, mut incomplete) = observed.unwrap_or((Tokens::default(),None,true));
     let request = request_id(&reader, &counters)?;
     let indices = reader.indices(&fields)?;
     let linked = indices
@@ -374,7 +404,7 @@ fn read_generation(
         .max();
     let request = request.or_else(|| linked.iter().find_map(|(_, step)| step.request_id.clone()));
     for (_, step) in &linked {
-        if step.tokens.total > tokens.total {
+        if step.tokens.upper_key() > tokens.upper_key() {
             tokens = step.tokens.clone();
             incomplete = step.incomplete;
         }
@@ -405,8 +435,7 @@ fn read_generation(
             .map(|idx| stable_id(session, &None, &format!("step:{idx}"))),
     );
     aliases.extend(linked.iter().flat_map(|(_, step)| step.aliases.clone()));
-    Ok(Some((
-        Record {
+    let record = Record {
             id,
             aliases,
             session: session.into(),
@@ -417,9 +446,10 @@ fn read_generation(
             tokens,
             incomplete,
             request_id: request,
-        },
-        linked.into_iter().map(|(idx, _)| idx).collect(),
-    )))
+        };
+    retries.extend(read_retries(&reader,&chat,17,&record,&format!("generation:{index}"),warnings));
+    Ok((record.tokens.upper_key().0 > 0).then_some((record,
+        linked.into_iter().map(|(idx, _)| idx).collect())))
 }
 #[derive(Clone, Serialize)]
 struct DatabaseUsage {
@@ -601,9 +631,10 @@ fn read_database(connection: &Connection, path: &Path, report: &mut ScanReport) 
         });
     }
     let mut steps = BTreeMap::new();
+    let mut result = Vec::new();
     if has_table(&transaction, "steps")? {
         for (index, length) in rows(&transaction, "steps", "metadata")? {
-            match read_step(&transaction, session, index, length) {
+            match read_step(&transaction, session, index, length, &mut result, &mut report.warnings) {
                 Ok(Some(step)) => {
                     steps.insert(index, step);
                 }
@@ -614,10 +645,9 @@ fn read_database(connection: &Connection, path: &Path, report: &mut ScanReport) 
             }
         }
     }
-    let mut result = Vec::new();
     let mut consumed = BTreeSet::new();
     for (index, length) in rows(&transaction, "gen_metadata", "data")? {
-        match read_generation(&transaction, session, index, length, &steps) {
+        match read_generation(&transaction, session, index, length, &steps, &mut result, &mut report.warnings) {
             Ok(Some((record, linked))) => {
                 result.push(record);
                 consumed.extend(linked);
@@ -820,12 +850,12 @@ fn discover(roots: &[PathBuf], report: &mut ScanReport) -> Vec<PathBuf> {
     }
     paths.into_iter().collect()
 }
-fn preference(record: &Record) -> (Option<i64>, u64, bool, bool) {
+fn preference(record: &Record) -> ((u64, usize), bool, Option<i64>, bool) {
     (
-        record.revision,
-        record.tokens.total.unwrap_or(0),
-        record.model.is_some(),
+        record.tokens.upper_key(),
         !record.incomplete,
+        record.revision,
+        record.model.is_some(),
     )
 }
 
@@ -967,6 +997,8 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
         let fingerprint = digest(serde_json::to_vec(&data).map_err(|e| e.to_string())?);
         let identity = format!("antigravity:{}", digest(path.to_string_lossy().as_bytes()));
         let previous = store.load_cursor(&identity)?;
+        let reparse = previous.as_ref().is_some_and(|old|
+            old.parser_state.get("analysis_version").and_then(|value|value.as_u64()) != Some(crate::parsers::ANALYSIS_VERSION));
         let ids = data
             .records
             .iter()
@@ -985,7 +1017,7 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
             })
             .or_insert(session);
         pending.extend(data.records);
-        if previous
+        if !reparse && previous
             .as_ref()
             .is_some_and(|old| old.head_hash == fingerprint)
         {
@@ -999,9 +1031,10 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
                 length: ids.len() as u64,
                 modified_ns: String::new(),
                 head_hash: fingerprint,
-                parser_state: json!({"schema":1}),
+                parser_state: json!({"schema":1,"analysis_version":crate::parsers::ANALYSIS_VERSION}),
             },
             ids,
+            reparse,
         ));
     }
     let identities = reconcile_identities(store, &mut pending)?;
@@ -1009,6 +1042,10 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
     for mut record in pending {
         match records.get_mut(&record.id) {
             Some(existing) => {
+                let timestamp = match (existing.timestamp,record.timestamp) {
+                    (Some(a),Some(b)) => Some(a.min(b)),
+                    (a,b) => a.or(b),
+                };
                 if preference(&record) > preference(existing) {
                     record.model = record.model.or(existing.model.clone());
                     record.model_provider =
@@ -1019,20 +1056,18 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
                     existing.model_provider =
                         existing.model_provider.clone().or(record.model_provider);
                 }
+                existing.timestamp = timestamp;
             }
             None => {
                 records.insert(record.id.clone(), record);
             }
         }
     }
-    for record in records.values().filter(|record| record.timestamp.is_none()) {
-        report.undated_events += 1;
-        report.undated_tokens = report
-            .undated_tokens
-            .saturating_add(record.tokens.total.unwrap_or(0));
+    if records.values().any(|record| record.timestamp.is_none()) {
+        report.warnings.push("Antigravity: uncertain-date usage retained in upper estimates.".into());
     }
     let mut upserted = BTreeSet::new();
-    for (cursor, ids) in cursors {
+    for (cursor, ids, reparse) in cursors {
         let ids = ids
             .into_iter()
             .filter_map(|id| identities.get(&id).cloned())
@@ -1040,16 +1075,15 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
         let records = ids
             .iter()
             .filter_map(|id| records.get(id))
-            .filter(|record| record.timestamp.is_some())
             .collect::<Vec<_>>();
         let events = records
             .iter()
             .map(|record| UsageEvent {
-                uncertain_time: None,
+                uncertain_time: record.timestamp.is_none().then_some(TimeBounds::default()),
                 id: record.id.clone(),
                 provider: Provider::Antigravity,
                 session_id: record.session.clone(),
-                timestamp_ms: record.timestamp.unwrap(),
+                timestamp_ms: record.timestamp.unwrap_or(0),
                 revision_ms: record.revision,
                 model: record.model.clone(),
                 model_provider: record.model_provider.clone(),
@@ -1060,7 +1094,7 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
                 }
                 .into(),
                 tokens: record.tokens.clone(),
-                incomplete: record.incomplete,
+                incomplete: record.incomplete || record.timestamp.is_none(),
             })
             .collect::<Vec<_>>();
         let sessions = records
@@ -1070,7 +1104,11 @@ fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, rep
             .into_iter()
             .filter_map(|id| session_metadata.get(&id).cloned())
             .collect::<Vec<_>>();
-        store.commit_source(&cursor, &sessions, &events, &[])?;
+        if reparse {
+            store.reparse_source(&cursor, &sessions, &events, &[])?;
+        } else {
+            store.commit_source(&cursor, &sessions, &events, &[])?;
+        }
         report.files_changed += 1;
         upserted.extend(events.into_iter().map(|event| event.id));
     }

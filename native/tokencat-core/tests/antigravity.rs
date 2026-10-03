@@ -284,9 +284,11 @@ fn undated_requests_are_reported_without_being_assigned_to_mtime_or_today() {
     );
     for _ in 0..2 {
         let report = f.scan(&mut store);
-        assert_eq!(report.undated_events, 1);
-        assert_eq!(report.undated_tokens, 370);
-        assert!(store.events().unwrap().is_empty());
+        assert_eq!(report.undated_events, 0); // Retained, rather than excluded usage.
+        assert_eq!(report.undated_tokens, 0);
+        assert_eq!(store.events().unwrap().len(), 1);
+        assert!(store.events().unwrap()[0].uncertain_time.is_some());
+        assert!(report.warnings.iter().any(|warning|warning.contains("upper estimates")));
     }
     insert_step(&db, 8, &step(&usage, Some(TIME), None, None));
     let report = f.scan(&mut store);
@@ -561,8 +563,9 @@ fn contradictory_output_breakdown_is_marked_incomplete() {
     f.scan(&mut store);
     let event = store.events().unwrap().pop().unwrap();
     assert!(event.incomplete);
-    assert_eq!(event.tokens.reasoning, None);
-    assert_eq!(event.tokens.output, Some(20));
+    assert_eq!(event.tokens.reasoning, Some(30));
+    assert_eq!(event.tokens.output, Some(40));
+    assert_eq!(event.tokens.total, Some(140));
 }
 fn has_secret(path: &Path) -> bool {
     fs::read(path).is_ok_and(|bytes| bytes.windows(7).any(|window| window == b"PRIVATE"))
@@ -674,4 +677,61 @@ fn multiple_workspaces_and_remote_uris_do_not_get_an_arbitrary_project() {
     );
     f.scan(&mut store);
     assert!(store.sessions().unwrap()[0].project_path.is_none());
+}
+
+fn generation_with_retries(main: Option<&[u8]>, retries: &[Vec<u8>]) -> Vec<u8> {
+    let mut chat=vec![bytes(19,b"gemini-2.5-pro"),bytes(9,&timestamp(4,TIME))];
+    if let Some(main)=main { chat.push(bytes(4,main)); }
+    for retry in retries { chat.push(bytes(17,&bytes(2,retry))); }
+    bytes(1,&chat.concat())
+}
+
+#[test]
+fn retries_are_independent_requests_and_generation_step_copies_deduplicate() {
+    let f=Fixture::new();
+    let db=f.source("antigravity","one");
+    let main=counters(Some("main-request"),100,500,40);
+    let retry=counters(Some("retry-request"),50,200,20);
+    insert_gen(&db,0,&generation_with_retries(Some(&main),&[retry.clone(),main.clone()]));
+    let step_data=[step(&main,Some(TIME),Some(TIME+10),Some("gemini-2.5-pro")),
+        bytes(28,&bytes(2,&retry))].concat();
+    insert_step(&db,0,&step_data);
+    let mut store=f.store();
+    f.scan(&mut store);
+    assert_eq!(store.events().unwrap().len(),2);
+    assert_eq!(store.events().unwrap().iter().map(|event|event.tokens.upper_key().0).sum::<u64>(),910);
+    assert!(!serde_json::to_string(&store.events().unwrap()).unwrap().contains("PRIVATE"));
+    assert_eq!(f.scan(&mut store).files_changed,0);
+    insert_gen(&db,1,&generation_with_retries(None,&[counters(Some("retry-only"),20,0,10)]));
+    f.scan(&mut store);
+    assert_eq!(store.events().unwrap().len(),3);
+}
+
+#[test]
+fn smaller_later_snapshot_cannot_reduce_antigravity_usage() {
+    let f=Fixture::new();
+    let db=f.source("antigravity","one");
+    let mut store=f.store();
+    insert_step(&db,0,&step(&counters(Some("request"),100,500,40),Some(TIME),Some(TIME+10),Some("gemini-2.5-pro")));
+    f.scan(&mut store);
+    insert_step(&db,0,&step(&counters(Some("request"),10,50,4),Some(TIME),Some(TIME+20),Some("gemini-2.5-pro")));
+    f.scan(&mut store);
+    assert_eq!(store.events().unwrap().len(),1);
+    assert_eq!(store.events().unwrap()[0].tokens.total,Some(640));
+}
+
+#[test]
+fn malformed_retry_does_not_discard_valid_main_or_other_retries() {
+    let f=Fixture::new();
+    let db=f.source("antigravity","one");
+    let main=counters(Some("main"),100,0,20);
+    let retry=counters(Some("retry"),50,0,10);
+    // Cache read has invalid wire type; no body or raw error text is returned.
+    let bad=bytes(5,b"PRIVATE MALFORMED COUNTER");
+    insert_gen(&db,0,&generation_with_retries(Some(&main),&[bad,retry]));
+    let mut store=f.store();
+    let report=f.scan(&mut store);
+    assert_eq!(store.events().unwrap().len(),2);
+    assert!(report.warnings.iter().any(|warning|warning.contains("retry")));
+    assert!(!report.warnings.join(" ").contains("PRIVATE"));
 }
