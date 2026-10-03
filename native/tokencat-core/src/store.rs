@@ -154,7 +154,11 @@ impl Store {
         }
         for event in events {
             let mut revised = event.clone();
-            if revised.uncertain_time.is_some() { revised.timestamp_ms = 0; }
+            if let Some(bounds) = &mut revised.uncertain_time {
+                revised.timestamp_ms = 0;
+                // Observation is an upper time bound, never the occurrence date.
+                bounds.until_ms.get_or_insert_with(|| chrono::Utc::now().timestamp_millis().saturating_add(1));
+            }
             let old: Option<String> = transaction
                 .query_row(
                     "SELECT payload FROM events WHERE provider=?1 AND id=?2",
@@ -170,6 +174,9 @@ impl Store {
                 if old.uncertain_time.is_none() {
                     revised.timestamp_ms = old.timestamp_ms;
                     revised.uncertain_time = None;
+                } else if let (Some(old),Some(next)) = (old.uncertain_time.as_ref(),revised.uncertain_time.as_mut()) {
+                    next.since_ms = old.since_ms.into_iter().chain(next.since_ms).max();
+                    next.until_ms = old.until_ms.into_iter().chain(next.until_ms).min();
                 }
                 if old.tokens.upper_key() > revised.tokens.upper_key() {
                     revised.tokens = old.tokens;

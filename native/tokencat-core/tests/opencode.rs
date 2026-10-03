@@ -359,7 +359,9 @@ fn missing_message_time_uses_session_bounds_and_is_resolved_without_rebilling() 
     let mut store=f.store();
     f.scan(&mut store);
     let event=store.events().unwrap().pop().unwrap();
-    assert_eq!(event.uncertain_time,Some(TimeBounds{since_ms:Some(1000),until_ms:None}));
+    let bounds=event.uncertain_time.unwrap();
+    assert_eq!(bounds.since_ms,Some(1000));
+    assert!(bounds.until_ms.unwrap()>1500);
     assert!(store.events_between(0,1000).unwrap().is_empty());
     assert_eq!(store.events_between(1000,2000).unwrap().len(),1);
     f.message("message","main",1500,usage(30));

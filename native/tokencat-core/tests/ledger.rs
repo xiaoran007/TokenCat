@@ -901,3 +901,16 @@ fn analyzer_replay_replaces_old_ids_atomically_and_keeps_unavailable_sources() {
     let ids=store.events().unwrap().into_iter().map(|event|event.id).collect::<Vec<_>>();
     assert_eq!(ids,vec!["new","retained"]);
 }
+
+#[test]
+fn first_observation_bounds_unknown_dates_and_does_not_move_on_copied_replay() {
+    let scratch=Scratch::new();
+    let store=Store::open(&scratch.db()).unwrap();
+    let mut unknown=event("unknown","task",0);
+    unknown.uncertain_time=Some(TimeBounds::default());
+    store.commit_source(&cursor("first",0),&[],&[unknown.clone()],&[]).unwrap();
+    let bound=store.events().unwrap()[0].uncertain_time.as_ref().unwrap().until_ms.unwrap();
+    store.commit_source(&cursor("copy",0),&[],&[unknown],&[]).unwrap();
+    assert_eq!(store.events().unwrap()[0].uncertain_time.as_ref().unwrap().until_ms,Some(bound));
+    assert_eq!(store.events_between(bound,bound+1000).unwrap().len(),0);
+}
