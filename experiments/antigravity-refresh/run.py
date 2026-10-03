@@ -1,11 +1,13 @@
 """Run isolated, offline Rust experiments; never overwrite the app's core/library."""
 import argparse
+import io
 import json
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+import tarfile
 
 
 HERE = Path(__file__).resolve().parent
@@ -106,8 +108,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--workspace", type=Path, help="Reuse an earlier isolated compilation cache")
-    parser.add_argument("--variants", nargs="+", choices=("baseline", "blob", "cached", "bounded"),
-                        default=("baseline", "blob", "cached", "bounded"))
+    parser.add_argument("--baseline-ref", default="8f41381", help="Git revision of the original collector")
+    parser.add_argument("--variants", nargs="+", choices=("baseline", "blob", "cached", "bounded", "production"),
+                        default=("baseline", "blob", "cached", "bounded", "production"))
     parser.add_argument("--resume", action="store_true", help="Load existing results before running selected variants")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -115,20 +118,30 @@ def main():
     assert not workspace.resolve().is_relative_to(ROOT), "Workspace must be outside the repository"
     print(f"Isolated workspace: {workspace}", flush=True)
     (args.output / "workspace.txt").write_text(str(workspace) + "\n")
-    fixture = (ROOT / "native/tokencat-core/tests/antigravity.rs").read_text().split("#[test]", 1)[0]
-    fixture = fixture.replace('bytes(1, b"PRIVATE PROMPT SENTINEL")', 'bytes(1, &vec![b\'P\'; PAYLOAD.load(Ordering::Relaxed) as usize])')
     results = json.loads((args.output / "results.json").read_text()) if args.resume else {}
+    baseline_archive = subprocess.check_output(["git", "archive", args.baseline_ref, "native"], cwd=ROOT)
     for variant in args.variants:
         destination = workspace / variant
         shutil.copytree(ROOT / "native", destination, ignore=shutil.ignore_patterns("target"), dirs_exist_ok=True)
+        if variant != "production":
+            # Freeze both code and test fixture helpers at the original revision.
+            with tarfile.open(fileobj=io.BytesIO(baseline_archive)) as archive:
+                for member in archive.getmembers():
+                    if member.isfile():
+                        path = destination / Path(member.name).relative_to("native")
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(archive.extractfile(member).read())
         manifest = destination / "tokencat-core/Cargo.toml"
-        if variant != "baseline":
+        if variant not in ("baseline", "production"):
             manifest.write_text(manifest.read_text().replace('features = ["bundled"]', 'features = ["bundled", "blob"]'))
         source = destination / "tokencat-core/src/antigravity.rs"
-        source.write_text(prototype(source.read_text(), variant))
+        if variant != "production":
+            source.write_text(prototype(source.read_text(), variant))
         (args.output / f"{variant}-antigravity.rs").write_text(source.read_text())
         examples = destination / "tokencat-core/examples"
         examples.mkdir(exist_ok=True)
+        fixture = (destination / "tokencat-core/tests/antigravity.rs").read_text().split("#[test]", 1)[0]
+        fixture = fixture.replace('bytes(1, b"PRIVATE PROMPT SENTINEL")', 'bytes(1, &vec![b\'P\'; PAYLOAD.load(Ordering::Relaxed) as usize])')
         (examples / "refresh_benchmark.rs").write_text(fixture + (HERE / "benchmark.rs").read_text())
         cargo = ["cargo", "--offline", "--locked"]
         # Distinct target directory: no writes to native/target or macos/.build.
