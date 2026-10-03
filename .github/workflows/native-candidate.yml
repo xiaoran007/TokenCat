@@ -1,0 +1,99 @@
+name: Native CLI candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: Build ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: macos-arm64, runner: macos-14, target: aarch64-apple-darwin, manylinux: "off" }
+          - { name: macos-x86_64, runner: macos-15-intel, target: x86_64-apple-darwin, manylinux: "off" }
+          - { name: linux-x86_64, runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu, manylinux: "2014" }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, manylinux: "2014" }
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Build wheel and verify source distribution
+        uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
+        with:
+          maturin-version: v1.15.0
+          working-directory: candidate
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          args: --release --locked --sdist --compatibility pypi --out dist -i python3.14
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: candidate-${{ matrix.platform.name }}
+          path: candidate/dist/*.whl
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7.0.1
+        if: matrix.platform.name == 'macos-arm64'
+        with:
+          name: candidate-source
+          path: candidate/dist/*.tar.gz
+          if-no-files-found: error
+
+  test-wheels:
+    name: Test ${{ matrix.platform.name }} Python ${{ matrix.python }}
+    needs: wheels
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: macos-arm64, runner: macos-14 }
+          - { name: macos-x86_64, runner: macos-15-intel }
+          - { name: linux-x86_64, runner: ubuntu-24.04 }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm }
+        python: ["3.14"]
+        include:
+          - { platform: { name: macos-x86_64, runner: macos-15-intel }, python: "3.9" }
+          - { platform: { name: linux-x86_64, runner: ubuntu-24.04 }, python: "3.9" }
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: candidate-${{ matrix.platform.name }}
+          path: candidate/dist
+      - name: Install built wheel into an isolated virtualenv
+        run: |
+          "${{ steps.python.outputs.python-path }}" -m venv .venv
+          .venv/bin/python -m pip install candidate/dist/*.whl 'pytest>=8,<9'
+      - name: Test installed candidate
+        run: .venv/bin/python -m pytest -q candidate/tests
+
+  stable-cli:
+    name: Stable Python CLI regression
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        id: python
+        with:
+          python-version: "3.14"
+      - run: |
+          "${{ steps.python.outputs.python-path }}" -m venv .venv
+          .venv/bin/python -m pip install -e '.[dev]'
+          .venv/bin/python -m pytest -q tests
