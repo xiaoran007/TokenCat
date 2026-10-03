@@ -33,14 +33,3 @@ class Engine:
 
     def __exit__(self, *_):
         self.close()
-
-
-def public_dashboard(snapshot: dict) -> dict:
-    """Export dashboard usage, excluding internal identifiers and observed-state metadata."""
-    payload = {key: value for key, value in snapshot.items() if key != "states"}
-    labels = {row["id"]: row["label"] for row in snapshot["sessions"]}
-    payload["sessions"] = [
-        {**row, "id": row["label"], "parent_id": labels.get(row["parent_id"])}
-        for row in snapshot["sessions"]
-    ]
-    return payload
