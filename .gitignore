@@ -21,3 +21,11 @@ htmlcov/
 
 # references
 references/
+
+# Native core and macOS app
+native/target/
+macos/.build/
+bindings/python/target/
+src/tokencat/*.so
+src/tokencat/*.dylib
+macos/.swiftpm/

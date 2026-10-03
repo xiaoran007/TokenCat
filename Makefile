@@ -1,10 +1,8 @@
 PYTHON ?= .venv/bin/python
 PIP := $(PYTHON) -m pip
 BOOTSTRAP_PYTHON ?=
-PACKAGE ?= tokencat
-TWINE_REPOSITORY ?= pypi
 
-.PHONY: venv install-dev install-release test clean refresh-bundled-pricing build check-dist release-check publish publish-testpypi
+.PHONY: venv install-dev test clean build
 
 venv:
 	@if [ ! -x .venv/bin/python ]; then \
@@ -29,33 +27,16 @@ venv:
 		"$$bootstrap_python" -m venv .venv; \
 	fi
 	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev]'
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev]'
 
 install-dev:
-	$(PIP) install -e '.[dev]'
-
-install-release:
-	$(PIP) install -e '.[dev,release]'
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev]'
 
 test:
 	PYTHONPATH=src $(PYTHON) -m pytest -q
 
 clean:
-	rm -rf build dist *.egg-info
-
-refresh-bundled-pricing:
-	$(PYTHON) -m tokencat.core.pricing refresh-bundled
+	rm -rf build/lib build/bdist.* dist *.egg-info src/*.egg-info
 
 build: clean
-	$(PYTHON) -m build
-
-check-dist: build
-	$(PYTHON) -m twine check dist/*
-
-release-check: test check-dist
-
-publish: check-dist
-	$(PYTHON) -m twine upload --repository $(TWINE_REPOSITORY) dist/*
-
-publish-testpypi: check-dist
-	$(PYTHON) -m twine upload --repository testpypi dist/*
+	$(PYTHON) -m maturin build --release --locked --sdist --out dist -i "$(abspath $(PYTHON))"

@@ -11,9 +11,7 @@ PricingSourceName = str
 class ProviderName(str, Enum):
     CODEX = "codex"
     CLAUDE = "claude"
-    GEMINI = "gemini"
     ANTIGRAVITY = "antigravity"
-    COPILOT = "copilot"
     OPENCODE = "opencode"
 
     @property
@@ -22,13 +20,9 @@ class ProviderName(str, Enum):
             return "Codex"
         if self is ProviderName.CLAUDE:
             return "Claude Code"
-        if self is ProviderName.GEMINI:
-            return "Gemini CLI"
         if self is ProviderName.ANTIGRAVITY:
             return "Antigravity"
-        if self is ProviderName.OPENCODE:
-            return "OpenCode"
-        return "GitHub Copilot CLI"
+        return "OpenCode"
 
 
 class ProviderSupportLevel(str, Enum):
@@ -58,6 +52,7 @@ class TokenTotals:
     reasoning: int | None = None
     tool: int | None = None
     total: int | None = None
+    cache_write: int | None = None
 
     @classmethod
     def zero(cls) -> "TokenTotals":
@@ -78,7 +73,7 @@ class TokenTotals:
         return all(getattr(self, name) is None for name in self.__dataclass_fields__)
 
     def to_dict(self) -> dict[str, int | None]:
-        return {
+        data = {
             "input": self.input,
             "output": self.output,
             "cached": self.cached,
@@ -86,6 +81,9 @@ class TokenTotals:
             "tool": self.tool,
             "total": self.total,
         }
+        if self.cache_write is not None:
+            data["cache_write"] = self.cache_write
+        return data
 
     def known_total(self) -> int:
         return sum(value or 0 for value in (self.input, self.output, self.cached, self.reasoning, self.tool))
@@ -98,6 +96,9 @@ class CostEstimate:
     output_cost: float = 0.0
     total_cost: float = 0.0
     currency: str = "USD"
+    display_cost: str | None = None
+    max_cost: float | None = None
+    cache_write_cost: float | None = None
 
     def add(self, other: "CostEstimate") -> None:
         self.input_cost += other.input_cost
@@ -106,13 +107,20 @@ class CostEstimate:
         self.total_cost += other.total_cost
 
     def to_dict(self) -> dict[str, float | str]:
-        return {
+        data = {
             "input_cost": round(self.input_cost, 6),
             "cached_input_cost": round(self.cached_input_cost, 6),
             "output_cost": round(self.output_cost, 6),
             "total_cost": round(self.total_cost, 6),
             "currency": self.currency,
         }
+        if self.display_cost is not None:
+            data["display_cost"] = self.display_cost
+        if self.max_cost is not None:
+            data["max_cost"] = round(self.max_cost, 6)
+        if self.cache_write_cost is not None:
+            data["cache_write_cost"] = round(self.cache_write_cost, 6)
+        return data
 
 
 @dataclass
@@ -244,26 +252,26 @@ class PricingEntry:
 class PricingCatalog:
     source: str
     loaded_at: datetime
-    entries: dict[tuple[PricingSourceName, str], PricingEntry]
+    entries: dict[tuple[PricingSourceName, str], PricingEntry] | None
     source_url: str | None = None
     refreshed_at: str | None = None
     cache_path: Path | None = None
 
     @property
-    def model_count(self) -> int:
-        return len(self.entries)
+    def model_count(self) -> int | None:
+        return len(self.entries) if self.entries is not None else None
 
 
 @dataclass
 class PricingCoverage:
     total_tokens: int = 0
     priced_tokens: int = 0
-    fallback_priced_tokens: int = 0
+    fallback_priced_tokens: int | None = 0
     unpriced_tokens: int = 0
-    priced_model_count: int = 0
+    priced_model_count: int | None = 0
     unknown_models: list[str] = field(default_factory=list)
-    unknown_model_tokens: int = 0
-    unattributed_token_count: int = 0
+    unknown_model_tokens: int | None = 0
+    unattributed_token_count: int | None = 0
     estimated_cost: CostEstimate = field(default_factory=CostEstimate)
 
     @property
