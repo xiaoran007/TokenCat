@@ -13,18 +13,18 @@ TokenCat shows how many tokens your AI coding tools use and estimates their API-
 
 ## Choose an interface
 
-| Coding tool | macOS app | CLI |
-| --- | :---: | :---: |
-| Codex | Yes | Yes |
-| Claude Code | Yes | Yes |
-| OpenCode | Yes | Yes |
-| Antigravity | Yes | Yes |
-| Gemini CLI | — | Yes |
-| GitHub Copilot Chat/Agent and CLI | — | Yes |
+| Coding tool | macOS app | Stable CLI 0.8.0 | Native candidate |
+| --- | :---: | :---: | :---: |
+| Codex | Yes | Yes | Yes |
+| Claude Code | Yes | Yes | Yes |
+| OpenCode | Yes | Yes | Yes |
+| Antigravity | Yes | Yes | Yes |
+| Gemini CLI | — | Yes | — |
+| GitHub Copilot Chat/Agent and CLI | — | Yes | — |
 
-This table describes version 0.8.0. CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The next CLI migration focuses on the local dashboard for Codex, Claude Code, OpenCode, and Antigravity; other commands are deferred, and remote workflows will be redesigned separately.
+Stable CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The opt-in native candidate provides the local dashboard; other commands are deferred, and remote workflows will be redesigned separately. The existing `tokencat` command keeps its Python implementation during candidate evaluation.
 
-The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer. Windows is not supported. Multi-machine aggregation is available in the CLI.
+The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer. Windows is not supported. Multi-machine aggregation is available in the stable CLI.
 
 ## macOS app
 
@@ -64,7 +64,31 @@ Standard source locations are detected automatically:
 
 If your tools store data elsewhere, set their roots in Settings. Project paths stay hidden unless you enable them.
 
-## Terminal CLI
+## Native CLI candidate
+
+The candidate shares the macOS app's native usage and pricing core. It installs as `tokencat-native` and runs as `tokencat-candidate`, alongside the stable CLI. Its current version is `0.9.0rc1`; it has not been published to PyPI.
+
+From a checkout, with Rust and a C compiler installed:
+
+```bash
+pipx install ./candidate
+tokencat-candidate
+tokencat-candidate dashboard --since 30d --weekly
+tokencat-candidate --provider claude --timezone America/New_York
+tokencat-candidate --since 7d --json
+```
+
+The default view shows the last seven days; `dashboard` also shows recent sessions. Use `--daily`, `--weekly`, or `--monthly` to choose the calendar grouping, and `--theme light` or `--theme dark` for terminal colors. Time windows use the system time zone unless you pass `--timezone`. Date-only `--until` values include that whole day; datetime end bounds are exclusive.
+
+The candidate keeps its ledger in `~/.tokencat-candidate/usage.sqlite3`, independently of the stable CLI and app. Use `--data-dir` to choose another directory. Source folders can be set with `--codex-root`, repeatable `--claude-root`, `--opencode-root`, and repeatable `--antigravity-root`; each root contains the source subdirectories listed above. Claude also honors `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME`, and OpenCode honors `XDG_DATA_HOME`. `--home` selects a separate source home and uses native default locations beneath it.
+
+Prices come from the native bundled snapshot. `--pricing-path` selects a native-compatible catalog, including the app's downloaded LiteLLM cache envelope. The candidate does not download prices or load the old Python pricing cache. Estimates can differ from the stable CLI because native model matching and cache accounting rules apply. Missing prices remain unknown, and uncertain prices display a range. `--no-price` hides terminal cost columns; it does not disable native pricing and cannot be combined with `--json`.
+
+Candidate JSON contains `candidate_version`, `query`, and `dashboard`; its structure differs from the stable CLI. Session identifiers and parent links are anonymized, project paths remain hidden, and observed-state metadata is excluded. Collection warnings can include source file paths to help diagnose problems. Gemini CLI, Copilot, remote workflows, and the other stable CLI commands are unavailable in the candidate.
+
+To remove the candidate, run `pipx uninstall tokencat-native`. This leaves your stable CLI installed; the candidate ledger directory remains available for reuse.
+
+## Stable terminal CLI
 
 ### Install or upgrade
 

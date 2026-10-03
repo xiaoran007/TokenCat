@@ -4,9 +4,15 @@ In version 0.8.0, the SwiftUI macOS app uses a Rust core through a C ABI, while 
 
 ## CLI migration scope
 
-The target architecture is one Rust business core with SwiftUI and CLI interfaces. Python remains the CLI entry point and handles arguments, terminal presentation, and binding lifecycle; collection, filtering, aggregation, and pricing belong to Rust. This integration is planned, not yet implemented.
+The native CLI candidate and SwiftUI app share one Rust business core. Python remains the CLI entry point and handles arguments, configuration, terminal presentation, and binding lifecycle; collection, filtering, usage aggregation, and pricing belong to Rust. The stable CLI retains its Python implementation while the candidate is evaluated.
 
 CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The initial migration targets only the local dashboard (`tokencat` and `tokencat dashboard`). Other CLI commands are deferred. Remote functionality will be developed separately with a new interaction and execution model; preserving the current remote protocol and command behavior is outside this migration.
+
+`candidate/` is an independent `tokencat-native` distribution with the `tokencat_native` namespace and `tokencat-candidate` command. Its PyO3 extension depends directly on `tokencat-core`; the separate Cargo workspace and lockfile keep Python dependencies out of macOS builds. Each invocation opens its own engine, scans and queries, then closes it. A mutex serializes binding calls while native work releases the GIL. Missing extensions and invalid custom catalogs are errors; the candidate never invokes Python collectors as a fallback.
+
+The candidate ledger defaults to `~/.tokencat-candidate/usage.sqlite3`. It does not reuse the app ledger or legacy Python price cache, avoiding cross-process writes and legacy catalog assumptions. Native bundled prices are selected unless a catalog is explicitly configured; no price downloads run in the candidate. Independent ledgers retain their own collected history, so source deletion or different source roots can produce different totals even with the same query and pricing catalog.
+
+CLI queries request details and preserve the terminal's daily/weekly/monthly selection thresholds. Active-harness labels describe usage, and recent sessions show native completeness instead of the old Python attribution classification. JSON exports retain core schema 1 inside a candidate envelope, remap session IDs and parents to anonymous labels, and omit observed states. The candidate contract does not preserve the old CLI JSON structure. Diagnostic warnings can still contain source paths.
 
 The native `Dashboard` provides token and cost totals, model rankings, per-session summaries, catalog metadata, and scan warnings. Its JSON query contract now also supports:
 
@@ -22,7 +28,7 @@ For example, a detailed weekly query uses:
 
 Bucket model rows retain the existing summary fields, including cost ranges and coverage, and keep different harnesses separate even when they use the same model. Session models and bucket details are computed only when requested. The C ABI, `schema_version: 1`, existing response fields, and macOS query defaults remain unchanged. Without details, the new response fields are omitted. Swift ignores added JSON fields; no macOS product changes are needed to consume this core version.
 
-The remaining CLI presentation decisions are how to replace the old Python attribution classification, which has no direct native equivalent, and how to show harness status. Native harness rows indicate usage within the query window, not source detection status; the CLI can label them as active harnesses. Keeping source-detection indicators would require per-harness scan diagnostics.
+Native harness rows indicate usage within the query window, not source detection status. Keeping source-detection indicators would require per-harness scan diagnostics; they are outside the candidate dashboard scope.
 
 Presentation must follow native semantics: reasoning is already included in output, cache reads and writes are separate, and uncertain prices retain their minimum/maximum range. Session counts must exclude structural ancestor rows with no own events, and model counts must distinguish unidentified models. Pricing coverage can use native priced/total tokens; legacy fallback and attribution metrics should not be inferred from unrelated fields. Python must not rebuild a second aggregation or pricing pipeline to fill these gaps.
 
