@@ -66,27 +66,28 @@ If your tools store data elsewhere, set their roots in Settings. Project paths s
 
 ## CLI candidate (experimental)
 
-The candidate shows local usage for Codex, Claude Code, OpenCode, and Antigravity. It runs as `tokencat-candidate` and supports dashboards and JSON export. Remote aggregation and the stable CLI's other commands are unavailable.
+The candidate shows local usage for Codex, Claude Code, OpenCode, and Antigravity using the same dashboard and options as `tokencat`. It runs as `tokencat-candidate` and supports dashboards and JSON export. Remote aggregation and the stable CLI's other commands are unavailable.
 
 From a checkout, with Rust and a C compiler installed:
 
 ```bash
-pipx install ./candidate
+pipx install .
+pipx inject tokencat ./candidate --include-apps
 tokencat-candidate
 tokencat-candidate dashboard --since 30d --weekly
-tokencat-candidate --provider claude --timezone America/New_York
+TZ=America/New_York tokencat-candidate --provider claude
 tokencat-candidate --since 7d --json
 ```
 
-The default view shows the last seven days; `dashboard` also shows recent sessions. Use `--daily`, `--weekly`, or `--monthly` to choose the calendar grouping, and `--theme light` or `--theme dark` for terminal colors. Time windows use the system time zone unless you pass `--timezone`. Date-only `--until` values include that whole day; datetime end bounds are exclusive.
+The default view shows the last seven days; `dashboard` also shows recent sessions. Use `--daily`, `--weekly`, or `--monthly` to choose the calendar grouping, and `--theme light` or `--theme dark` for terminal colors. Time windows use the system time zone; set `TZ` to choose another. `--until` includes the specified end time, or the whole day for date-only values.
 
-Standard source locations are detected automatically. For other locations, use `--codex-root`, `--claude-root`, `--opencode-root`, or `--antigravity-root`; pass the tool's root folder containing the source subdirectories listed above. Claude and Antigravity options can be repeated for multiple folders. Run `tokencat-candidate --help` for all options.
+Standard source locations are detected automatically. Claude honors comma-separated roots in `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME`; OpenCode honors `XDG_DATA_HOME`. Run `tokencat-candidate --help` for all options.
 
-The candidate includes offline prices. Use `--pricing-path` to select a custom LiteLLM catalog, or `--no-price` to hide terminal cost columns. Missing prices appear as unknown and uncertain estimates appear as a range. `--no-price` cannot be combined with `--json`.
+The candidate includes offline prices. Missing prices appear as unknown and uncertain estimates appear as a range. Use `--no-price` to report usage without cost estimation.
 
-JSON exports use a different format from the stable CLI. Session identifiers are anonymized and project paths are hidden; diagnostic warnings may include source file paths.
+JSON exports use the same report structure as the stable CLI. Session identifiers are anonymized and project paths are hidden; diagnostic warnings may include source file paths.
 
-To remove the candidate, run `pipx uninstall tokencat-native`. Your stable CLI and saved candidate usage remain available.
+To remove the candidate, run `pipx uninject tokencat tokencat-native`. Your stable CLI and saved candidate usage remain available.
 
 ## Stable terminal CLI
 
@@ -150,7 +151,7 @@ Automatic HTTP-node discovery requires the optional extra: `pipx install "tokenc
 
 Costs are **API-equivalent estimates, not your bill or subscription balance**. TokenCat counts recorded tokens even when a model has no price record. Unknown prices stay visible; usage without a confirmed date may be excluded from time-window totals. Estimates do not include every billing tier, tool fee, or regional adjustment.
 
-All interfaces include offline prices and show pricing coverage and sources. The macOS app checks for updates every 24 hours by default; Settings offers manual refresh, other intervals, an off switch, and a custom catalog. Update the stable CLI's prices with `tokencat pricing refresh`. The candidate uses bundled or custom prices without automatic updates. Failed updates preserve available prices. Estimates can differ between interfaces because their catalogs and usage accounting differ.
+All interfaces include offline prices and show pricing coverage and sources. The macOS app checks for updates every 24 hours by default; Settings offers manual refresh, other intervals, an off switch, and a custom catalog. Update the stable CLI's prices with `tokencat pricing refresh`. The candidate uses bundled prices without automatic updates. Failed updates preserve available prices. Estimates can differ between interfaces because their catalogs and usage accounting differ.
 
 Usage collection reads local records. TokenCat does not proxy requests, change provider endpoints, or read OAuth/session credentials for reporting. Reports exclude prompt and response bodies. Price updates access the network; remote aggregation exchanges usage snapshots with machines you explicitly trust.
 
@@ -162,7 +163,7 @@ Usage collection reads local records. TokenCat does not proxy requests, change p
 
 **Costs look different from an invoice.** TokenCat estimates standard API usage, including when a tool is used through a subscription. Check pricing coverage and unknown models before comparing totals. Updating the catalog can change estimates for earlier dates.
 
-**Where is TokenCat's data stored?** The app keeps usage and downloaded prices in `~/Library/Application Support/TokenCat/`. The stable CLI stores prices, node identity, trust settings, and server logs under `~/.tokencat/`. The candidate saves usage in `~/.tokencat-candidate/`; use `--data-dir` to choose another folder. Removing source logs does not erase usage already saved by the app or candidate.
+**Where is TokenCat's data stored?** The app keeps usage and downloaded prices in `~/Library/Application Support/TokenCat/`. The stable CLI stores prices, node identity, trust settings, and server logs under `~/.tokencat/`. The candidate saves usage in `~/.tokencat-candidate/`. Removing source logs does not erase usage already saved by the app or candidate.
 
 ## Contributing
 

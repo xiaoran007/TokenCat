@@ -19,20 +19,20 @@ cargo test --locked --manifest-path native/Cargo.toml
 
 ## Native CLI candidate
 
-The stable root package remains setuptools-based. The independent maturin package in `candidate/` uses a separate Cargo workspace and the `tokencat_native._native` extension. Install and test it in the repository virtualenv:
+The root package provides the shared Python CLI frontend and remains setuptools-based. The maturin package in `candidate/` adds the native binding and data adapter, depends on `tokencat==0.8.0`, and uses a separate Cargo workspace. Install and test both from the same checkout in the repository virtualenv:
 
 ```bash
 .venv/bin/python -m pip install 'maturin>=1.15,<2'
 make candidate-dev
 make candidate-test
-.venv/bin/tokencat-candidate --version
+.venv/bin/tokencat-candidate --help
 ```
 
-`candidate-dev` compiles an editable extension and installs only the candidate. It requires the CLI dependencies already installed by `make install-dev`. Candidate tests call the real extension against synthetic temporary sources; run stable Python tests separately to keep the two suites' module names isolated.
+`candidate-dev` installs the shared frontend and compiles the editable candidate extension. It requires the CLI dependencies already installed by `make install-dev`. Candidate tests call the real extension against synthetic temporary sources, verify that both entry points use the same callbacks and renderer, and cover terminal widths and themes. Run stable Python tests separately to keep the two suites' module names isolated.
 
 Build distribution artifacts manually with `make candidate-build`; wheels and the source distribution go to `candidate/dist/`. The source archive includes the Rust core and price resources. Wheels use the CPython 3.9 stable ABI, with platform and architecture tags; free-threaded Python is outside this candidate's wheel matrix. Packaging does not include the stable `tokencat` namespace. Python cleanup preserves `build/TokenCat.app` and candidate artifacts.
 
-The **Native CLI candidate** GitHub Actions workflow is manually triggered. It builds macOS and manylinux2014 wheels for x86_64 and ARM64, verifies source-distribution builds, and tests installed wheels on Python 3.14 for all four platforms and Python 3.9 on the two x86_64 platforms. A separate job checks the stable CLI. Artifacts are retained for download; publishing remains manual. Cross-platform runtime support is verified only after that workflow succeeds, not by local cross-compilation alone.
+The **Native CLI candidate** GitHub Actions workflow is manually triggered. It builds macOS and manylinux2014 wheels for x86_64 and ARM64, verifies source-distribution builds, and tests installed wheels with the root frontend from the same checkout on Python 3.14 for all four platforms and Python 3.9 on the two x86_64 platforms. A separate job checks the stable CLI. Artifacts are retained for download; publishing remains manual. Release the matching root frontend before the dependent candidate package. Cross-platform runtime support is verified only after that workflow succeeds, not by local cross-compilation alone.
 
 The macOS app requires macOS 14+, Rust, and Xcode's Swift toolchain with the macOS 26 SDK or newer. Build and launch manually:
 
