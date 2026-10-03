@@ -48,15 +48,28 @@ Token totals lead with K/M/B/T notation and show the exact count in smaller text
 
 Model, project, and task pages have independent searches and can sort by cost, tokens, or latest usage. Task search includes subagents; task rows show the whole linked family's cost, while task details separate direct usage from the family total and let you navigate between parents and children. Changing the time range or data settings clears incompatible snapshots while fresh data loads. Turning off project paths immediately clears snapshots containing visible paths.
 
-The first native adapters support **Codex and Claude Code**. Antigravity and OpenCode are the next priority; Copilot CLI and Gemini remain supported by the existing CLI. LAN aggregation and CLI packaging changes are deferred.
+The native app supports **Codex, Claude Code, OpenCode, and Antigravity**. Gemini CLI and Copilot are outside the native app's scope; their existing Python CLI adapters are unchanged. LAN aggregation and CLI packaging changes remain separate work.
 
 Native collection uses a persistent SQLite ledger in `~/Library/Application Support/TokenCat/usage.sqlite3`. Complete JSONL records, parser state, and file offsets are committed together. Refresh defaults to two seconds and resumes immediately on wake. Incomplete trailing records wait for completion; repeated responses, archived copies, and Claude message revisions reconcile by logical event identity. Provider log rotation does not erase previously collected usage.
 
-Settings can override the local data roots and select a custom pricing catalog. Collection reads only allowlisted usage and session metadata from Codex `sessions` / `archived_sessions` and Claude `projects` directories. It does not read credentials or retain prompt, response, or tool bodies. Project paths are hidden in the interface by default.
+Settings can override each harness's local data roots. Native collection reads the following allowlisted usage and session metadata; project paths remain hidden in the interface by default:
 
-Costs use a versioned offline snapshot of standard global API prices, with source links and a retrieval date in the dashboard. These are API-equivalent estimates, including for subscription users. Unknown models and unsupported categories remain unpriced; missing cache TTL or incomplete long-context information produces uncertainty instead of a guessed exact amount. Reasoning is part of output, and cached input is separated from uncached input. The native catalog never silently substitutes another model or downloads prices in the background.
+| Harness | Native data sources |
+| --- | --- |
+| Codex | `sessions` and `archived_sessions` JSONL under `~/.codex`. |
+| Claude Code | `projects` JSONL under `~/.claude` and `~/.config/claude`. |
+| OpenCode | `~/.local/share/opencode/opencode.db`, or the corresponding `XDG_DATA_HOME` directory. |
+| Antigravity | `conversations/*.db` under `~/.gemini/antigravity` and `~/.gemini/antigravity-cli`. |
 
-The selected price snapshot applies to every displayed period; it is not a reconstruction of historical invoices. Published promotional prices can be time limited. Select an updated catalog in Settings when you want to use a different snapshot; the underlying token ledger remains unchanged.
+OpenCode collection uses individual `step-finish` usage records when available, avoiding both lost intermediate requests and double counting with message totals. It handles message revisions, excludes historical context copied into forked sessions, and reads active SQLite WAL transactions. Only usage, model/service identity, timestamps, project directories, and parent-session relationships are projected from the database; conversation and tool bodies are excluded.
+
+Antigravity collection was checked against the application's protobuf descriptors. Its model and API-provider enum fields are not token counters; uncached input and cache reads are separate, and output already includes thinking. The collector links `gen_metadata` to `steps.metadata` for actual per-request timestamps and usage not yet flushed to the generation table. Requests without a confirmed date are reported separately and excluded from period totals rather than assigned the database modification time. App/CLI copies reconcile by stable request identity and revision. Selective SQLite reads obtain only the required metadata ranges, including local project URIs and parent-conversation IDs; agent scripts, prompt/response bodies, headers, and credentials are not read. Conversations with multiple workspaces are not assigned arbitrarily to one project.
+
+Native pricing uses a pinned [LiteLLM snapshot](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json) bundled with the app, or a validated downloaded snapshot. Automatic online checks are enabled by default every **24 hours** while the app is running; Settings offers **6, 24, or 168 hours**, an on/off switch, and a manual online refresh button. Conditional requests use ETags. The downloaded catalog and its timestamps are stored together in `~/Library/Application Support/TokenCat/pricing/litellm-cache.json`; a failed update leaves the loaded prices intact and shows the update status in Settings. Selecting a custom catalog JSON disables automatic and manual network updates until it is reset.
+
+The collection harness and the recorded model service (`model_provider`) are separate identities. Price resolution prefers official model-provider records, then an explicitly identified third-party record. It does not substitute a similar-looking model name or select arbitrarily among ambiguous matches. The one deliberate mapping is **`codex-auto-review` → `gpt-5.6-luna`**; the cost details expose this mapping and its pricing source. Missing models, unmatched identities, and missing prices appear as neutral **no price record** information rather than an error. Their recorded tokens still contribute to token totals.
+
+Costs use LiteLLM's standard token rates and remain API-equivalent estimates, including for subscription users; Priority, Flex, Batch, tool charges, and regional billing adjustments are not applied. The catalog identity, retrieval date, and pricing sources are visible in the dashboard. Reasoning is part of output, and cached input is separated from uncached input. An explicitly zero rate means free; a missing rate remains unknown. Missing cache TTL or incomplete long-context information produces uncertainty instead of a guessed exact amount. The currently selected snapshot applies to every displayed period; it does not reconstruct historical invoices, subscription charges, or time-limited promotional rates. Updating prices leaves the underlying token ledger unchanged.
 
 Run the test suites from the checkout:
 
@@ -214,6 +227,8 @@ This makes TokenCat easy to pipe into local scripts, dashboards, or personal aut
 
 ## Configuration
 
+This section describes the existing Python CLI. Native-app data roots, settings, and storage paths are described in [Native macOS app](#native-macos-app-source-build).
+
 Most users do not need a config file. TokenCat discovers local agent data from the standard locations for each tool.
 
 | Provider | What TokenCat Reads | Optional Configuration |
@@ -282,7 +297,7 @@ Session listings also support:
 
 ## Pricing
 
-TokenCat estimates API-equivalent cost when a model can be matched to known pricing data.
+This section describes the existing Python CLI's pricing behavior; the native app uses the separate catalog workflow documented [above](#native-macos-app-source-build). The CLI estimates API-equivalent cost when a model can be matched to known pricing data.
 
 - Pricing works offline with the bundled catalog shipped in the package.
 - On first pricing use, TokenCat silently tries to refresh a local cache under `~/.tokencat/pricing/`.
