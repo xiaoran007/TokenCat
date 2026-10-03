@@ -8,12 +8,21 @@ The target architecture is one Rust business core with SwiftUI and CLI interface
 
 CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The initial migration targets only the local dashboard (`tokencat` and `tokencat dashboard`). Other CLI commands are deferred. Remote functionality will be developed separately with a new interaction and execution model; preserving the current remote protocol and command behavior is outside this migration.
 
-The existing native `Dashboard` provides token and cost totals, model rankings, per-session summaries, catalog metadata, and scan warnings. Supporting the current terminal dashboard requires these additions or presentation decisions:
+The native `Dashboard` provides token and cost totals, model rankings, per-session summaries, catalog metadata, and scan warnings. Its JSON query contract now also supports:
 
-- Add harness filtering and explicit calendar granularity to `Query`; current timeline selection is automatic hourly/daily and does not support weekly/monthly buckets. Filtering must happen before all aggregates are calculated.
-- Add model/harness breakdowns and session counts to timeline buckets; current buckets contain only a timestamp and summary. Define whether weekly/monthly session counts mean distinct sessions or summed daily activity before implementing them.
-- Recent-session rows already contain anonymous labels, harnesses, usage, costs, and activity times. Keeping the model column requires additional session model information. The old Python attribution classification has no direct native equivalent.
-- Native harness rows indicate usage within the query window, not source detection status. Preserving the current source-status indicators requires per-harness scan diagnostics; otherwise the interface must label them as active harnesses.
+- `providers`: omitted or `null` selects all harnesses; `[]` selects none. Filtering happens before pricing and every usage aggregate, and also filters observed states by harness. Scan diagnostics remain global, and observed states retain their existing latest-state semantics rather than following the usage time window.
+- `granularity`: `auto` (default), `hour`, `day`, `week`, or `month`. Auto retains the macOS behavior: hours for windows up to three days, days otherwise. Weeks start on Monday and months on the first day, in the requested time zone. Bounds remain `[since_ms, until_ms)`; partial and empty buckets are retained.
+- `include_details`: defaults to `false`. When true, each timeline bucket adds `details`, containing `session_count` and model/harness `models` rows. Counts are distinct (harness, session) pairs with events in that bucket, including weekly/monthly buckets; structural ancestors do not count. Session rows also provide `primary_model` when identified, selected by the most tokens within the query window, with model-name tie breaking. Unidentified usage can win this selection and leaves the field absent.
+
+For example, a detailed weekly query uses:
+
+```json
+{"since_ms": 0, "until_ms": 604800000, "timezone": "UTC", "providers": ["codex", "claude"], "granularity": "week", "include_details": true}
+```
+
+Bucket model rows retain the existing summary fields, including cost ranges and coverage, and keep different harnesses separate even when they use the same model. Session models and bucket details are computed only when requested. The C ABI, `schema_version: 1`, existing response fields, and macOS query defaults remain unchanged. Without details, the new response fields are omitted. Swift ignores added JSON fields; no macOS product changes are needed to consume this core version.
+
+The remaining CLI presentation decisions are how to replace the old Python attribution classification, which has no direct native equivalent, and how to show harness status. Native harness rows indicate usage within the query window, not source detection status; the CLI can label them as active harnesses. Keeping source-detection indicators would require per-harness scan diagnostics.
 
 Presentation must follow native semantics: reasoning is already included in output, cache reads and writes are separate, and uncertain prices retain their minimum/maximum range. Session counts must exclude structural ancestor rows with no own events, and model counts must distinguish unidentified models. Pricing coverage can use native priced/total tokens; legacy fallback and attribution metrics should not be inferred from unrelated fields. Python must not rebuild a second aggregation or pricing pipeline to fill these gaps.
 
