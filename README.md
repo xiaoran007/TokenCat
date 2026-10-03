@@ -80,6 +80,35 @@ bash macos/scripts/test.sh
 
 The native test script links the Swift package to the exact Rust archive produced by the tests. On Linux, run `cargo test --locked --manifest-path native/Cargo.toml` for the core alone. The Rust collector supports macOS and Linux; the SwiftUI app currently targets macOS only.
 
+#### Isolated Antigravity refresh experiment
+
+The [standalone benchmark](experiments/antigravity-refresh/run.py) compares the current collector with selective SQLite incremental BLOB reads, BLOB reads plus a cache of parsed usage metadata, and the same cache with a 256 KiB SQLite page-cache budget per read-only connection. It copies the native workspace into a temporary directory, uses offline release builds, and runs the existing Rust tests for each variant. It does not replace the running app, its linked library, or its usage database. All source databases and skipped body fields are synthetic.
+
+```bash
+.venv/bin/python experiments/antigravity-refresh/run.py --output /tmp/tokencat-refresh-results
+```
+
+This experiment requires macOS and the existing Cargo dependency cache. It enables the already installed rusqlite crate's `blob` feature only in the temporary copies. Results include per-scan wall time and process CPU time, whole-program peak RSS, test logs, and generated source variants. `--workspace` can reuse the temporary compilation directory recorded in `workspace.txt`. The small profile has 4 databases with 20 generations each and 4 KiB skipped fields; the large profile has 8 databases with 80 generations each and 256 KiB skipped fields. Unchanged scans use the median of 9 rounds. Cold ingestion, WAL updates to historical rows, WAL appends, checkpointing, and atomic database replacement each use one round. “Cold” means the collector's first scan, not an empty operating-system file cache. All variants must produce identical usage events, session metadata, and scan reports for every scenario.
+
+Recorded on macOS ARM64, October 2, 2026, with the app still running. The large-profile unchanged scan produced:
+
+| Implementation | Wall time | Process CPU time | Whole-program peak RSS |
+| --- | ---: | ---: | ---: |
+| Current collector | 1294.16 ms | 1291.58 ms | 38.52 MiB |
+| Incremental BLOB reads | 40.22 ms | 40.15 ms | 38.03 MiB |
+| BLOB reads + metadata cache | 4.67 ms | 4.67 ms | 58.94 MiB |
+| Cache with 256 KiB SQLite page-cache budget | 4.65 ms | 4.65 ms | 42.05 MiB |
+
+The bounded-cache variant's large-profile historical WAL update took 13.42 ms versus 1241.18 ms for the current collector; a WAL append took 12.34 ms versus 1362.02 ms. These changed-source measurements are single samples. Each variant passed all 84 existing Rust tests, and the Python suite passed all 94 tests. [Recorded results](experiments/antigravity-refresh/results.json) include every scenario and the comparison digests. Peak RSS includes fixture creation and all scans, so it is not the cache's isolated allocation or the app's memory footprint. Runs used a fixed variant order; small timing differences should not be treated as significant.
+
+Proposed production changes, pending integration:
+
+1. Replace per-byte `SELECT substr(...)` queries with a read-only incremental BLOB handle per metadata row. Read exactly the existing protobuf framing and allowlisted metadata ranges, while retaining the consistent SQLite read transaction and all parser validation. Do not prefetch skipped body ranges.
+2. Keep a read-only connection and parsed usage metadata per discovered Antigravity database, owned by the Rust `Engine`. Compare `PRAGMA data_version` on that same connection across scans; SQLite main-file modification times alone cannot detect WAL updates. Check device/inode identity to reopen replaced files. Reparse only changed databases. If the version changes while parsing, leave the result uncached so the following scan reparses it.
+3. Set a 256 KiB page-cache budget on each source connection (`PRAGMA cache_size=-256`, a connection-local setting; this is not a hard process-memory cap). Prune connections and cached metadata for removed paths, and release the entire cache when the engine/configuration changes. The prototype uses a thread-local cache to keep production interfaces untouched; production integration must use engine ownership and explicit lifecycle tests. Errors must remain visible, without silently returning an old cached snapshot.
+
+Integrate the BLOB reader and cache in separate small changes, with unit tests for each. Retain the refresh interval initially. After integration, measure the running app again with windows closed and open, including CPU, memory, and long-running behavior. This benchmark isolates Antigravity collection; it does not predict whole-app CPU usage or measure SwiftUI rendering, other providers, or dashboard queries.
+
 ### Existing CLI
 
 TokenCat requires Python 3.9 or newer.
