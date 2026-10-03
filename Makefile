@@ -4,7 +4,7 @@ BOOTSTRAP_PYTHON ?=
 PACKAGE ?= tokencat
 TWINE_REPOSITORY ?= pypi
 
-.PHONY: venv install-dev install-release test clean refresh-bundled-pricing build check-dist release-check publish publish-testpypi candidate-dev candidate-test candidate-build
+.PHONY: venv install-dev install-release test clean build check-dist release-check publish publish-testpypi
 
 venv:
 	@if [ ! -x .venv/bin/python ]; then \
@@ -29,13 +29,13 @@ venv:
 		"$$bootstrap_python" -m venv .venv; \
 	fi
 	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev]'
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev]'
 
 install-dev:
-	$(PIP) install -e '.[dev]'
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev]'
 
 install-release:
-	$(PIP) install -e '.[dev,release]'
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev,release]'
 
 test:
 	PYTHONPATH=src $(PYTHON) -m pytest -q
@@ -43,21 +43,8 @@ test:
 clean:
 	rm -rf build/lib build/bdist.* dist *.egg-info src/*.egg-info
 
-candidate-dev:
-	$(PIP) install --no-build-isolation --no-deps -e .
-	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --no-build-isolation --no-deps --config-settings="build-args=--locked" -e ./candidate
-
-candidate-test:
-	$(PYTHON) -m pytest -q candidate/tests
-
-candidate-build:
-	cd candidate && "$(abspath $(PYTHON))" -m maturin build --release --locked --sdist --out dist
-
-refresh-bundled-pricing:
-	$(PYTHON) -m tokencat.core.pricing refresh-bundled
-
 build: clean
-	$(PYTHON) -m build
+	$(PYTHON) -m maturin build --release --locked --sdist --out dist -i "$(abspath $(PYTHON))"
 
 check-dist: build
 	$(PYTHON) -m twine check dist/*

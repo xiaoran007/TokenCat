@@ -1,4 +1,4 @@
-name: Native CLI candidate
+name: CLI wheels
 
 on:
   workflow_dispatch:
@@ -27,24 +27,23 @@ jobs:
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.14"
-      - name: Build wheel and verify source distribution
+      - name: Build wheel and source distribution
         uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
         with:
           maturin-version: v1.15.0
-          working-directory: candidate
           target: ${{ matrix.platform.target }}
           manylinux: ${{ matrix.platform.manylinux }}
           args: --release --locked --sdist --compatibility pypi --out dist -i python3.14
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: candidate-${{ matrix.platform.name }}
-          path: candidate/dist/*.whl
+          name: tokencat-${{ matrix.platform.name }}
+          path: dist/*.whl
           if-no-files-found: error
       - uses: actions/upload-artifact@v7.0.1
         if: matrix.platform.name == 'macos-arm64'
         with:
-          name: candidate-source
-          path: candidate/dist/*.tar.gz
+          name: tokencat-source
+          path: dist/*.tar.gz
           if-no-files-found: error
 
   test-wheels:
@@ -73,17 +72,18 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: actions/download-artifact@v8.0.1
         with:
-          name: candidate-${{ matrix.platform.name }}
-          path: candidate/dist
+          name: tokencat-${{ matrix.platform.name }}
+          path: dist
       - name: Install built wheel into an isolated virtualenv
         run: |
           "${{ steps.python.outputs.python-path }}" -m venv .venv
-          .venv/bin/python -m pip install . candidate/dist/*.whl 'pytest>=8,<9'
-      - name: Test installed candidate
-        run: .venv/bin/python -m pytest -q candidate/tests
+          .venv/bin/python -m pip install dist/*.whl 'pytest>=8,<9'
+      - name: Test installed CLI
+        run: .venv/bin/python -m pytest -q tests
 
-  stable-cli:
-    name: Stable Python CLI regression
+  source-distribution:
+    name: Test source distribution
+    needs: wheels
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
@@ -93,7 +93,23 @@ jobs:
         id: python
         with:
           python-version: "3.14"
-      - run: |
+      - name: Check Rust toolchain
+        run: rustc --version
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: tokencat-source
+          path: dist
+      - name: Install from source archive and test
+        run: |
           "${{ steps.python.outputs.python-path }}" -m venv .venv
-          .venv/bin/python -m pip install -e '.[dev]'
+          .venv/bin/python -m pip install dist/*.tar.gz 'pytest>=8,<9'
           .venv/bin/python -m pytest -q tests
+
+  native-core:
+    name: Native core regression
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: cargo test --locked --manifest-path native/Cargo.toml

@@ -2,9 +2,9 @@ import subprocess
 from pathlib import Path
 
 
-def test_python_cleanup_preserves_app_and_candidate_artifacts(tmp_path):
-    files = ["build/TokenCat.app/Contents/Info.plist", "candidate/dist/candidate.whl",
-             "build/lib/tokencat/cli.py", "build/bdist.test/temporary", "dist/stable.whl",
+def test_python_cleanup_preserves_app_and_native_artifacts(tmp_path):
+    files = ["build/TokenCat.app/Contents/Info.plist", "bindings/python/target/debug/lib_native.dylib",
+             "build/lib/tokencat/cli.py", "build/bdist.test/temporary", "dist/tokencat.whl",
              "src/tokencat.egg-info/PKG-INFO"]
     for name in files:
         path = tmp_path / name
