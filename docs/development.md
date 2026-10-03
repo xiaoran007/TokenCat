@@ -17,22 +17,24 @@ The native test script runs release-mode Rust tests, links Swift to the exact te
 cargo test --locked --manifest-path native/Cargo.toml
 ```
 
-## Native CLI candidate
+## Native Python CLI
 
-The root package provides the shared Python CLI frontend and remains setuptools-based. The maturin package in `candidate/` adds the native binding and data adapter, depends on `tokencat==0.8.0`, and uses a separate Cargo workspace. Install and test both from the same checkout in the repository virtualenv:
+The root package is `tokencat` 0.9.0 and uses maturin. Its Python frontend and adapter are in `src/tokencat`; the PyO3 extension is in `bindings/python`, with a separate Cargo workspace. Rust and a C compiler are needed for local source installation. Development and release tooling are optional extras:
 
 ```bash
-.venv/bin/python -m pip install 'maturin>=1.15,<2'
-make candidate-dev
-make candidate-test
-.venv/bin/tokencat-candidate --help
+make install-dev
+.venv/bin/tokencat --help
+.venv/bin/pytest -q tests
+PYO3_PYTHON="$PWD/.venv/bin/python" cargo test --locked --manifest-path bindings/python/Cargo.toml
 ```
 
-`candidate-dev` installs the shared frontend and compiles the editable candidate extension. It requires the CLI dependencies already installed by `make install-dev`. Candidate tests call the real extension against synthetic temporary sources, verify that both entry points use the same callbacks and renderer, and cover terminal widths and themes. Run stable Python tests separately to keep the two suites' module names isolated.
+`make install-dev` compiles and installs the editable native extension. Tests use the real extension against synthetic temporary sources, cover all four harnesses, ledger reopen/append, candidate-ledger migration with WAL, JSON privacy, calendar grouping, and the original layout at three terminal widths and both themes. Removed Python collectors and remote modules must not be importable. A local extension from an earlier checkout can exercise the frontend, but it does not validate later Rust analyzer changes; rebuild it before checking current end-to-end accounting.
 
-Build distribution artifacts manually with `make candidate-build`; wheels and the source distribution go to `candidate/dist/`. The source archive includes the Rust core and price resources. Wheels use the CPython 3.9 stable ABI, with platform and architecture tags; free-threaded Python is outside this candidate's wheel matrix. Packaging does not include the stable `tokencat` namespace. Python cleanup preserves `build/TokenCat.app` and candidate artifacts.
+Build manually with `make build`; wheels and the source distribution go to `dist/`. `make check-dist` builds and checks package metadata. The package includes its Python frontend, native extension, and Rust price resources without depending on the old package or candidate. Wheels use the CPython 3.9 stable ABI, with platform and architecture tags; free-threaded Python is outside the wheel matrix. Cleanup preserves `build/TokenCat.app` and native compiler caches.
 
-The **Native CLI candidate** GitHub Actions workflow is manually triggered. It builds macOS and manylinux2014 wheels for x86_64 and ARM64, verifies source-distribution builds, and tests installed wheels with the root frontend from the same checkout on Python 3.14 for all four platforms and Python 3.9 on the two x86_64 platforms. A separate job checks the stable CLI. Artifacts are retained for download; publishing remains manual. Release the matching root frontend before the dependent candidate package. Cross-platform runtime support is verified only after that workflow succeeds, not by local cross-compilation alone.
+The **CLI wheels** workflow (`.github/workflows/cli-wheels.yml`) is manually triggered. It builds macOS and manylinux2014 wheels for x86_64 and ARM64 and tests the installed distribution on Python 3.14 across all four platforms and Python 3.9 on the two x86_64 platforms. A source-distribution job installs the archived source into a separate virtualenv and runs the same suite, verifying that Rust dependencies and resources survive packaging. Tests must import the installed wheel/archive rather than a source-tree copy. Artifacts are retained for download; publishing remains manual. Cross-platform support is verified only after those workflow jobs succeed.
+
+For 0.9.0, publish only the new `tokencat` artifacts; no separate `tokencat-native` release or coordinated frontend release is needed. Do not replace previously published 0.8.0 artifacts or retag old releases. The `publish` targets upload locally built artifacts for the current machine; to release all platforms, download the successful workflow's wheels plus its single source archive into a clean distribution directory, check those exact files with twine, then upload them manually.
 
 The macOS app requires macOS 14+, Rust, and Xcode's Swift toolchain with the macOS 26 SDK or newer. Build and launch manually:
 

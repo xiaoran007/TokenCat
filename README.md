@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/tokencat?style=flat-square)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)](LICENSE)
 
-TokenCat shows how many tokens your AI coding tools use and estimates their API-equivalent cost from locally recorded usage. Use the macOS menu bar app for background monitoring, or the terminal CLI for reports, JSON exports, and totals across machines.
+TokenCat shows how many tokens your AI coding tools use and estimates their API-equivalent cost from locally recorded usage. Use the macOS menu bar app for background monitoring or the terminal CLI for local dashboards and JSON exports.
 
 - See usage by coding tool, model, project, and task.
 - Inspect recent activity, cached tokens, and linked subagent usage.
@@ -13,18 +13,9 @@ TokenCat shows how many tokens your AI coding tools use and estimates their API-
 
 ## Choose an interface
 
-| Coding tool | macOS app | Stable CLI | CLI candidate |
-| --- | :---: | :---: | :---: |
-| Codex | Yes | Yes | Yes |
-| Claude Code | Yes | Yes | Yes |
-| OpenCode | Yes | Yes | Yes |
-| Antigravity | Yes | Yes | Yes |
-| Gemini CLI | — | Yes | — |
-| GitHub Copilot Chat/Agent and CLI | — | Yes | — |
+Both interfaces support **Codex, Claude Code, OpenCode, and Antigravity**. The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer; Windows is not supported.
 
-Choose the macOS app for background monitoring, the stable CLI for terminal reports and multi-machine aggregation, or the experimental CLI candidate for local dashboards. The two CLI commands can be installed together.
-
-The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer. Windows is not supported. Multi-machine aggregation is available in the stable CLI.
+CLI instructions below apply to 0.9.0 and newer. These versions provide local dashboards and JSON export. Remote aggregation, the older report/server commands, Gemini CLI, and GitHub Copilot are unavailable. If you still need those older CLI features, install `tokencat==0.8.0` in a separate environment.
 
 ## macOS app
 
@@ -64,111 +55,62 @@ Standard source locations are detected automatically:
 
 If your tools store data elsewhere, set their roots in Settings. Project paths stay hidden unless you enable them.
 
-## CLI candidate (experimental)
-
-The candidate shows local usage for Codex, Claude Code, OpenCode, and Antigravity using the same dashboard and options as `tokencat`. It runs as `tokencat-candidate` and supports dashboards and JSON export. Remote aggregation and the stable CLI's other commands are unavailable.
-
-From a checkout, with Rust and a C compiler installed:
-
-```bash
-pipx install .
-pipx inject tokencat ./candidate --include-apps
-tokencat-candidate
-tokencat-candidate dashboard --since 30d --weekly
-TZ=America/New_York tokencat-candidate --provider claude
-tokencat-candidate --since 7d --json
-```
-
-The default view shows the last seven days; `dashboard` also shows recent sessions. Use `--daily`, `--weekly`, or `--monthly` to choose the calendar grouping, and `--theme light` or `--theme dark` for terminal colors. Time windows use the system time zone; set `TZ` to choose another. `--until` includes the specified end time, or the whole day for date-only values.
-
-Standard source locations are detected automatically. Claude honors comma-separated roots in `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME`; OpenCode honors `XDG_DATA_HOME`. Run `tokencat-candidate --help` for all options.
-
-The candidate includes offline prices. Missing prices appear as unknown and uncertain estimates appear as a range. Use `--no-price` to report usage without cost estimation.
-
-JSON exports use the same report structure as the stable CLI. Session identifiers are anonymized and project paths are hidden; diagnostic warnings may include source file paths.
-
-To remove the candidate, run `pipx uninject tokencat tokencat-native`. Your stable CLI and saved candidate usage remain available.
-
-## Stable terminal CLI
+## Terminal CLI
 
 ### Install or upgrade
 
 ```bash
 pipx install tokencat
-```
-
-To update an existing installation:
-
-```bash
+# Update an existing installation:
 pipx upgrade tokencat
 ```
 
-To install from a repository checkout, use `pipx install .`.
-
-### Common commands
+Compatible wheels include everything needed to run the CLI. Installing from a source archive or repository checkout also requires Rust and a C compiler:
 
 ```bash
-tokencat                                 # Default 7-day dashboard
-tokencat --since 30d                      # A longer window
-tokencat sessions --provider claude --limit 20
-tokencat summary --json                   # Structured output
-tokencat doctor                          # Check detected sources and warnings
+pipx install .
 ```
 
-| Command | Shows |
-| --- | --- |
-| `tokencat` or `tokencat dashboard` | Usage overview, activity, models, and recent sessions |
-| `tokencat summary` | Totals by coding tool |
-| `tokencat sessions` | Individual sessions |
-| `tokencat models` | Totals by model |
-| `tokencat daily` | Daily usage |
-| `tokencat doctor` | Source detection, health, and pricing warnings |
-| `tokencat pricing show` | Catalog freshness and pricing coverage |
-| `tokencat pricing refresh` | Refresh the local pricing catalog |
+If you previously installed the candidate alongside TokenCat, remove that extra with `pipx uninject tokencat tokencat-native`. Use `tokencat` for the current CLI. Its first run copies saved candidate usage into the CLI data directory and keeps the original candidate ledger. An existing CLI ledger takes precedence.
 
-Use `--provider` to filter tools, `--since` and `--until` for dates, and `--json` to export supported reports. The dashboard also accepts `--daily`, `--weekly`, `--monthly`, and `--theme auto|dark|light`. Use `--no-price` to show usage without cost estimates.
+### Use the dashboard
 
-Session titles and paths are hidden by default. Include them explicitly with `tokencat sessions --show-title --show-path`. Run `tokencat --help` or `tokencat <command> --help` for all options.
+```bash
+tokencat                                      # Last seven days
+tokencat dashboard                            # Also show recent sessions
+tokencat --since 30d --weekly
+tokencat --provider claude
+tokencat --since 2026-10-01 --until 2026-10-03
+tokencat --since 7d --json
+TZ=America/New_York tokencat --since 7d
+```
+
+Use `--daily`, `--weekly`, or `--monthly` for calendar grouping, and `--theme auto|light|dark` for terminal colors. Repeat `--provider` to select several tools. Time windows use the system time zone; set `TZ` to choose another. `--until` includes the specified end time or the whole day for date-only values.
+
+Standard source locations are detected automatically. Claude honors comma-separated roots in `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME`; OpenCode honors `XDG_DATA_HOME`. Run `tokencat --help` or `tokencat dashboard --help` for all options.
+
+The CLI includes offline prices without automatic catalog downloads. Missing prices appear as unknown, and uncertain estimates appear as a range. Use `--no-price` to show usage without cost estimation. JSON exports anonymize session IDs and hide project paths; diagnostic warnings may include source file paths.
 
 ![TokenCat terminal dashboard](https://files.catbox.moe/wo8lwy.png)
 
-### Combine multiple machines
-
-For SSH aggregation, install TokenCat on each remote machine and add its host to `~/.ssh/config`. Select and trust the hosts locally:
-
-```bash
-tokencat nodes --trust
-tokencat dashboard --lan
-```
-
-TokenCat obtains usage snapshots over SSH; a remote HTTP server is not required. Use `tokencat nodes --remove` to remove trusted hosts.
-
-For HTTP nodes, set `TOKENCAT_NODE_TOKEN` to your shared secret and start `tokencat serve --lan` on the remote machine. Manage the background server with `tokencat serve --status`, `--logs`, or `--stop`. Trust a specific address with `tokencat nodes --url http://HOST:8765 --trust`.
-
-Automatic HTTP-node discovery requires the optional extra: `pipx install "tokencat[mdns]"`. SSH discovery works with the base installation. If mDNS is unavailable on your network, use SSH or an explicit HTTP address.
-
 ## Prices and privacy
 
-Costs are **API-equivalent estimates, not your bill or subscription balance**. TokenCat counts recorded tokens even when a model has no price record. Unknown prices stay visible; usage without a confirmed date may be excluded from time-window totals. Estimates do not include every billing tier, tool fee, or regional adjustment.
+Costs are **API-equivalent estimates, not your bill or subscription balance**. Unknown model prices remain unpriced. Ambiguous recorded usage favors the higher defensible estimate; requests missing from local logs cannot be counted. Usage without a confirmed date may contribute to a window's totals while remaining outside the calendar timeline; warnings explain this difference. Estimates do not include every billing tier, tool fee, or regional adjustment.
 
-All interfaces include offline prices and show pricing coverage and sources. The macOS app checks for updates every 24 hours by default; Settings offers manual refresh, other intervals, an off switch, and a custom catalog. Update the stable CLI's prices with `tokencat pricing refresh`. The candidate uses bundled prices without automatic updates. Failed updates preserve available prices. Estimates can differ between interfaces because their catalogs and usage accounting differ.
+Both interfaces include offline prices and show pricing coverage and sources. The app checks for price updates every 24 hours by default; Settings offers manual refresh, other intervals, an off switch, and a custom catalog. Different catalogs, source roots, and independently saved history can produce different totals between interfaces.
 
-Usage collection reads local records. TokenCat does not proxy requests, change provider endpoints, or read OAuth/session credentials for reporting. Reports exclude prompt and response bodies. Price updates access the network; remote aggregation exchanges usage snapshots with machines you explicitly trust.
+Usage collection reads local records. TokenCat does not proxy requests, change provider endpoints, or read OAuth/session credentials for reporting. Reports exclude prompt and response bodies. App price updates and CLI version checks access the network.
 
 ## Troubleshooting
 
-**A tool is missing or shows no usage.** Make sure it has recorded local activity under the same user account. Check source roots in app Settings, or run `tokencat doctor` in the CLI. For nonstandard CLI locations, `CLAUDE_CONFIG_DIR` accepts comma-separated Claude roots and `XDG_DATA_HOME` sets the OpenCode data location.
-
-**Copilot CLI activity has not appeared yet.** Its CLI adapter counts shutdown summaries. Active sessions without a shutdown summary are reported as partial by `tokencat doctor`.
+**A tool is missing or shows no usage.** Make sure it has recorded local activity under the same user account. Check source roots in app Settings and warnings in the CLI output. For nonstandard CLI locations, `CLAUDE_CONFIG_DIR` accepts comma-separated Claude roots and `XDG_DATA_HOME` sets the OpenCode data location.
 
 **Costs look different from an invoice.** TokenCat estimates standard API usage, including when a tool is used through a subscription. Check pricing coverage and unknown models before comparing totals. Updating the catalog can change estimates for earlier dates.
 
-**Where is TokenCat's data stored?** The app keeps usage and downloaded prices in `~/Library/Application Support/TokenCat/`. The stable CLI stores prices, node identity, trust settings, and server logs under `~/.tokencat/`. The candidate saves usage in `~/.tokencat-candidate/`. Removing source logs does not erase usage already saved by the app or candidate.
+**A native extension cannot be loaded.** Reinstall TokenCat using a wheel matching your operating system and architecture. For a source installation, make sure Rust and a C compiler are available, then reinstall. TokenCat requires its native extension to collect usage.
+
+**Where is TokenCat's data stored?** The app keeps usage and downloaded prices in `~/Library/Application Support/TokenCat/`. The CLI keeps usage in `~/.tokencat/usage.sqlite3`. Candidate history remains in `~/.tokencat-candidate/` after migration. Removing source logs does not erase already saved usage.
 
 ## Contributing
 
-See [development and testing](docs/development.md) for local checks, source builds, and performance measurement. [Architecture and decisions](docs/architecture.md) records collection, privacy, and pricing design choices. Report problems in [GitHub Issues](https://github.com/xiaoran007/TokenCat/issues).
-
-## License
-
-TokenCat is licensed under [GNU GPLv3](LICENSE).
+See [development and testing](docs/development.md) and [architecture and decisions](docs/architecture.md).
