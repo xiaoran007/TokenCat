@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from rich.text import Text
+from typer import rich_utils
 from typer.testing import CliRunner
 
 import tokencat.cli as shared_cli
@@ -17,14 +19,21 @@ def arguments():
     return ["--since", "2026-10-02", "--until", "2026-10-02"]
 
 
-def test_cli_has_only_local_dashboard_command():
+@pytest.mark.parametrize("colored", [False, True])
+def test_cli_has_only_local_dashboard_command(monkeypatch, colored):
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", colored)
+    monkeypatch.setattr(rich_utils, "COLOR_SYSTEM", "standard" if colored else None)
     assert app.registered_callback.callback is shared_cli.main
     assert app.registered_commands[0].callback is shared_cli.dashboard
     assert len(app.registered_commands) == 1 and app.registered_groups == []
-    result = runner.invoke(app, ["dashboard", "--help"])
+    result = runner.invoke(app, ["dashboard", "--help"], color=colored)
     assert result.exit_code == 0
-    assert "--weekly" in result.stdout and "--theme" in result.stdout
-    assert "gemini" not in result.stdout and "copilot" not in result.stdout
+    assert ("\x1b[" in result.stdout) == colored
+    help_text = Text.from_ansi(result.stdout).plain
+    assert "--weekly" in help_text and "--theme" in help_text
+    assert "gemini" not in help_text and "copilot" not in help_text
 
 
 def test_cli_json_reuses_shared_format_and_anonymous_sessions(all_sources):
