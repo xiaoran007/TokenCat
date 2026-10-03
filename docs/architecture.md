@@ -42,6 +42,23 @@ The native ledger lives in `~/Library/Application Support/TokenCat/usage.sqlite3
 
 OpenCode uses individual `step-finish` records when available, excluding historical context copied into forked sessions and avoiding duplicate message totals. Reasoning belongs to output. Source reads use a consistent SQLite snapshot, including committed WAL data.
 
+## Native upper-estimate policy
+
+The native analyzer favors higher defensible usage observations when source metadata is ambiguous. This policy lives entirely in Rust; the macOS app, Python CLI, binding, C ABI and dashboard JSON schema remain unchanged. Estimates describe available local evidence, not a guaranteed upper bound on requests absent from local logs.
+
+- Input, cache read and cache write are mutually exclusive; output includes reasoning. Reasoning and cache-write TTL details are subsets, never additional total tokens. Cache write remains supported by all four adapters.
+- Codex modern records use response IDs. Legacy records suppress unchanged cumulative consumption, but when cumulative deltas and last-response values disagree, select the higher complete normalized candidate. Category resets also retain positive deltas. Repeated last values without cumulative counters or a shared response ID are ambiguous requests, not proven duplicates. Contradictory input/cache or output/reasoning counters normalize upward and mark the event incomplete.
+- An initial Codex cumulative total exceeding the last response retains the residual as historical usage with uncertain dates bounded above by the first report. Historical model attribution stays unknown; it is not priced as the current configured model. Baseline recovery does not add this residual again after recorded responses.
+- Claude identities include request and message IDs when available, reconciling copied transcripts across sessions. UUIDs or deterministic source positions retain usage with missing message IDs. Revisions keep the higher coherent observation rather than splicing category maxima; cache-write aggregates retain larger TTL detail sums.
+- OpenCode retains the larger of reported total and observed category sum, preserving unallocated tokens rather than inventing a classification. Known output or reasoning remains in output even if the other component is missing. Such partial records are marked incomplete.
+- Antigravity compares aggregate output with thinking plus visible output and keeps the larger value. Generation/step snapshots keep the higher coherent observation. Retry usage in `ChatModelMetadata.retry_infos=17` and `CortexStepMetadata.retry_infos=28`, nested `RetryInfo.usage=2`, is collected as independent requests and reconciled by request identity. These retry wire paths follow the [reviewed ccusage parser](https://github.com/ccusage/ccusage/blob/3cee49479a16af37a7b4df7b0fd976537ec97018/rust/adapters/antigravity/src/parser.rs#L608-L685); they are not an additional official descriptor verification. Malformed retries do not discard valid sibling or primary usage.
+
+Uncertain dates are stored as internal possible time intervals. Queries include each overlapping event once in summaries and model/session/provider/project totals, never in calendar buckets or latest-event timestamps. Therefore totals can exceed the timeline sum. Existing query warnings explain the difference. The legacy scan `undated_events`/`undated_tokens` fields count excluded usage; retained uncertain-date events do not increment them, so existing frontends do not incorrectly describe them as outside totals. Missing dates are not replaced with file modification time or today. Available session dates constrain intervals; first observation bounds the latest possible date when no source bound exists. Copied replay does not advance that observation bound.
+
+Pricing preserves the existing minimum/maximum fields. Unallocated reported tokens contribute to maximum cost at the highest available rate for the identified model, considering possible context tiers. Token categories and pricing coverage remain factual; unknown models remain unpriced. Cache TTL and reasoning-rate ambiguity continue to produce cost ranges through the existing fields.
+
+Analyzer-versioned cursors replay readable sources once and atomically replace superseded results. This also handles changed file identities at the same path. Copies sharing an obsolete ledger identity retire together, avoiding duplicate old/new results when a copy is unavailable. Normal rotation/deletion continues to retain ledger history. Existing higher observations for the same stable request identity remain retained; independent unavailable source history cannot be reconstructed and is preserved as collected.
+
 ## Antigravity metadata and identity
 
 Synthetic SQLite/protobuf fixtures in [the integration tests](../native/tokencat-core/tests/antigravity.rs) contain invented counters, request IDs, models, dates, and body sentinels. No user conversations or credentials are copied into fixtures.
@@ -62,7 +79,7 @@ Verified API-provider enums include Google Vertex=3, Google Gemini=24, Anthropic
 
 Read-only inspection of 416 generation records found output included thinking plus response; 398 lacked generation creation timestamps. Linked steps supplied actual request dates, and two requests had usage only in steps. These observations motivated synthetic regressions rather than retained user data.
 
-Generations link to step metadata for timestamps and usage not yet flushed to the generation table. Undated usage remains separate from time-window totals; database modification time is not a substitute for a request date. Conflicting workspace URIs do not assign an arbitrary project.
+Generations link to step metadata for timestamps and usage not yet flushed to the generation table. Usage with unresolved dates contributes once to overlapping upper-estimate totals, outside the calendar timeline; database modification time is not a substitute for a request date. Conflicting workspace URIs do not assign an arbitrary project.
 
 Positional and request aliases retain stable ledger identities when response IDs or corresponding steps arrive later. App/CLI replicas reconcile by request identity and revision, including after restart. Confirmed duplicate ledger events merge before the updated alias map commits.
 
