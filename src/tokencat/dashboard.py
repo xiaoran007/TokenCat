@@ -12,7 +12,7 @@ from tokencat.core.models import (
     SessionRecord, TokenTotals,
 )
 from tokencat.core.time import _local_timezone, local_now, parse_unix_timestamp
-from tokencat.engine import Engine
+from tokencat.engine import Engine, migrate_candidate_ledger
 
 SUPPORTED = {ProviderName.CODEX, ProviderName.CLAUDE, ProviderName.OPENCODE, ProviderName.ANTIGRAVITY}
 
@@ -137,7 +137,9 @@ def load_dashboard(filters, granularity, *, pricing_enabled):
              "providers": sorted(provider.value for provider in filters.providers) if filters.providers else None,
              "granularity": "day", "show_paths": False, "include_details": True}
     try:
-        with Engine(configuration()) as engine:
+        config = configuration()
+        migrate_candidate_ledger(Path(config["home"]))
+        with Engine(config) as engine:
             engine.scan()
             daily = engine.query(query)
             query["granularity"] = {DashboardUsageGranularity.DAILY: "day", DashboardUsageGranularity.WEEKLY: "week",

@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import sqlite3
+import tempfile
+from contextlib import closing
+from pathlib import Path
 
 
 class Engine:
@@ -34,3 +39,26 @@ class Engine:
     def __exit__(self, *_):
         self.close()
 
+
+def migrate_candidate_ledger(home: Path) -> None:
+    """Copy the candidate ledger once, including committed WAL data; keep the original."""
+    database = home / ".tokencat/usage.sqlite3"
+    candidate = home / ".tokencat-candidate/usage.sqlite3"
+    if database.exists() or not candidate.exists():
+        return
+    database.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=".usage-", suffix=".sqlite3", dir=database.parent)
+    os.close(descriptor)
+    try:
+        with closing(sqlite3.connect(candidate.as_uri() + "?mode=ro", uri=True)) as source:
+            with closing(sqlite3.connect(temporary)) as target:
+                source.backup(target)
+        try:
+            # Publish atomically without replacing a ledger created by another CLI invocation.
+            os.link(temporary, database)
+        except FileExistsError:
+            pass
+    except sqlite3.Error as exc:
+        raise RuntimeError(f"Cannot migrate the candidate usage ledger: {exc}") from exc
+    finally:
+        Path(temporary).unlink()
