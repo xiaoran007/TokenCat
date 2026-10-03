@@ -97,6 +97,218 @@ fn near(actual: f64, expected: f64) {
 }
 
 #[test]
+fn old_query_json_keeps_auto_buckets_and_omits_unrequested_details() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    store.commit_source(&cursor("first", 0), &[], &[event("a", "task", 1000)], &[]).unwrap();
+    let old: Query = serde_json::from_value(json!({
+        "since_ms": 0, "until_ms": 86_400_000, "timezone": "UTC", "show_paths": false
+    })).unwrap();
+    assert_eq!(old.granularity, TimelineGranularity::Auto);
+    assert_eq!(old.providers, None);
+    assert!(!old.include_details);
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &old).unwrap();
+    assert_eq!(dashboard.schema_version, 1);
+    assert_eq!(dashboard.timeline.len(), 24);
+    let json = serde_json::to_value(&dashboard).unwrap();
+    assert!(json["timeline"].as_array().unwrap().iter().all(|bucket| bucket.get("details").is_none()));
+    for field in ["providers", "models", "projects", "sessions"] {
+        assert!(json[field].as_array().unwrap().iter().all(|row| row.get("primary_model").is_none()));
+    }
+    let long = query_dashboard(&store, &legacy_catalog(), &query(0, 4 * 86_400_000, "UTC")).unwrap();
+    assert_eq!(long.timeline.len(), 4);
+}
+
+#[test]
+fn provider_filter_applies_before_all_aggregates_and_filters_observed_states() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let mut codex = event("codex", "same-id", 2000);
+    codex.provider = Provider::Codex;
+    codex.model = Some("private-model".into());
+    let mut codex_session = session("same-id", None);
+    codex_session.provider = Provider::Codex;
+    codex_session.project_path = Some("/other/project".into());
+    let states = [Provider::Claude, Provider::Codex].map(|provider| ObservedState {
+        provider, session_id: "same-id".into(), timestamp_ms: 1000,
+        kind: "quota".into(), data: json!({"percent": 40}),
+    });
+    store.commit_source(&cursor("first", 0), &[session("same-id", None), codex_session],
+        &[event("claude", "same-id", 1000), codex], &states).unwrap();
+    let mut request = query(0, 4000, "UTC");
+    request.providers = Some(vec![Provider::Claude, Provider::Claude]);
+    request.include_details = true;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.summary.event_count, 1);
+    assert_eq!(dashboard.summary.cost.total_tokens, 8100);
+    assert!(dashboard.summary.cost.unknown_models.is_empty());
+    assert_eq!(dashboard.providers.len(), 1);
+    assert_eq!(dashboard.providers[0].provider, Some(Provider::Claude));
+    assert_eq!(dashboard.models.len(), 1);
+    assert_eq!(dashboard.models[0].id, "claude-sonnet-4-6");
+    assert_eq!(dashboard.projects.len(), 1);
+    assert_eq!(dashboard.sessions.len(), 1);
+    assert_eq!(dashboard.sessions[0].id, "claude:same-id");
+    assert_eq!(dashboard.states.len(), 1);
+    assert_eq!(dashboard.states[0].provider, Provider::Claude);
+    let details = dashboard.timeline[0].details.as_ref().unwrap();
+    assert_eq!(details.session_count, 1);
+    assert_eq!(details.models.len(), 1);
+    assert_eq!(details.models[0].provider, Some(Provider::Claude));
+
+    request.providers = Some(vec![]);
+    let empty = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(empty.summary.event_count, 0);
+    assert!(empty.providers.is_empty() && empty.models.is_empty() && empty.projects.is_empty());
+    assert!(empty.sessions.is_empty() && empty.states.is_empty());
+    assert_eq!(empty.timeline[0].details.as_ref().unwrap().session_count, 0);
+    assert!(empty.timeline[0].details.as_ref().unwrap().models.is_empty());
+}
+
+#[test]
+fn detailed_buckets_deduplicate_sessions_and_preserve_harnesses_and_cost_ranges() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let start = timestamp("2026-10-05T00:00:00Z");
+    let until = timestamp("2026-10-12T00:00:00Z");
+    let mut other_harness = event("codex", "task", start + 3);
+    other_harness.provider = Provider::Codex;
+    let mut other_model = event("private", "task", start + 86_400_000);
+    other_model.model = Some("private-model".into());
+    let mut child = event("child", "child", start + 86_400_001);
+    child.tokens.cache_write_5m = None;
+    child.tokens.cache_write_1h = None;
+    store.commit_source(&cursor("first", 0), &[session("parent", None),
+        session("task", Some("parent")), session("child", Some("parent"))], &[
+        event("a", "task", start + 1), event("b", "task", start + 2),
+        other_harness, other_model, child, event("outside", "task", until),
+    ], &[]).unwrap();
+    let mut request = query(start, until, "UTC");
+    request.granularity = TimelineGranularity::Week;
+    let plain = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    request.include_details = true;
+    let detailed = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(serde_json::to_value(&plain.summary).unwrap(), serde_json::to_value(&detailed.summary).unwrap());
+    assert_eq!(detailed.timeline.len(), 1);
+    assert_eq!(detailed.summary.event_count, 5);
+    assert_eq!(detailed.summary.cost.total_tokens, 40500);
+    assert_eq!(detailed.summary.output_tokens, 500);
+    assert_eq!(detailed.summary.reasoning_tokens, 300);
+    let bucket = &detailed.timeline[0];
+    let details = bucket.details.as_ref().unwrap();
+    assert_eq!(details.session_count, 3); // Claude task, Codex task, child; no structural parent.
+    assert_eq!(details.models.len(), 3);
+    assert_eq!(details.models.iter().map(|row| row.summary.event_count).sum::<usize>(), 5);
+    near(details.models.iter().map(|row| row.summary.cost.min_usd).sum(), bucket.summary.cost.min_usd);
+    near(details.models.iter().map(|row| row.summary.cost.max_usd).sum(), bucket.summary.cost.max_usd);
+    assert!(bucket.summary.cost.max_usd > bucket.summary.cost.min_usd);
+    assert_eq!(bucket.summary.cost.unpriced_events, 1);
+    assert_eq!(bucket.summary.cost.uncertain_events, 1);
+    assert_eq!(details.models.iter().filter(|row| row.label == "claude-sonnet-4-6").count(), 2);
+    let task = detailed.sessions.iter().find(|row| row.id == "claude:task").unwrap();
+    assert_eq!(task.primary_model.as_deref(), Some("claude-sonnet-4-6"));
+    let parent = detailed.sessions.iter().find(|row| row.id == "claude:parent").unwrap();
+    assert_eq!(parent.summary.event_count, 0);
+    assert_eq!(parent.primary_model, None);
+}
+
+#[test]
+fn primary_model_uses_window_tokens_with_deterministic_ties_and_unknowns() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let mut a = event("a", "tie", 1000);
+    a.model = Some("a-model".into());
+    let mut z = event("z", "tie", 2000);
+    z.model = Some("z-model".into());
+    let mut unknown = event("unknown", "unknown", 1000);
+    unknown.model = None;
+    unknown.tokens.total = Some(20000);
+    let known = event("known", "unknown", 2000);
+    store.commit_source(&cursor("first", 0), &[], &[a, z, unknown, known], &[]).unwrap();
+    let mut request = query(0, 3000, "UTC");
+    request.include_details = true;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.sessions.iter().find(|row| row.id == "claude:tie").unwrap()
+        .primary_model.as_deref(), Some("a-model"));
+    assert_eq!(dashboard.sessions.iter().find(|row| row.id == "claude:unknown").unwrap().primary_model, None);
+    request.since_ms = 2000;
+    let latest = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(latest.sessions.iter().find(|row| row.id == "claude:tie").unwrap()
+        .primary_model.as_deref(), Some("z-model"));
+    assert_eq!(latest.sessions.iter().find(|row| row.id == "claude:unknown").unwrap()
+        .primary_model.as_deref(), Some("claude-sonnet-4-6"));
+}
+
+#[test]
+fn explicit_days_keep_local_midnight_across_dst_in_a_short_window() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let start = timestamp("2026-11-01T04:00:00Z");
+    let until = timestamp("2026-11-03T05:00:00Z");
+    store.commit_source(&cursor("first", 0), &[], &[
+        event("first", "task", timestamp("2026-11-01T05:15:00Z")),
+        event("repeated", "task", timestamp("2026-11-01T06:15:00Z")),
+        event("next", "task", timestamp("2026-11-02T05:00:00Z")),
+    ], &[]).unwrap();
+    let mut request = query(start, until, "America/New_York");
+    request.granularity = TimelineGranularity::Day;
+    request.include_details = true;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.timestamp_ms).collect::<Vec<_>>(),
+        vec![start, timestamp("2026-11-02T05:00:00Z")]);
+    assert_eq!(dashboard.timeline[0].summary.event_count, 2);
+    assert_eq!(dashboard.timeline[0].details.as_ref().unwrap().session_count, 1);
+    request.granularity = TimelineGranularity::Hour;
+    assert_eq!(query_dashboard(&store, &legacy_catalog(), &request).unwrap().timeline.len(), 49);
+}
+
+#[test]
+fn weeks_start_on_local_monday_and_keep_partial_buckets_across_dst() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let start = timestamp("2026-10-28T04:00:00Z");
+    let until = timestamp("2026-11-10T05:00:00Z");
+    store.commit_source(&cursor("first", 0), &[], &[
+        event("outside-start", "task", start - 1),
+        event("a", "task", start),
+        event("b", "task", timestamp("2026-11-02T05:00:00Z")),
+        event("c", "task", timestamp("2026-11-09T05:00:00Z")),
+        event("outside-end", "task", until),
+    ], &[]).unwrap();
+    let mut request = query(start, until, "America/New_York");
+    request.granularity = TimelineGranularity::Week;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.timestamp_ms).collect::<Vec<_>>(), vec![
+        timestamp("2026-10-26T04:00:00Z"), timestamp("2026-11-02T05:00:00Z"), timestamp("2026-11-09T05:00:00Z")]);
+    assert!(dashboard.timeline.iter().all(|bucket| bucket.summary.event_count == 1));
+}
+
+#[test]
+fn months_follow_calendar_across_year_leap_day_and_dst_with_empty_buckets() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let start = timestamp("2027-12-15T05:00:00Z");
+    let until = timestamp("2028-04-01T04:00:00Z");
+    store.commit_source(&cursor("first", 0), &[], &[
+        event("leap", "task", timestamp("2028-02-29T17:00:00Z")),
+        event("march", "task", timestamp("2028-03-01T05:00:00Z")),
+        event("dst", "task", timestamp("2028-03-13T04:00:00Z")),
+        event("outside", "task", until),
+    ], &[]).unwrap();
+    let mut request = query(start, until, "America/New_York");
+    request.granularity = TimelineGranularity::Month;
+    request.include_details = true;
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &request).unwrap();
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.timestamp_ms).collect::<Vec<_>>(), vec![
+        timestamp("2027-12-01T05:00:00Z"), timestamp("2028-01-01T05:00:00Z"),
+        timestamp("2028-02-01T05:00:00Z"), timestamp("2028-03-01T05:00:00Z")]);
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.summary.event_count).collect::<Vec<_>>(), vec![0, 0, 1, 2]);
+    assert_eq!(dashboard.timeline.iter().map(|bucket| bucket.details.as_ref().unwrap().session_count)
+        .collect::<Vec<_>>(), vec![0, 0, 1, 1]);
+    assert!(dashboard.timeline[0].details.as_ref().unwrap().models.is_empty());
+}
+
+#[test]
 fn replay_and_revision_survive_reopen_and_keep_occurrence_time() {
     let scratch = Scratch::new();
     {

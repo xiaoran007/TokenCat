@@ -59,6 +59,31 @@ fn app_boundary_persists_usage_across_reopen_and_returns_query_errors() {
                 .unwrap()
                 > 0.0
         );
+        assert_eq!(dashboard["data"]["schema_version"], 1);
+        assert!(dashboard["data"]["timeline"].as_array().unwrap().iter()
+            .all(|bucket| bucket.get("details").is_none()));
+        assert!(dashboard["data"]["sessions"][0].get("primary_model").is_none());
+        let detailed_query = CString::new(serde_json::json!({
+            "since_ms": 1790899200000_i64, "until_ms": 1790985600000_i64,
+            "timezone": "America/New_York", "providers": ["claude"],
+            "granularity": "day", "include_details": true
+        }).to_string()).unwrap();
+        let detailed = take_json(tokencat_query(handle, detailed_query.as_ptr()));
+        assert_eq!(detailed["ok"], true);
+        assert_eq!(detailed["data"]["summary"], dashboard["data"]["summary"]);
+        assert_eq!(detailed["data"]["sessions"][0]["primary_model"], "claude-sonnet-4-6");
+        let buckets = detailed["data"]["timeline"].as_array().unwrap();
+        let active = buckets.iter().find(|bucket| bucket["summary"]["event_count"] == 1).unwrap();
+        assert_eq!(active["details"]["session_count"], 1);
+        assert_eq!(active["details"]["models"][0]["provider"], "claude");
+        let invalid_provider = CString::new(
+            "{\"since_ms\":0,\"until_ms\":1,\"timezone\":\"UTC\",\"providers\":[\"gemini\"]}"
+        ).unwrap();
+        assert_eq!(take_json(tokencat_query(handle, invalid_provider.as_ptr()))["ok"], false);
+        let invalid_granularity = CString::new(
+            "{\"since_ms\":0,\"until_ms\":1,\"timezone\":\"UTC\",\"granularity\":\"invalid\"}"
+        ).unwrap();
+        assert_eq!(take_json(tokencat_query(handle, invalid_granularity.as_ptr()))["ok"], false);
         tokencat_close(handle);
 
         let reopened = tokencat_open(config.as_ptr());

@@ -42,6 +42,29 @@ final class TokenCatKitTests: XCTestCase {
     func testUnsupportedSchemaIsRejected() throws {
         XCTAssertThrowsError(try Dashboard.decode(fixture(schemaVersion: 2)))
     }
+    func testAdditionalCLIDetailsDoNotChangeAppDecodingOrTaskTotals() throws {
+        let original = try Dashboard.decode(fixture())
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: fixture()) as? [String: Any])
+        var timeline = try XCTUnwrap(payload["timeline"] as? [[String: Any]])
+        timeline[0]["details"] = ["session_count": 2, "models": [
+            ["id": "claude:fixture-model", "label": "fixture-model", "provider": "claude",
+             "summary": timeline[0]["summary"]!]
+        ]] as [String: Any]
+        payload["timeline"] = timeline
+        var sessions = try XCTUnwrap(payload["sessions"] as? [[String: Any]])
+        for index in sessions.indices { sessions[index]["primary_model"] = "fixture-model" }
+        payload["sessions"] = sessions
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let snapshot = try Dashboard.decode(data)
+        XCTAssertEqual(snapshot.schemaVersion, 1)
+        XCTAssertEqual(snapshot.timeline.map(\.timestampMs), original.timeline.map(\.timestampMs))
+        XCTAssertEqual(snapshot.timeline[0].summary.cost.totalTokens, original.timeline[0].summary.cost.totalTokens)
+        XCTAssertEqual(snapshot.rootSessions.map(\.id), original.rootSessions.map(\.id))
+        XCTAssertEqual(snapshot.familySummary(snapshot.rootSessions[0]).minUsd,
+                       original.familySummary(original.rootSessions[0]).minUsd)
+        let envelope = try CoreEnvelope<Dashboard>.decode(JSONSerialization.data(withJSONObject: ["ok": true, "data": payload]))
+        XCTAssertEqual(envelope.data?.summary.cost.maxUsd, original.summary.cost.maxUsd)
+    }
     func testCacheRatioDoesNotOverflowLargeCounters() throws {
         var summary = try Dashboard.decode(fixture()).summary
         summary.inputTokens = UInt64.max
@@ -112,6 +135,7 @@ final class TokenCatKitTests: XCTestCase {
         let queryJSON = try JSONSerialization.jsonObject(with: encoder.encode(query)) as! [String: Any]
         XCTAssertEqual(queryJSON["since_ms"] as? Int, 100)
         XCTAssertEqual(queryJSON["show_paths"] as? Bool, false)
+        XCTAssertEqual(Set(queryJSON.keys), Set(["since_ms", "until_ms", "timezone", "show_paths"]))
         let payload = try JSONSerialization.jsonObject(with: fixture())
         let success = try CoreEnvelope<Dashboard>.decode(JSONSerialization.data(withJSONObject: ["ok": true, "data": payload]))
         XCTAssertTrue(success.ok)
