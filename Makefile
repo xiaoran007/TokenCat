@@ -4,7 +4,7 @@ BOOTSTRAP_PYTHON ?=
 PACKAGE ?= tokencat
 TWINE_REPOSITORY ?= pypi
 
-.PHONY: venv install-dev install-release test clean refresh-bundled-pricing build check-dist release-check publish publish-testpypi
+.PHONY: venv install-dev install-release test clean refresh-bundled-pricing build check-dist release-check publish publish-testpypi candidate-dev candidate-test candidate-build
 
 venv:
 	@if [ ! -x .venv/bin/python ]; then \
@@ -41,7 +41,16 @@ test:
 	PYTHONPATH=src $(PYTHON) -m pytest -q
 
 clean:
-	rm -rf build dist *.egg-info
+	rm -rf build/lib build/bdist.* dist *.egg-info src/*.egg-info
+
+candidate-dev:
+	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --no-build-isolation --no-deps --config-settings="build-args=--locked" -e ./candidate
+
+candidate-test:
+	$(PYTHON) -m pytest -q candidate/tests
+
+candidate-build:
+	cd candidate && "$(abspath $(PYTHON))" -m maturin build --release --locked --sdist --out dist
 
 refresh-bundled-pricing:
 	$(PYTHON) -m tokencat.core.pricing refresh-bundled
