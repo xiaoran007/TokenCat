@@ -6,8 +6,12 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
+pub(crate) const ANALYSIS_VERSION: u64 = 2;
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub(crate) struct ParserState {
+    #[serde(default)]
+    pub analysis_version: u64,
     pub generation: u64,
     pub context: Context,
 }
@@ -28,6 +32,8 @@ pub(crate) struct Context {
     started_ms: Option<i64>,
     agent: Option<String>,
     sidechain: bool,
+    #[serde(default)]
+    usage_sequence: u64,
 }
 
 #[derive(Default)]
@@ -53,6 +59,18 @@ fn zero_tokens() -> Option<u64> {
     Some(0)
 }
 impl RawTokens {
+    fn upper_candidate(&self, last: Option<&Self>) -> CoreResult<Self> {
+        let delta = self.tokens();
+        let Some(last) = last else { return delta.map(|_| self.clone()) };
+        match (delta, last.tokens()) {
+            (Ok(delta), Ok(response)) => Ok(if response.upper_key() > delta.upper_key() {
+                last.clone()
+            } else { self.clone() }),
+            (Ok(_), Err(_)) => Ok(self.clone()),
+            (Err(_), Ok(_)) => Ok(last.clone()),
+            (Err(error), Err(_)) => Err(error),
+        }
+    }
     fn difference(&self, prior: &Self) -> Self {
         fn sub(a: Option<u64>, b: Option<u64>) -> Option<u64> {
             // A category can only be differenced across two known readings.
@@ -303,7 +321,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
             .thread_id
             .or_else(|| c.session.clone())
             .ok_or("usage record has no thread identifier")?;
-        let time = timestamp(row.timestamp.as_deref())?;
+        let time = timestamp(row.timestamp.as_deref()).ok();
         let tokens = raw.tokens()?;
         c.modern = true;
         if !raw.nonzero() {
@@ -322,16 +340,16 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
             "unknown"
         };
         batch.events.push(UsageEvent {
-            uncertain_time: None,
+            uncertain_time: time.is_none().then_some(TimeBounds::default()),
             id: format!("response:{id}"),
             provider: Provider::Codex,
             session_id: session,
-            timestamp_ms: time,
+            timestamp_ms: time.unwrap_or(0),
             model,
             model_provider: c.model_provider.clone().or_else(|| Some("openai".into())),
             revision_ms: None,
             attribution: attribution.into(),
-            incomplete: tokens.input_uncached.is_none() || tokens.output.is_none(),
+            incomplete: time.is_none() || tokens.input_uncached.is_none() || tokens.output.is_none(),
             tokens,
         });
         return Ok(());
@@ -343,8 +361,8 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         .session
         .clone()
         .ok_or("usage record has no session metadata")?;
-    let time = timestamp(row.timestamp.as_deref())?;
-    if let Some(limits) = p.rate_limits {
+    let time = timestamp(row.timestamp.as_deref()).ok();
+    if let (Some(limits), Some(time)) = (p.rate_limits, time) {
         batch.states.push(ObservedState {
             provider: Provider::Codex,
             session_id: session.clone(),
@@ -354,7 +372,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         });
     }
     let Some(info) = p.info else { return Ok(()) };
-    if let Some(window) = info.model_context_window {
+    if let (Some(window), Some(time)) = (info.model_context_window, time) {
         batch.states.push(ObservedState {provider:Provider::Codex,session_id:session.clone(),timestamp_ms:time,kind:"context".into(),data:json!({"context_window":window,"last_input_tokens":info.last_token_usage.as_ref().and_then(|r|r.input_tokens),"last_output_tokens":info.last_token_usage.as_ref().and_then(|r|r.output_tokens)})});
     }
     // Modern response records are authoritative; token_count is a mutable context snapshot.
@@ -373,13 +391,14 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
                 batch
                     .warnings
                     .push("Codex cumulative usage baseline reset; prior ledger retained".into());
-                if last.as_ref() == c.previous_last.as_ref() {
-                    None
-                } else {
-                    last.clone()
-                }
+                last.clone()
             }
-            Some(prior) => Some(total.difference(prior)),
+            Some(prior) => {
+                let delta = total.difference(prior);
+                let selected = delta.upper_candidate(last.as_ref())?;
+                incomplete_baseline = last.as_ref().is_some_and(|last| &delta != last);
+                Some(selected)
+            }
             None => {
                 if c.previous_last.is_some() && last.as_ref() == c.previous_last.as_ref() {
                     // Quota/context snapshots can carry the last response while
@@ -394,22 +413,45 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
                     batch.warnings.push("Codex cumulative baseline recovered without a last response; historical usage was not charged again".into());
                     None
                 } else {
-                    incomplete_baseline = last.as_ref().is_some_and(|v| v != total);
-                    if incomplete_baseline {
-                        batch.warnings.push("Initial Codex cumulative usage includes history without event times; only the reported last response is recorded".into());
+                    let baseline_tokens = total.tokens()?;
+                    let history = last.as_ref().map(|last| last.tokens())
+                        .transpose()?.map_or(0, |last| baseline_tokens.upper_key().0.saturating_sub(last.upper_key().0));
+                    incomplete_baseline = history > 0;
+                    if incomplete_baseline && !c.fork && c.usage_sequence == 0 {
+                        let residual = total.difference(last.as_ref().unwrap());
+                        // Historical category differences can be contradictory
+                        // even when the total is known. Keep the total without
+                        // fabricating a split or rejecting the current response.
+                        let tokens = match residual.tokens() {
+                            Ok(mut tokens) if tokens.known_total() <= history => {
+                                tokens.total = Some(history); tokens
+                            }
+                            _ => Tokens { total: Some(history), ..Default::default() },
+                        };
+                        if history > 0 {
+                            batch.events.push(UsageEvent {
+                                id: format!("baseline:{}", digest(&(session.clone(), c.epoch))),
+                                provider: Provider::Codex, session_id: session.clone(),
+                                timestamp_ms: 0,
+                                uncertain_time: Some(TimeBounds { since_ms: None, until_ms: time.map(|time| time.saturating_add(1)) }),
+                                model: None, model_provider: c.model_provider.clone(),
+                                revision_ms: time, attribution: "historical model unknown".into(),
+                                tokens, incomplete: true,
+                            });
+                            batch.warnings.push("Initial Codex cumulative history retained as uncertain-date usage in upper estimates".into());
+                        }
                     }
-                    Some(last.clone().unwrap_or_else(|| total.clone()))
+                    Some(if history > 0 { last.clone().unwrap() } else {
+                        total.upper_candidate(last.as_ref())?
+                    })
                 }
             }
         }
     } else {
         incomplete_baseline = true;
-        if last.is_some() && last.as_ref() == c.previous_last.as_ref() {
-            batch.warnings.push("Codex snapshot repeats last usage without cumulative counters; ambiguous response count was not guessed".into());
-            None
-        } else {
-            last.clone()
-        }
+        // Equal token values alone cannot establish that two requests are the
+        // same. Stable IDs/timestamps reconcile actual copies in the ledger.
+        last.clone()
     };
     if total.is_some() || last.is_some() {
         c.previous = total;
@@ -422,7 +464,7 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         return Ok(());
     }
     // A fork copies its parent's earlier rollout events. Those are not new usage.
-    if c.fork && c.started_ms.is_some_and(|start| time < start) {
+    if c.fork && c.started_ms.is_some_and(|start| time.is_some_and(|time| time < start)) {
         return Ok(());
     }
     let explicit = p.model.or(p.model_name).or(info.model).or(info.model_name);
@@ -438,18 +480,20 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         "unknown"
     };
     let tokens = raw.tokens()?;
-    let event_id = digest(&(session.clone(), time, c.epoch, model.clone(), &raw));
+    c.usage_sequence += 1;
+    let event_id = digest(&(session.clone(), time, c.epoch, model.clone(), &raw,
+        time.is_none().then_some(c.usage_sequence)));
     batch.events.push(UsageEvent {
-        uncertain_time: None,
-        id: format!("legacy:{event_id}"),
+        uncertain_time: time.is_none().then_some(TimeBounds::default()),
+        id: p.response_id.map(|id| format!("response:{id}")).unwrap_or_else(|| format!("legacy:{event_id}")),
         provider: Provider::Codex,
         session_id: session,
-        timestamp_ms: time,
+        timestamp_ms: time.unwrap_or(0),
         model,
         model_provider: c.model_provider.clone().or_else(|| Some("openai".into())),
         revision_ms: None,
         attribution: attribution.into(),
-        incomplete: incomplete_baseline
+        incomplete: time.is_none() || incomplete_baseline
             || tokens.input_uncached.is_none()
             || tokens.output.is_none(),
         tokens,
@@ -463,6 +507,9 @@ struct ClaudeLine {
     kind: String,
     #[serde(rename = "sessionId")]
     session_id: Option<String>,
+    #[serde(rename = "requestId")]
+    request_id: Option<String>,
+    uuid: Option<String>,
     #[serde(rename = "agentId")]
     agent_id: Option<String>,
     #[serde(rename = "isSidechain", default)]
@@ -572,10 +619,16 @@ fn parse_claude(
     let Some(usage) = message.usage else {
         return Ok(());
     };
-    let id = message
-        .id
-        .ok_or("Claude usage record has no message identifier")?;
-    let time = timestamp(row.timestamp.as_deref())?;
+    c.usage_sequence += 1;
+    let request = row.request_id.filter(|id| !id.is_empty());
+    let message_id = message.id.or(row.uuid).filter(|id| !id.is_empty());
+    let id = match (request, message_id) {
+        (Some(request), Some(message)) => format!("request:{request}:{message}"),
+        (Some(request), None) => format!("request:{request}"),
+        (None, Some(message)) => format!("message:{session}:{message}"),
+        (None, None) => format!("anonymous:{}", digest(&(session.clone(), path, c.usage_sequence))),
+    };
+    let time = timestamp(row.timestamp.as_deref()).ok();
     let (write5, write1) = usage
         .cache_creation
         .map(|v| (v.ephemeral_5m_input_tokens, v.ephemeral_1h_input_tokens))
@@ -584,14 +637,10 @@ fn parse_claude(
         .unwrap_or(0)
         .checked_add(write1.unwrap_or(0))
         .ok_or("token count overflow")?;
-    if let Some(total) = usage.cache_creation_input_tokens {
-        if ttl_total > total {
-            return Err("cache write detail exceeds aggregate".into());
-        }
-    }
     let write = usage
         .cache_creation_input_tokens
-        .or_else(|| write5.zip(write1).map(|_| ttl_total));
+        .map(|aggregate| aggregate.max(ttl_total))
+        .or_else(|| (write5.is_some() || write1.is_some()).then_some(ttl_total));
     let total = usage
         .input_tokens
         .zip(usage.output_tokens)
@@ -613,11 +662,11 @@ fn parse_claude(
         total,
     };
     batch.events.push(UsageEvent {
-        uncertain_time: None,
-        id: format!("message:{session}:{id}"),
+        uncertain_time: time.is_none().then_some(TimeBounds::default()),
+        id,
         provider: Provider::Claude,
         session_id: session,
-        timestamp_ms: time,
+        timestamp_ms: time.unwrap_or(0),
         attribution: if message.model.is_some() {
             "reported"
         } else {
@@ -627,7 +676,8 @@ fn parse_claude(
         model: message.model,
         model_provider: Some("anthropic".into()),
         revision_ms: None,
-        incomplete: tokens.input_uncached.is_none() || tokens.output.is_none(),
+        incomplete: time.is_none() || tokens.input_uncached.is_none() || tokens.output.is_none()
+            || usage.cache_creation_input_tokens.is_some_and(|aggregate| aggregate < ttl_total),
         tokens,
     });
     Ok(())

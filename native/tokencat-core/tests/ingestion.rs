@@ -164,7 +164,7 @@ fn restart_append_and_quota_snapshots_do_not_duplicate_usage() {
     assert_eq!(events.len(), 2);
     assert_eq!(
         events.iter().map(|v| v.tokens.total.unwrap()).sum::<u64>(),
-        200
+        220
     );
 }
 #[test]
@@ -397,7 +397,7 @@ fn codex_override_and_claude_explicit_roots_are_respected() {
 }
 
 #[test]
-fn cumulative_reset_does_not_rebill_carried_last_response() {
+fn cumulative_reset_retains_ambiguous_last_as_an_upper_observation() {
     let f = Fixture::new();
     let first = count(100, 20, 100);
     let mut reset = count(50, 10, 100);
@@ -410,7 +410,8 @@ fn cumulative_reset_does_not_rebill_carried_last_response() {
     );
     let mut store = f.store();
     let report = collect(&mut store, &f.config).unwrap();
-    assert_eq!(store.events().unwrap().len(), 1);
+    assert_eq!(store.events().unwrap().len(), 2);
+    assert_eq!(store.events().unwrap().iter().map(|event| event.tokens.upper_key().0).sum::<u64>(),240);
     assert!(report.warnings.iter().any(|v| v.contains("baseline reset")));
 }
 #[test]
@@ -428,7 +429,7 @@ fn unknown_codex_cache_split_is_not_presented_as_uncached_zero() {
 }
 
 #[test]
-fn partial_cumulative_output_or_cache_recovers_without_rebilling_after_restart() {
+fn partial_cumulative_categories_choose_a_complete_higher_last_after_restart() {
     use tokencat_core::pricing::PricingCatalog;
     for missing in [
         "output_tokens",
@@ -470,39 +471,26 @@ fn partial_cumulative_output_or_cache_recovers_without_rebilling_after_restart()
         assert_eq!(events.len(), 4);
         assert_eq!(
             events.iter().map(|v| v.tokens.total.unwrap()).sum::<u64>(),
-            480
+            600
         );
-        match missing {
-            "output_tokens" => {
-                assert_eq!(events[1].tokens.output, None);
-                assert_eq!(events[2].tokens.output, None);
-                assert_eq!(events[3].tokens.output, Some(20));
-            }
-            "cached_input_tokens" => {
-                assert_eq!(events[1].tokens.cache_read, None);
-                assert_eq!(events[2].tokens.cache_read, None);
-                assert_eq!(events[3].tokens.cache_read, Some(50));
-                assert_eq!(events[2].tokens.input_uncached, None);
-            }
-            _ => {
-                assert_eq!(events[1].tokens.cache_write, None);
-                assert_eq!(events[2].tokens.cache_write, None);
-                assert_eq!(events[3].tokens.cache_write, Some(10));
-                assert_eq!(events[2].tokens.input_uncached, None);
-            }
-        }
+        // These complete last candidates are larger than the partial deltas.
+        assert_eq!(events[1].tokens.output, Some(40));
+        assert_eq!(events[2].tokens.output, Some(60));
+        assert_eq!(events[3].tokens.output, Some(80));
+        assert_eq!(events[1].tokens.cache_read, Some(50));
+        assert_eq!(events[2].tokens.cache_write, Some(0));
         let catalog = PricingCatalog::load(None).unwrap();
         for event in &events[1..3] {
             let price = catalog.price(event);
-            assert!(price.unpriced);
+            assert!(!price.unpriced);
             assert!(price.uncertain);
-            assert!(price.priced_tokens < price.total_tokens);
+            assert_eq!(price.priced_tokens, price.total_tokens);
         }
     }
 }
 
 #[test]
-fn partial_total_recovery_does_not_rebill_known_categories() {
+fn partial_total_recovery_uses_the_higher_complete_candidate() {
     let f = Fixture::new();
     let mut partial = count(200, 40, 100);
     partial["timestamp"] = json!("2026-10-02T10:02:00Z");
@@ -525,9 +513,9 @@ fn partial_total_recovery_does_not_rebill_known_categories() {
     assert_eq!(events.len(), 3);
     assert_eq!(
         events.iter().map(|v| v.tokens.total.unwrap()).sum::<u64>(),
-        360
+        420
     );
-    assert_eq!(events[2].tokens.output, Some(20));
+    assert_eq!(events[2].tokens.output, Some(60));
 }
 
 #[test]
@@ -607,7 +595,7 @@ fn missing_cumulative_object_does_not_rebill_last_only_usage_when_it_recovers() 
     assert_eq!(events.len(), 3);
     assert_eq!(
         events.iter().map(|e| e.tokens.total.unwrap()).sum::<u64>(),
-        260
+        320
     );
     assert!(events[1].incomplete);
     assert!(report
@@ -617,7 +605,7 @@ fn missing_cumulative_object_does_not_rebill_last_only_usage_when_it_recovers() 
 }
 
 #[test]
-fn carried_last_usage_without_cumulative_counters_is_not_billed_twice() {
+fn equal_last_values_without_cumulative_or_identity_are_retained_as_uncertain_requests() {
     for restore_with_carried_last in [true, false] {
         let f = Fixture::new();
         let mut last_only = count(150, 40, 50);
@@ -640,16 +628,13 @@ fn carried_last_usage_without_cumulative_counters_is_not_billed_twice() {
             let mut store = f.store();
             let report = collect(&mut store, &f.config).unwrap();
             let events = store.events().unwrap();
-            assert_eq!(events.len(), 2);
+            assert_eq!(events.len(), 3);
             assert!(events[1].incomplete);
             assert_eq!(
                 events.iter().map(|e| e.tokens.total.unwrap()).sum::<u64>(),
-                190
+                260
             );
-            assert!(report
-                .warnings
-                .iter()
-                .any(|w| w.contains("ambiguous response count")));
+            assert_eq!(report.events_upserted, 3);
         }
         let mut out = OpenOptions::new().append(true).open(path).unwrap();
         if restore_with_carried_last {
@@ -665,20 +650,142 @@ fn carried_last_usage_without_cumulative_counters_is_not_billed_twice() {
         let mut store = f.store();
         let report = collect(&mut store, &f.config).unwrap();
         let events = store.events().unwrap();
-        assert_eq!(events.len(), 3);
+        assert_eq!(events.len(), 4);
         assert_eq!(
             events.iter().map(|e| e.tokens.total.unwrap()).sum::<u64>(),
-            250
+            320
         );
-        assert_eq!(events[2].tokens.output, Some(30));
-        assert_eq!(events[2].tokens.cache_read, Some(15));
+        assert_eq!(events[3].tokens.output, Some(30));
+        assert_eq!(events[3].tokens.cache_read, Some(15));
         if restore_with_carried_last {
             assert!(report
                 .warnings
                 .iter()
                 .any(|w| w.contains("baseline recovered with unchanged last usage")));
         } else {
-            assert!(events[2].incomplete);
+            assert!(events[3].incomplete);
         }
     }
+}
+
+fn dashboard(store: &Store, since: i64, until: i64) -> Dashboard {
+    tokencat_core::query::query_dashboard(store, &tokencat_core::pricing::PricingCatalog::load(None).unwrap(),
+        &Query { since_ms: since, until_ms: until, timezone:"UTC".into(), providers:None,
+            show_paths:false, granularity:TimelineGranularity::Day, include_details:true }).unwrap()
+}
+
+#[test]
+fn initial_codex_history_survives_copies_restart_and_stays_out_of_daily_buckets() {
+    let f=Fixture::new();
+    let mut first=count(1000,200,100);
+    first["payload"]["info"]["last_token_usage"]=raw(100,20);
+    let rows=[meta("one"),context(),first];
+    f.write(".codex/sessions/one.jsonl",&rows);
+    f.write(".codex/archived_sessions/one.jsonl",&rows);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    assert_eq!(store.events().unwrap().len(),2);
+    let since=chrono::DateTime::parse_from_rfc3339("2026-10-02T00:00:00Z").unwrap().timestamp_millis();
+    let result=dashboard(&store,since,since+86_400_000);
+    assert_eq!(result.summary.cost.total_tokens,1200);
+    assert_eq!(result.timeline[0].summary.cost.total_tokens,120);
+    assert_eq!(result.summary.cost.unpriced_events,1); // Historical model is unknown.
+    assert!(result.last_scan.unwrap().warnings.iter().any(|warning|warning.contains("included once")));
+    drop(store);
+    let mut store=f.store();
+    assert_eq!(collect(&mut store,&f.config).unwrap().files_changed,0);
+    assert_eq!(dashboard(&store,since,since+86_400_000).summary.cost.total_tokens,1200);
+    assert_eq!(dashboard(&store,since+86_400_000,since+2*86_400_000).summary.event_count,0);
+}
+
+#[test]
+fn codex_selects_whole_higher_candidate_and_keeps_confirmed_snapshot_dedup() {
+    let f=Fixture::new();
+    let mut second=count(150,30,100);
+    second["timestamp"]=json!("2026-10-02T10:02:00Z");
+    second["payload"]["info"]["last_token_usage"]=raw(100,20); //120 vs delta60.
+    let mut duplicate=second.clone();
+    duplicate["timestamp"]=json!("2026-10-02T10:03:00Z");
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),count(100,20,100),second,duplicate]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let events=store.events().unwrap();
+    assert_eq!(events.len(),2);
+    assert_eq!(events.iter().map(|event|event.tokens.upper_key().0).sum::<u64>(),240);
+    assert_eq!(events[1].tokens.input_uncached,Some(50));
+    assert_eq!(events[1].tokens.cache_read,Some(50));
+    assert_eq!(events[1].tokens.output,Some(20));
+    assert!(events[1].incomplete);
+}
+
+#[test]
+fn explicit_legacy_response_identity_and_modern_record_do_not_double_count() {
+    let f=Fixture::new();
+    let mut first=count(100,20,100);
+    first["payload"]["response_id"]=json!("response-a");
+    let modern=json!({"type":"token_usage_record","timestamp":"2026-10-02T10:01:00Z",
+        "payload":{"thread_id":"one","response_id":"response-a","model":"gpt-5.4","usage":raw(100,20)}});
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),first,modern,count(100,20,100)]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    assert_eq!(store.events().unwrap().len(),1);
+    assert_eq!(store.events().unwrap()[0].tokens.upper_key().0,120);
+}
+
+#[test]
+fn claude_request_ids_separate_requests_and_smaller_streaming_revisions_do_not_reduce_usage() {
+    let f=Fixture::new();
+    let mut a=claude(30,"2026-10-02T10:01:00Z");
+    a["requestId"]=json!("request-a");
+    let mut b=claude(40,"2026-10-02T10:02:00Z");
+    b["requestId"]=json!("request-b");
+    let mut smaller=a.clone();
+    smaller["timestamp"]=json!("2026-10-02T10:03:00Z");
+    smaller["message"]["usage"]["output_tokens"]=json!(5);
+    f.write(".claude/projects/repo/main.jsonl",&[a.clone(),b,smaller]);
+    a["sessionId"]=json!("copied-session");
+    f.write(".claude/projects/copy/copied.jsonl",&[a]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let events=store.events().unwrap();
+    assert_eq!(events.len(),2);
+    assert_eq!(events.iter().map(|event|event.tokens.output.unwrap()).sum::<u64>(),70);
+    assert_eq!(events.iter().map(|event|event.tokens.cache_write.unwrap()).sum::<u64>(),600);
+    assert!(!serde_json::to_string(&events).unwrap().contains("PRIVATE PROMPT BODY"));
+}
+
+#[test]
+fn anonymous_claude_and_undated_codex_usage_are_retained_without_fake_dates() {
+    let f=Fixture::new();
+    let mut row=claude(30,"2026-10-02T10:01:00Z");
+    row["timestamp"]=Value::Null;
+    row["message"]["id"]=Value::Null;
+    f.write(".claude/projects/repo/main.jsonl",&[row.clone(),row]);
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),json!({"type":"token_usage_record",
+        "payload":{"thread_id":"one","response_id":"undated","model":"gpt-5.4","usage":raw(100,20)}})]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    assert_eq!(store.events().unwrap().len(),3);
+    assert!(store.events().unwrap().iter().all(|event|event.uncertain_time.is_some()));
+    assert_eq!(collect(&mut store,&f.config).unwrap().files_changed,0);
+    let result=dashboard(&store,1,86_400_000);
+    assert_eq!(result.summary.cost.total_tokens,1980);
+    assert_eq!(result.timeline.iter().map(|bucket|bucket.summary.event_count).sum::<usize>(),0);
+}
+
+#[test]
+fn analyzer_upgrade_replays_unchanged_jsonl_once_and_replaces_old_event_ids() {
+    let f=Fixture::new();
+    f.write(".codex/sessions/one.jsonl",&[meta("one"),context(),count(100,20,100)]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let db=rusqlite::Connection::open(&f.config.database_path).unwrap();
+    db.execute("UPDATE cursors SET payload=json_remove(payload,'$.parser_state.analysis_version') WHERE identity LIKE 'codex:%'",[]).unwrap();
+    db.execute("UPDATE source_events SET event_id='old-algorithm' WHERE provider='codex'",[]).unwrap();
+    db.execute("UPDATE events SET id='old-algorithm',payload=json_set(payload,'$.id','old-algorithm') WHERE provider='codex'",[]).unwrap();
+    drop(db);
+    assert_eq!(collect(&mut store,&f.config).unwrap().files_changed,1);
+    assert_eq!(store.events().unwrap().len(),1);
+    assert_ne!(store.events().unwrap()[0].id,"old-algorithm");
+    assert_eq!(collect(&mut store,&f.config).unwrap().files_changed,0);
 }

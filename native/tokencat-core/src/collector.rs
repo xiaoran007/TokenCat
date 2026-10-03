@@ -1,5 +1,5 @@
 use crate::model::*;
-use crate::parsers::{parse_line, Batch, ParserState};
+use crate::parsers::{parse_line, Batch, ParserState, ANALYSIS_VERSION};
 use crate::store::Store;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
@@ -141,6 +141,8 @@ fn collect_source(
     }
     report.files_discovered += 1;
     let previous = store.load_cursor(&identity)?;
+    let reparse = previous.as_ref().is_some_and(|old|
+        old.parser_state.get("analysis_version").and_then(|value| value.as_u64()) != Some(ANALYSIS_VERSION));
     // Existing Codex cursors predate model-service attribution. Replay once to
     // read the allowlisted session metadata and revise stable ledger event IDs.
     let refresh_model_provider = provider == Provider::Codex
@@ -153,7 +155,7 @@ fn collect_source(
     let modified_ns = modified(&stat);
     let path_string = path.to_string_lossy().into_owned();
     if let Some(old) = &previous {
-        if !refresh_model_provider && old.length == stat.len() && old.modified_ns == modified_ns {
+        if !reparse && !refresh_model_provider && old.length == stat.len() && old.modified_ns == modified_ns {
             if old.path != path_string {
                 let mut renamed = old.clone();
                 renamed.path = path_string;
@@ -173,7 +175,7 @@ fn collect_source(
         None => ParserState::default(),
     };
     let mut offset = previous.as_ref().map(|v| v.offset).unwrap_or(0);
-    if refresh_model_provider {
+    if reparse || refresh_model_provider {
         state = ParserState {
             generation: state.generation,
             ..Default::default()
@@ -181,7 +183,7 @@ fn collect_source(
         offset = 0;
     }
     if let Some(old) = &previous {
-        if !refresh_model_provider
+        if !reparse && !refresh_model_provider
             && (opened.len() < offset
                 || fingerprint(&mut file, offset)? != old.head_hash
                 || (opened.len() <= old.length && modified_ns != old.modified_ns))
@@ -198,6 +200,7 @@ fn collect_source(
             offset = 0;
         }
     }
+    state.analysis_version = ANALYSIS_VERSION;
     file.seek(SeekFrom::Start(offset))
         .map_err(|e| e.to_string())?;
     let mut reader = BufReader::new(file.take(opened.len().saturating_sub(offset)));
@@ -248,7 +251,11 @@ fn collect_source(
         head_hash,
         parser_state: serde_json::to_value(state).map_err(|e| e.to_string())?,
     };
-    store.commit_source(&cursor, &batch.sessions, &batch.events, &batch.states)?;
+    if reparse {
+        store.reparse_source(&cursor, &batch.sessions, &batch.events, &batch.states)?;
+    } else {
+        store.commit_source(&cursor, &batch.sessions, &batch.events, &batch.states)?;
+    }
     report.files_changed += 1;
     report.events_upserted += batch.events.len();
     Ok(())
