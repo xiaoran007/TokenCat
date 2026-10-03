@@ -3,54 +3,49 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from tokencat_native.options import Harness, configuration, make_query, timezone_name
-from tokencat_native.render import cost_text
+import tokencat.cli as shared_cli
+from tokencat.core.models import DashboardUsageGranularity, ProviderName, ScanFilters
+from tokencat_native import dashboard
 
 
-def test_inclusive_date_end_keeps_entire_dst_day_and_datetime_end_is_exclusive():
-    now = datetime(2026, 11, 3, tzinfo=ZoneInfo("America/New_York"))
-    args = dict(since="2026-11-01", zone="America/New_York", providers=[Harness.CLAUDE],
-                daily=True, weekly=False, monthly=False, now=now)
-    query = make_query(until="2026-11-01", **args)
-    assert query["until_ms"] - query["since_ms"] == 25 * 3_600_000
-    assert query["providers"] == ["claude"]
-    explicit = make_query(until="2026-11-02T05:00:00Z", **args)
-    assert explicit["until_ms"] == query["until_ms"]
+def test_candidate_uses_shared_date_parsing_and_inclusive_end(source_home, monkeypatch):
+    filters = shared_cli.build_filters([ProviderName.CLAUDE], "2026-10-02", "2026-10-02", None, None, False, False)
+    queries = []
+    original = dashboard.Engine.query
+    def query(engine, value):
+        queries.append(dict(value))
+        return original(engine, value)
+    monkeypatch.setattr(dashboard.Engine, "query", query)
+    data = dashboard.load_dashboard(filters, DashboardUsageGranularity.WEEKLY, pricing_enabled=True)
+    assert [value["granularity"] for value in queries] == ["day", "week"]
+    assert queries[0]["providers"] == ["claude"]
+    assert queries[0]["until_ms"] - queries[0]["since_ms"] == 86_400_000
+    assert data.overview["token_totals"]["total"] == 1050
 
 
-@pytest.mark.parametrize("since,granularity", [("7d", "day"), ("30d", "week"), ("90d", "month")])
-def test_automatic_cli_granularity_uses_one_captured_window(since, granularity):
-    query = make_query(since=since, until=None, zone="UTC", providers=[], daily=False, weekly=False,
-                       monthly=False, now=datetime(2026, 10, 3, tzinfo=ZoneInfo("UTC")))
-    assert query["granularity"] == granularity
-    assert query["providers"] is None
+@pytest.mark.parametrize("days,granularity", [(7, "daily"), (30, "weekly"), (90, "monthly")])
+def test_granularity_uses_existing_cli_logic(monkeypatch, days, granularity):
+    monkeypatch.setattr(shared_cli, "local_now", lambda: datetime(2026, 10, 3, tzinfo=ZoneInfo("UTC")))
+    from datetime import timedelta
+    filters = ScanFilters(since=shared_cli.local_now() - timedelta(days=days))
+    selected = shared_cli._resolve_dashboard_usage_granularity(filters, daily_view=False, weekly_view=False, monthly_view=False)
+    assert selected.value == granularity
 
 
-def test_timezone_is_explicit_or_detected_from_configuration(monkeypatch):
-    monkeypatch.setenv("TZ", "America/New_York")
-    assert timezone_name(None) == "America/New_York"
-    assert timezone_name("UTC") == "UTC"
-    monkeypatch.setenv("TZ", "invalid-zone")
-    with pytest.raises(ValueError, match="Unknown time zone"):
-        timezone_name(None)
+def test_source_configuration_uses_existing_comma_separated_claude_roots(source_home, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", f"{source_home / 'one'}, {source_home / 'two'}")
+    config = dashboard.configuration()
+    assert config["claude_roots"] == [str(source_home / "one"), str(source_home / "two")]
+    assert config["database_path"] == str(source_home / ".tokencat-candidate/usage.sqlite3")
 
 
-def test_environment_roots_are_only_used_for_the_actual_user_home(tmp_path, monkeypatch):
-    home = tmp_path / "user"
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "custom-claude"))
-    args = dict(data_dir=None, pricing_path=None, codex_root=None, claude_roots=[],
-                opencode_root=None, antigravity_roots=[])
-    actual = configuration(home=None, **args)
-    assert actual["claude_roots"] == [str(tmp_path / "custom-claude")]
-    assert actual["database_path"] == str(home / ".tokencat-candidate/usage.sqlite3")
-    isolated = configuration(home=tmp_path / "fixture", **args)
-    assert isolated["claude_roots"] == []
-
-
-def test_price_ranges_unknowns_and_free_rates_stay_distinct():
-    cost = {"min_usd": 0.35, "max_usd": 0.45, "unpriced_events": 0, "priced_tokens": 100}
-    assert cost_text(cost) == "$0.35–$0.45"
-    assert cost_text({**cost, "unpriced_events": 1}) == "Known $0.35–$0.45"
-    assert cost_text({**cost, "unpriced_events": 1, "priced_tokens": 0}) == "No price record"
-    assert cost_text({**cost, "min_usd": 0, "max_usd": 0}) == "$0.00"
+def test_native_price_ranges_and_unknowns_are_preserved_in_shared_cost_type():
+    cost = {"input_usd": 0.1, "cache_read_usd": 0.05, "output_usd": 0.2,
+            "cache_write_min_usd": 0.0,
+            "min_usd": 0.35, "max_usd": 0.45, "unpriced_events": 0, "priced_tokens": 100}
+    estimate = dashboard._cost(cost, True)
+    assert estimate.to_dict()["max_cost"] == 0.45
+    assert estimate.display_cost == "$0.35–$0.45"
+    assert dashboard._cost({**cost, "unpriced_events": 1}, True).display_cost == "Known $0.35–$0.45"
+    assert dashboard._cost({**cost, "unpriced_events": 1, "priced_tokens": 0}, True).display_cost == "No price record"
+    assert dashboard._cost(cost, False).to_dict()["total_cost"] == 0

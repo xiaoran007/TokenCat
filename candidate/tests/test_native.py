@@ -4,14 +4,17 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from tokencat_native.engine import Engine, public_dashboard
-from tokencat_native.options import configuration
+from tokencat_native.engine import Engine
+from tokencat_native.dashboard import configuration
+from tokencat_native.dashboard import adapt
+from tokencat.core.models import DashboardUsageGranularity
+from tokencat.core.serialize import serialize_session
+from zoneinfo import ZoneInfo
 from conftest import PRIVATE_BODY, PRIVATE_ID, claude_row, write_rows
 
 
 def config(home):
-    return configuration(home=home, data_dir=None, pricing_path=None, codex_root=None,
-                         claude_roots=[], opencode_root=None, antigravity_roots=[])
+    return configuration(home)
 
 
 def query(providers=None):
@@ -29,13 +32,13 @@ def test_real_extension_collects_all_four_harnesses_without_exporting_private_da
     assert snapshot["summary"]["output_tokens"] == 220
     assert snapshot["summary"]["reasoning_tokens"] == 60
     assert snapshot["timeline"][0]["details"]["session_count"] == 4
-    payload = public_dashboard(snapshot)
+    view = adapt(snapshot, snapshot, ZoneInfo("UTC"), DashboardUsageGranularity.DAILY, pricing_enabled=True)
+    payload = [serialize_session(row, show_title=False, show_path=False) for row in view.sessions]
     encoded = json.dumps(payload)
-    assert "states" not in payload
+    assert "states" not in encoded
     for private in (PRIVATE_BODY, PRIVATE_ID, "/PRIVATE_PROJECT"):
         assert private not in encoded
-    assert all(row["id"].startswith("session:") for row in payload["sessions"])
-    assert snapshot["sessions"][0]["id"] != payload["sessions"][0]["id"]
+    assert all(row["anon_session_id"].startswith("session:") for row in payload)
 
 
 def test_reopen_and_append_keep_native_ledger_totals_without_replay(source_home):
@@ -87,16 +90,25 @@ def test_missing_extension_reports_error_without_python_collector_fallback(monke
     assert not (source_home / ".tokencat-candidate").exists()
 
 
-def test_parent_relationships_are_remapped_to_anonymous_labels(source_home):
+def test_native_parent_relationships_and_anonymous_export(source_home):
     row = claude_row("child")
     row["agentId"] = "PRIVATE_AGENT_ID"
     row["isSidechain"] = True
     write_rows(source_home, f".claude/projects/example/{PRIVATE_ID}/subagents/PRIVATE_AGENT_ID.jsonl", [row])
     with Engine(config(source_home)) as engine:
         engine.scan()
-        snapshot = public_dashboard(engine.query(query()))
+        snapshot = engine.query(query())
     parent = next(row for row in snapshot["sessions"] if row["parent_id"] is None)
     child = next(row for row in snapshot["sessions"] if row["parent_id"] is not None)
     assert child["parent_id"] == parent["id"]
-    assert PRIVATE_ID not in json.dumps(snapshot)
-    assert "PRIVATE_AGENT_ID" not in json.dumps(snapshot)
+    view = adapt(snapshot, snapshot, ZoneInfo("UTC"), DashboardUsageGranularity.DAILY, pricing_enabled=True)
+    exported = json.dumps([serialize_session(row, show_title=False, show_path=False) for row in view.sessions])
+    assert PRIVATE_ID not in exported and "PRIVATE_AGENT_ID" not in exported
+
+
+def test_bad_custom_catalog_is_an_error_instead_of_builtin_fallback(source_home):
+    catalog = source_home / "invalid.json"
+    catalog.write_text("{}")
+    with pytest.raises(RuntimeError):
+        Engine({**config(source_home), "pricing_path": str(catalog)})
+    assert not (source_home / ".tokencat-candidate/usage.sqlite3").exists()

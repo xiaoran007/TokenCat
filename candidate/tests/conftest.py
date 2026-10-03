@@ -1,8 +1,12 @@
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
+
+import tokencat.cli as shared_cli
+from tokencat.core.time import _local_timezone
 
 TIME = 1_790_942_400_000  # 2026-10-02 12:00 UTC
 PRIVATE_ID = "PRIVATE_SESSION_IDENTIFIER"
@@ -49,8 +53,21 @@ def source_home(tmp_path, monkeypatch):
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     home = tmp_path / "home"
     home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
     write_rows(home, f".claude/projects/example/{PRIVATE_ID}.jsonl", [claude_row()])
     return home
+
+
+@pytest.fixture(autouse=True)
+def local_cli_environment(monkeypatch):
+    monkeypatch.setenv("TZ", "UTC")
+    time.tzset()
+    _local_timezone.cache_clear()
+    monkeypatch.setattr(shared_cli, "check_latest_version", lambda version: None)
+    yield
+    monkeypatch.undo()
+    time.tzset()
+    _local_timezone.cache_clear()
 
 
 @pytest.fixture
