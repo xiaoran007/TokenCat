@@ -13,6 +13,7 @@
 
 ## Git Hygiene
 
+- Use a branch and PR for substantial changes, breaking changes, or changes to implementation design. Make small corrective fixes and minor adjustments directly on `main`, keeping commits small and traceable.
 - Split commits by concern whenever practical:
   - `feat`
   - `test`
