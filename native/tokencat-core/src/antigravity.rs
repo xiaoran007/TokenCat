@@ -9,7 +9,7 @@
 //! CortexStepMetadata.started_at (32) dates generations lacking ChatStartMetadata.
 
 use crate::{model::*, store::Store};
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{blob::Blob, Connection, OpenFlags};
 use serde::Serialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -30,29 +30,33 @@ enum Field {
 type Fields = BTreeMap<u32, Vec<Field>>;
 
 /// Read only protobuf framing and explicitly selected metadata ranges. Never
-/// SELECT data/metadata: both columns can also contain complete prompt bodies.
+/// load the entire data/metadata column: either may contain prompt bodies.
 struct MetadataReader<'a> {
-    connection: &'a Connection,
-    table: &'static str,
-    column: &'static str,
-    index: i64,
+    blob: Blob<'a>,
     length: usize,
 }
-impl MetadataReader<'_> {
+impl<'a> MetadataReader<'a> {
+    fn new(
+        connection: &'a Connection,
+        table: &str,
+        column: &str,
+        index: i64,
+        length: usize,
+    ) -> CoreResult<Self> {
+        let blob = connection
+            .blob_open("main", table, column, index, true)
+            .map_err(|e| e.to_string())?;
+        Ok(Self { blob, length })
+    }
     fn read(&self, range: Range<usize>) -> CoreResult<Vec<u8>> {
         if range.end > self.length || range.start > range.end {
             return Err("invalid metadata range".into());
         }
-        self.connection
-            .prepare_cached(&format!(
-                "SELECT substr({}, ?1, ?2) FROM {} WHERE rowid=?3",
-                self.column, self.table
-            ))
-            .map_err(|e| e.to_string())?
-            .query_row(params![range.start + 1, range.len(), self.index], |row| {
-                row.get(0)
-            })
-            .map_err(|e| e.to_string())
+        let mut bytes = vec![0; range.len()];
+        self.blob
+            .read_at_exact(&mut bytes, range.start)
+            .map_err(|e| e.to_string())?;
+        Ok(bytes)
     }
     fn varint(&self, offset: &mut usize, end: usize) -> CoreResult<u64> {
         let mut value = 0u64;
@@ -297,13 +301,7 @@ fn read_step(
     index: i64,
     length: usize,
 ) -> CoreResult<Option<Record>> {
-    let reader = MetadataReader {
-        connection,
-        table: "steps",
-        column: "metadata",
-        index,
-        length,
-    };
+    let reader = MetadataReader::new(connection, "steps", "metadata", index, length)?;
     let fields = reader.fields(0..length)?;
     let counters = reader.sub(&fields, 9)?;
     let Some((tokens, provider, incomplete)) = usage(&counters)? else {
@@ -347,13 +345,7 @@ fn read_generation(
     length: usize,
     steps: &BTreeMap<i64, Record>,
 ) -> CoreResult<Option<(Record, Vec<i64>)>> {
-    let reader = MetadataReader {
-        connection,
-        table: "gen_metadata",
-        column: "data",
-        index,
-        length,
-    };
+    let reader = MetadataReader::new(connection, "gen_metadata", "data", index, length)?;
     let fields = reader.fields(0..length)?;
     let chat = reader.sub(&fields, 1)?;
     let counters = reader.sub(&chat, 4)?;
@@ -478,13 +470,7 @@ fn read_session(connection: &Connection, session: &str) -> CoreResult<SessionMet
     let Some((index, length)) = row else {
         return Ok(metadata);
     };
-    let reader = MetadataReader {
-        connection,
-        table: "trajectory_metadata_blob",
-        column: "data",
-        index,
-        length,
-    };
+    let reader = MetadataReader::new(connection, "trajectory_metadata_blob", "data", index, length)?;
     let fields = reader.fields(0..length)?;
     metadata.parent_id = reader.text(&fields, 5)?.filter(|parent| parent != session);
     let mut workspaces = BTreeSet::new();
@@ -574,6 +560,28 @@ fn read_database(path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsa
         records: result,
         session: metadata,
     })
+}
+
+#[cfg(test)]
+mod reader_tests {
+    use super::*;
+
+    #[test]
+    fn blob_reader_skips_large_body_and_validates_ranges() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch("CREATE TABLE metadata(data BLOB)").unwrap();
+        // Field 1 is a 256 KiB body, followed by field 2 = 42.
+        let mut data = vec![0x0a, 0x80, 0x80, 0x10];
+        data.extend(vec![0xff; 256 * 1024]);
+        data.extend([0x10, 42]);
+        connection.execute("INSERT INTO metadata(data) VALUES(?1)", [&data]).unwrap();
+        let reader = MetadataReader::new(&connection, "metadata", "data", 1, data.len()).unwrap();
+        let fields = reader.fields(0..data.len()).unwrap();
+        assert!(matches!(fields[&1][0], Field::Bytes(_)));
+        assert!(matches!(fields[&2][0], Field::Number(42)));
+        assert!(reader.read(data.len()..data.len() + 1).is_err());
+        assert!(reader.read(2..1).is_err());
+    }
 }
 fn discover(roots: &[PathBuf], report: &mut ScanReport) -> Vec<PathBuf> {
     let mut paths = BTreeSet::new();
