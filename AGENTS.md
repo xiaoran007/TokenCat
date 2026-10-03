@@ -25,7 +25,8 @@
 
 ## Local Workflow Preferences
 
-- The user prefers to run `build`, `make`, and publish commands manually to avoid local path, network, or permission issues.
+- CLI releases build, test, and publish through the manually dispatched `CLI release` GitHub Actions workflow. Do not publish CLI packages from the local machine or add automatic workflow triggers.
+- For local development, the user prefers to run `build` and `make` commands manually to avoid local path, network, or permission issues.
 - Use the repository virtualenv for Python commands in this repo:
   - prefer `.venv/bin/python`
   - prefer `.venv/bin/pytest`
