@@ -92,7 +92,8 @@ def serialize_pricing_catalog(catalog: PricingCatalog | None) -> dict[str, objec
         "refreshed_at": catalog.refreshed_at,
         "cache_path": str(catalog.cache_path) if catalog.cache_path else None,
         "model_count": catalog.model_count,
-        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.pricing_source, item.model))],
+        "entries": [entry.to_dict() for entry in sorted(catalog.entries.values(), key=lambda item: (item.pricing_source, item.model))]
+        if catalog.entries is not None else None,
     }
 
 

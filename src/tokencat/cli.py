@@ -14,6 +14,7 @@ from rich.table import Table
 
 from tokencat import __version__
 from tokencat.core.aggregate import aggregate_daily, aggregate_dashboard_usage, aggregate_models, aggregate_nodes, aggregate_summary, build_dashboard_overview
+from tokencat.core.dashboard import DashboardData
 from tokencat.core.models import DashboardThemeMode, DashboardUsageGranularity, PricingCatalog, PricingCoverage, ProviderName, ScanFilters
 from tokencat.core.pricing import apply_pricing, load_pricing_catalog, refresh_user_pricing_cache
 from tokencat.core.presentation import filter_displayable_model_items, filter_displayable_sessions, provider_display_name
@@ -111,11 +112,13 @@ def main(
             theme=theme,
             lan=lan,
             lan_timeout=lan_timeout,
+            dashboard_loader=ctx.obj,
         )
 
 
 @app.command()
 def dashboard(
+    ctx: typer.Context,
     providers: ProviderOption = typer.Option(None, "--provider", help="Filter to one or more providers.", case_sensitive=False),
     since: Optional[str] = typer.Option("7d", "--since", help="Relative like 7d/24h or ISO date/datetime."),
     until: Optional[str] = typer.Option(None, "--until", help="Relative like 7d/24h or ISO date/datetime."),
@@ -141,7 +144,16 @@ def dashboard(
         theme=theme,
         lan=lan,
         lan_timeout=lan_timeout,
+        dashboard_loader=ctx.obj,
     )
+
+
+def create_dashboard_app(loader):
+    candidate = typer.Typer(help=app.info.help, invoke_without_command=True,
+                            context_settings={"obj": loader})
+    candidate.callback()(main)
+    candidate.command()(dashboard)
+    return candidate
 
 
 def _run_dashboard(
@@ -158,6 +170,7 @@ def _run_dashboard(
     theme: DashboardThemeMode,
     lan: bool,
     lan_timeout: float,
+    dashboard_loader=None,
 ) -> None:
     filters = build_filters(providers, since, until, limit=None, model=None, show_title=False, show_path=False)
     usage_granularity = _resolve_dashboard_usage_granularity(
@@ -166,32 +179,41 @@ def _run_dashboard(
         weekly_view=weekly_view,
         monthly_view=monthly_view,
     )
-    result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
-    summary_data = aggregate_summary(result.sessions, pricing_coverage=coverage)
-    node_items = aggregate_nodes(result.sessions) if lan else []
-    daily = aggregate_daily(result.sessions)
-    dashboard_usage = aggregate_dashboard_usage(result.sessions, usage_granularity)
-    top_models = aggregate_models(result.sessions)
-    overview = build_dashboard_overview(summary_data, top_models, result.statuses)
-    recent_sessions = filter_displayable_sessions(result.sessions)[:6]
+    if dashboard_loader is None:
+        result, catalog, coverage = _scan_with_pricing(filters, pricing_enabled=not no_price, lan=lan, lan_timeout=lan_timeout)
+        top_models = aggregate_models(result.sessions)
+        data = DashboardData(
+            statuses=result.statuses,
+            overview=build_dashboard_overview(aggregate_summary(result.sessions, pricing_coverage=coverage), top_models, result.statuses),
+            daily=aggregate_daily(result.sessions),
+            usage=aggregate_dashboard_usage(result.sessions, usage_granularity),
+            top_models=top_models,
+            sessions=filter_displayable_sessions(result.sessions)[:6],
+            catalog=catalog, coverage=coverage, warnings=result.warnings,
+            nodes=aggregate_nodes(result.sessions) if lan else [],
+        )
+    else:
+        if lan:
+            raise typer.BadParameter("The native candidate supports local dashboards only.")
+        data = dashboard_loader(filters, usage_granularity, pricing_enabled=not no_price)
     time_label = _format_window_label(filters)
 
     payload = {
         "generated_at": local_now().isoformat(),
         "filters": serialize_filters(filters),
-        "providers": [serialize_status(status) for status in result.statuses],
+        "providers": [serialize_status(status) for status in data.statuses],
         "summary": {
-            "overview": overview,
-            "daily": serialize_daily_records(daily),
-            "top_models": top_models[:8],
-            "nodes": node_items,
-            "recent_sessions": [serialize_session(record, show_title=False, show_path=False) for record in recent_sessions],
+            "overview": data.overview,
+            "daily": serialize_daily_records(data.daily),
+            "top_models": data.top_models[:8],
+            "nodes": data.nodes,
+            "recent_sessions": [serialize_session(record, show_title=False, show_path=False) for record in data.sessions],
             "pricing": {
-                "catalog": serialize_pricing_catalog(catalog),
-                "coverage": serialize_pricing_coverage(coverage),
+                "catalog": serialize_pricing_catalog(data.catalog),
+                "coverage": serialize_pricing_coverage(data.coverage),
             },
         },
-        "warnings": result.warnings,
+        "warnings": data.warnings,
     }
     if json_output:
         _emit_json(payload)
@@ -202,14 +224,14 @@ def _run_dashboard(
     render_dashboard(
         console,
         time_label=time_label,
-        statuses=result.statuses,
-        overview=overview,
-        daily=dashboard_usage,
-        sessions=recent_sessions,
-        nodes=node_items,
-        pricing_catalog=catalog,
-        pricing_coverage=coverage,
-        warnings=result.warnings,
+        statuses=data.statuses,
+        overview=data.overview,
+        daily=data.usage,
+        sessions=data.sessions,
+        nodes=data.nodes,
+        pricing_catalog=data.catalog,
+        pricing_coverage=data.coverage,
+        warnings=data.warnings,
         show_recent_sessions=show_recent_sessions,
         usage_granularity=usage_granularity,
         theme=resolved_theme,

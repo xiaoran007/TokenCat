@@ -218,9 +218,9 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compa
     primary = Text()
     primary.append(f"{_format_token_count(totals['total'], compact=compact_tokens)}\n", style=f"bold {palette.accent}")
     primary.append("Total tokens\n", style=palette.cool)
-    overview_pricing_status = "fallback_priced" if secondary.get("fallback_priced_tokens", 0) else "priced"
+    overview_pricing_status = secondary.get("pricing_status") or ("fallback_priced" if secondary.get("fallback_priced_tokens", 0) else "priced")
     primary.append(
-        f"{_format_cost(cost['total_cost'])} estimated API cost\n",
+        f"{cost.get('display_cost') or _format_cost(cost['total_cost'])} estimated API cost\n",
         style=f"bold {_cost_style(cost.get('total_cost'), overview_pricing_status, palette)}",
     )
     primary.append(
@@ -235,7 +235,7 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compa
         style=palette.muted,
     )
     primary.append(
-        "  ".join(
+        secondary.get("detail_text") or "  ".join(
             [
                 f"coverage {_format_ratio(secondary.get('priced_coverage', 0.0))}",
                 f"unknown {_format_token_count(secondary.get('unknown_model_tokens'), compact=compact_tokens)}",
@@ -254,7 +254,7 @@ def _hero_panel(overview: dict[str, object], *, palette: DashboardPalette, compa
         ranking.add_row(
             item["model"],
             _format_token_count(item["token_totals"]["total"], compact=compact_tokens),
-            _cost_text(estimated.get("total_cost", 0.0), item.get("pricing_status"), palette),
+            _cost_text(estimated.get("total_cost", 0.0), item.get("pricing_status"), palette, estimated.get("display_cost")),
         )
     if not top_models:
         ranking.add_row("No model data", "-", "-")
@@ -344,7 +344,7 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     header.append(f"{_format_token_count(record.token_totals.total, compact=compact_tokens)} total", style=palette.cool)
     header.append("  ", style=palette.muted)
     header.append(
-        f"{_format_cost(record.estimated_cost.total_cost)}",
+        record.estimated_cost.display_cost or _format_cost(record.estimated_cost.total_cost),
         style=_cost_style(record.estimated_cost.total_cost, _daily_pricing_status(record), palette),
     )
     header.append("  ", style=palette.muted)
@@ -358,19 +358,27 @@ def _daily_block(record: DailyUsageRecord, *, palette: DashboardPalette, compact
     table.add_column("Model", style=palette.accent, width=model_width, no_wrap=True, overflow="ellipsis")
     table.add_column("Input", justify="right", width=token_width, no_wrap=True)
     table.add_column("Output", justify="right", width=token_width, no_wrap=True)
-    table.add_column("Cached", justify="right", width=token_width, no_wrap=True)
+    cache_writes = any(model.token_totals.cache_write is not None for model in record.models)
+    table.add_column("Cache read" if cache_writes else "Cached", justify="right", width=token_width, no_wrap=True)
+    if cache_writes:
+        table.add_column("Cache write", justify="right", width=token_width, no_wrap=True)
     table.add_column("Total", justify="right", width=token_width, no_wrap=True)
     table.add_column("Est Cost", justify="right", width=8, no_wrap=True)
 
     for model in record.models:
-        table.add_row(
+        cells = [
             _daily_model_label(model),
             _format_token_count(model.token_totals.input, compact=compact_tokens),
             _format_token_count((model.token_totals.output or 0) + (model.token_totals.reasoning or 0), compact=compact_tokens),
             _format_token_count(model.token_totals.cached, compact=compact_tokens),
+        ]
+        if cache_writes:
+            cells.append(_format_token_count(model.token_totals.cache_write, compact=compact_tokens))
+        cells.extend([
             _format_token_count(model.token_totals.total, compact=compact_tokens),
-            _cost_text(model.estimated_cost.total_cost, model.pricing_status, palette),
-        )
+            _cost_text(model.estimated_cost.total_cost, model.pricing_status, palette, model.estimated_cost.display_cost),
+        ])
+        table.add_row(*cells)
     return Group(header, table)
 
 
@@ -460,6 +468,7 @@ def _recent_sessions_table(records: list[SessionRecord], *, palette: DashboardPa
                     record.estimated_cost.total_cost if record.estimated_cost is not None else 0.0,
                     record.pricing_status,
                     palette,
+                    record.estimated_cost.display_cost if record.estimated_cost else None,
                 ),
             ]
         )
@@ -544,8 +553,8 @@ def _format_ratio(value: float) -> str:
     return f"{value * 100:.1f}%"
 
 
-def _cost_text(value: float | None, pricing_status: object, palette: DashboardPalette) -> Text:
-    return Text(_format_cost(value), style=_cost_style(value, pricing_status, palette))
+def _cost_text(value: float | None, pricing_status: object, palette: DashboardPalette, display: str | None = None) -> Text:
+    return Text(display or _format_cost(value), style=_cost_style(value, pricing_status, palette))
 
 
 def _cost_style(value: float | None, pricing_status: object, palette: DashboardPalette) -> str:
