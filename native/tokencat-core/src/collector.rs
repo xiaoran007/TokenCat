@@ -13,6 +13,14 @@ use std::{
 };
 
 pub fn collect(store: &mut Store, config: &CoreConfig) -> CoreResult<ScanReport> {
+    collect_with_cache(store, config, &mut crate::antigravity::Cache::default())
+}
+
+pub(crate) fn collect_with_cache(
+    store: &mut Store,
+    config: &CoreConfig,
+    antigravity: &mut crate::antigravity::Cache,
+) -> CoreResult<ScanReport> {
     let mut report = ScanReport {
         checked_at_ms: Utc::now().timestamp_millis(),
         ..Default::default()
@@ -55,7 +63,7 @@ pub fn collect(store: &mut Store, config: &CoreConfig) -> CoreResult<ScanReport>
     if let Err(error) = crate::opencode::collect(store, config, &mut report) {
         report.warnings.push(format!("OpenCode: {error}"));
     }
-    if let Err(error) = crate::antigravity::collect(store, config, &mut report) {
+    if let Err(error) = antigravity.collect(store, config, &mut report) {
         report.warnings.push(format!("Antigravity: {error}"));
     }
     store.save_scan(&report)?;

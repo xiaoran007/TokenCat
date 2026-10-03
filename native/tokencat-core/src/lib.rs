@@ -17,6 +17,7 @@ pub struct Engine {
     config: CoreConfig,
     store: Store,
     catalog: PricingCatalog,
+    antigravity: antigravity::Cache,
 }
 
 impl Engine {
@@ -30,11 +31,12 @@ impl Engine {
             config,
             store,
             catalog,
+            antigravity: antigravity::Cache::default(),
         })
     }
 
     pub fn scan(&mut self) -> CoreResult<ScanReport> {
-        collector::collect(&mut self.store, &self.config)
+        collector::collect_with_cache(&mut self.store, &self.config, &mut self.antigravity)
     }
 
     pub fn query(&self, query: &Query) -> CoreResult<Dashboard> {

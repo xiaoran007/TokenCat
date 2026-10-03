@@ -1,16 +1,18 @@
 use rusqlite::{params, Connection};
 use std::{
+    cell::RefCell,
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
-use tokencat_core::{antigravity::collect, model::*, store::Store};
+use tokencat_core::{antigravity::Cache, model::*, store::Store};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 const TIME: i64 = 1_790_928_000_123;
 struct Fixture {
     home: PathBuf,
     config: CoreConfig,
+    cache: RefCell<Cache>,
 }
 impl Fixture {
     fn new() -> Self {
@@ -29,7 +31,7 @@ impl Fixture {
             antigravity_roots: vec![],
             pricing_path: None,
         };
-        Self { home, config }
+        Self { home, config, cache: RefCell::new(Cache::default()) }
     }
     fn source(&self, root: &str, session: &str) -> Connection {
         let path = self
@@ -50,7 +52,7 @@ impl Fixture {
     }
     fn scan(&self, store: &mut Store) -> ScanReport {
         let mut report = ScanReport::default();
-        collect(store, &self.config, &mut report).unwrap();
+        self.cache.borrow_mut().collect(store, &self.config, &mut report).unwrap();
         report
     }
 }
@@ -171,6 +173,34 @@ fn insert_session(db: &Connection, parent: Option<&str>, uris: &[&str]) {
         [fields.concat()],
     )
     .unwrap();
+}
+
+#[test]
+fn concurrent_wal_appends_are_complete_after_writer_finishes() {
+    let f = Fixture::new();
+    let db = f.source("antigravity", "concurrent");
+    let mut store = f.store();
+    f.scan(&mut store);
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let writer_barrier = barrier.clone();
+    let writer = std::thread::spawn(move || {
+        writer_barrier.wait();
+        for index in 0..50 {
+            let request = format!("concurrent-{index}");
+            insert_gen(&db, index, &generation(
+                &counters(Some(&request), 100, 0, 20),
+                Some("gemini-2.5-pro"), Some(TIME + index), &[],
+            ));
+        }
+    });
+    barrier.wait();
+    while !writer.is_finished() {
+        assert!(f.scan(&mut store).warnings.is_empty());
+    }
+    writer.join().unwrap();
+    assert!(f.scan(&mut store).warnings.is_empty());
+    assert_eq!(store.events().unwrap().len(), 50);
+    assert_eq!(f.scan(&mut store).events_upserted, 0);
 }
 
 #[test]

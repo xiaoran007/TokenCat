@@ -17,6 +17,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     ops::Range,
+    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -420,7 +421,7 @@ fn read_generation(
         linked.into_iter().map(|(idx, _)| idx).collect(),
     )))
 }
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct DatabaseUsage {
     records: Vec<Record>,
     session: SessionMetadata,
@@ -496,15 +497,94 @@ fn read_session(connection: &Connection, session: &str) -> CoreResult<SessionMet
     }
     Ok(metadata)
 }
-fn read_database(path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsage> {
-    let connection = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(|e| e.to_string())?;
-    connection
-        .busy_timeout(Duration::from_millis(250))
-        .map_err(|e| e.to_string())?;
+struct Snapshot {
+    version: i64,
+    usage: DatabaseUsage,
+    warnings: Vec<String>,
+}
+
+struct CachedDatabase {
+    identity: (u64, u64),
+    connection: Connection,
+    snapshot: Option<Snapshot>,
+    #[cfg(test)]
+    parses: usize,
+}
+
+/// Owned by one engine; connections never outlive its configuration.
+#[derive(Default)]
+pub struct Cache {
+    databases: BTreeMap<PathBuf, CachedDatabase>,
+}
+
+impl Cache {
+    pub fn collect(
+        &mut self,
+        store: &mut Store,
+        config: &CoreConfig,
+        report: &mut ScanReport,
+    ) -> CoreResult<()> {
+        collect_cached(self, store, config, report)
+    }
+
+    fn read(&mut self, path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsage> {
+        let result = self.read_cached(path, report);
+        if result.is_err() {
+            // Failed reads must not leave a snapshot or a bad connection reusable.
+            self.databases.remove(path);
+        }
+        result
+    }
+
+    fn read_cached(&mut self, path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsage> {
+        let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
+        let identity = (metadata.dev(), metadata.ino());
+        if self.databases.get(path).is_none_or(|old| old.identity != identity) {
+            // Close the old handle before opening an atomically replaced file.
+            self.databases.remove(path);
+            let connection = Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            ).map_err(|e| e.to_string())?;
+            connection.busy_timeout(Duration::from_millis(250)).map_err(|e| e.to_string())?;
+            connection.execute_batch("PRAGMA cache_size=-256").map_err(|e| e.to_string())?;
+            self.databases.insert(path.to_owned(), CachedDatabase {
+                identity, connection, snapshot: None,
+                #[cfg(test)]
+                parses: 0,
+            });
+        }
+        let database = self.databases.get_mut(path).expect("opened source database");
+        let before = data_version(&database.connection)?;
+        if let Some(snapshot) = &database.snapshot {
+            if snapshot.version == before {
+                report.warnings.extend(snapshot.warnings.clone());
+                return Ok(snapshot.usage.clone());
+            }
+        }
+        database.snapshot = None;
+        #[cfg(test)]
+        { database.parses += 1; }
+        let mut local = ScanReport::default();
+        let usage = read_database(&database.connection, path, &mut local)?;
+        // A concurrent commit may precede or follow the transaction's snapshot.
+        // Cache only when no outside commit occurred across that whole interval.
+        if data_version(&database.connection)? == before {
+            database.snapshot = Some(Snapshot {
+                version: before, usage: usage.clone(), warnings: local.warnings.clone(),
+            });
+        }
+        report.warnings.extend(local.warnings);
+        Ok(usage)
+    }
+}
+
+fn data_version(connection: &Connection) -> CoreResult<i64> {
+    connection.query_row("PRAGMA data_version", [], |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
+fn read_database(connection: &Connection, path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsage> {
     // One consistent WAL snapshot, with no writes or journal mode changes.
     let transaction = connection
         .unchecked_transaction()
@@ -563,8 +643,132 @@ fn read_database(path: &Path, report: &mut ScanReport) -> CoreResult<DatabaseUsa
 }
 
 #[cfg(test)]
-mod reader_tests {
+mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    struct Source {
+        root: PathBuf,
+        path: PathBuf,
+        writer: Option<Connection>,
+    }
+
+    impl Source {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("tokencat-cache-{}-{}",
+                std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+            fs::create_dir_all(root.join("conversations")).unwrap();
+            let path = root.join("conversations/session.db");
+            let writer = Connection::open(&path).unwrap();
+            writer.execute_batch("PRAGMA journal_mode=WAL;
+                CREATE TABLE gen_metadata(idx INTEGER PRIMARY KEY,data BLOB);
+                INSERT INTO gen_metadata VALUES(0,x'');").unwrap();
+            Self { root, path, writer: Some(writer) }
+        }
+
+        fn writer(&self) -> &Connection { self.writer.as_ref().unwrap() }
+
+        fn config(&self) -> CoreConfig {
+            CoreConfig {
+                home: self.root.clone(), database_path: self.root.join("usage.db"),
+                codex_root: None, claude_roots: vec![], opencode_root: None,
+                antigravity_roots: vec![self.root.clone()], pricing_path: None,
+            }
+        }
+    }
+
+    impl Drop for Source {
+        fn drop(&mut self) { fs::remove_dir_all(&self.root).unwrap(); }
+    }
+
+    #[test]
+    fn unchanged_cache_reuses_metadata_and_replays_warnings_after_wal_changes() {
+        let source = Source::new();
+        let mut cache = Cache::default();
+        let mut report = ScanReport::default();
+        cache.read(&source.path, &mut report).unwrap();
+        cache.read(&source.path, &mut report).unwrap();
+        assert_eq!(cache.databases[&source.path].parses, 1);
+        let connection = &cache.databases[&source.path].connection;
+        assert_eq!(connection.query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0)).unwrap(), -256);
+        assert!(connection.execute("INSERT INTO gen_metadata VALUES(1,x'')", []).is_err());
+        source.writer().execute_batch("UPDATE gen_metadata SET data=x'ff' WHERE idx=0").unwrap();
+        cache.read(&source.path, &mut report).unwrap();
+        assert_eq!(cache.databases[&source.path].parses, 2);
+        assert_eq!(report.warnings.len(), 1);
+        report.warnings.clear();
+        cache.read(&source.path, &mut report).unwrap();
+        assert_eq!(cache.databases[&source.path].parses, 2);
+        assert_eq!(report.warnings.len(), 1);
+        source.writer().execute_batch("UPDATE gen_metadata SET data=x'' WHERE idx=0;
+            PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+        report.warnings.clear();
+        cache.read(&source.path, &mut report).unwrap();
+        assert!(report.warnings.is_empty());
+    }
+
+    #[test]
+    fn failed_database_read_discards_cache_and_can_recover() {
+        let source = Source::new();
+        let mut cache = Cache::default();
+        let mut report = ScanReport::default();
+        cache.read(&source.path, &mut report).unwrap();
+        source.writer().execute_batch("ALTER TABLE gen_metadata RENAME COLUMN data TO payload").unwrap();
+        assert!(cache.read(&source.path, &mut report).is_err());
+        assert!(cache.databases.is_empty());
+        source.writer().execute_batch("ALTER TABLE gen_metadata RENAME COLUMN payload TO data").unwrap();
+        cache.read(&source.path, &mut report).unwrap();
+        assert_eq!(cache.databases.len(), 1);
+    }
+
+    #[test]
+    fn replacement_reopens_connection_and_removed_paths_are_pruned() {
+        let mut source = Source::new();
+        let mut cache = Cache::default();
+        let mut report = ScanReport::default();
+        cache.read(&source.path, &mut report).unwrap();
+        let identity = cache.databases[&source.path].identity;
+        let replacement = source.root.join("replacement.db");
+        let writer = Connection::open(&replacement).unwrap();
+        writer.execute_batch("CREATE TABLE gen_metadata(idx INTEGER PRIMARY KEY,data BLOB);
+            INSERT INTO gen_metadata VALUES(0,x'ff')").unwrap();
+        drop(writer);
+        // Finish the old SQLite file set before atomically replacing its main file.
+        source.writer().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+        source.writer.take().unwrap().close().unwrap();
+        fs::rename(&replacement, &source.path).unwrap();
+        cache.read(&source.path, &mut report).unwrap();
+        assert_ne!(cache.databases[&source.path].identity, identity);
+        assert_eq!(report.warnings.len(), 1);
+        fs::remove_file(&source.path).unwrap();
+        let config = source.config();
+        let mut store = Store::open(&config.database_path).unwrap();
+        cache.collect(&mut store, &config, &mut ScanReport::default()).unwrap();
+        assert!(cache.databases.is_empty());
+    }
+
+    #[test]
+    fn engine_owns_cache_and_new_configuration_starts_empty() {
+        let source = Source::new();
+        let mut engine = crate::Engine::open(source.config()).unwrap();
+        engine.scan().unwrap();
+        engine.scan().unwrap();
+        assert_eq!(engine.antigravity.databases[&source.path].parses, 1);
+        drop(engine);
+        let mut reopened = crate::Engine::open(source.config()).unwrap();
+        assert!(reopened.antigravity.databases.is_empty());
+        reopened.scan().unwrap();
+        assert_eq!(reopened.antigravity.databases[&source.path].parses, 1);
+        drop(reopened);
+        let other = Source::new();
+        let mut engine = crate::Engine::open(other.config()).unwrap();
+        assert!(engine.antigravity.databases.is_empty());
+        engine.scan().unwrap();
+        assert!(engine.antigravity.databases.contains_key(&other.path));
+        assert!(!engine.antigravity.databases.contains_key(&source.path));
+    }
 
     #[test]
     fn blob_reader_skips_large_body_and_validates_ranges() {
@@ -732,6 +936,10 @@ fn reconcile_identities(
 }
 
 pub fn collect(store: &mut Store, config: &CoreConfig, report: &mut ScanReport) -> CoreResult<()> {
+    Cache::default().collect(store, config, report)
+}
+
+fn collect_cached(cache: &mut Cache, store: &mut Store, config: &CoreConfig, report: &mut ScanReport) -> CoreResult<()> {
     let roots = if config.antigravity_roots.is_empty() {
         vec![
             config.home.join(".gemini/antigravity"),
@@ -741,12 +949,13 @@ pub fn collect(store: &mut Store, config: &CoreConfig, report: &mut ScanReport) 
         config.antigravity_roots.clone()
     };
     let paths = discover(&roots, report);
+    cache.databases.retain(|path, _| paths.binary_search(path).is_ok());
     let mut pending = Vec::new();
     let mut session_metadata = BTreeMap::<String, SessionMetadata>::new();
     let mut cursors = Vec::new();
     for path in paths {
         report.files_discovered += 1;
-        let data = match read_database(&path, report) {
+        let data = match cache.read(&path, report) {
             Ok(data) => data,
             Err(_) => {
                 report
