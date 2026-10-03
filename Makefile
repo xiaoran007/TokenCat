@@ -1,10 +1,8 @@
 PYTHON ?= .venv/bin/python
 PIP := $(PYTHON) -m pip
 BOOTSTRAP_PYTHON ?=
-PACKAGE ?= tokencat
-TWINE_REPOSITORY ?= pypi
 
-.PHONY: venv install-dev install-release test clean build check-dist release-check publish publish-testpypi
+.PHONY: venv install-dev test clean build
 
 venv:
 	@if [ ! -x .venv/bin/python ]; then \
@@ -34,9 +32,6 @@ venv:
 install-dev:
 	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev]'
 
-install-release:
-	PATH="$(dir $(abspath $(PYTHON))):$$PATH" $(PIP) install --config-settings="build-args=--locked" -e '.[dev,release]'
-
 test:
 	PYTHONPATH=src $(PYTHON) -m pytest -q
 
@@ -45,14 +40,3 @@ clean:
 
 build: clean
 	$(PYTHON) -m maturin build --release --locked --sdist --out dist -i "$(abspath $(PYTHON))"
-
-check-dist: build
-	$(PYTHON) -m twine check dist/*
-
-release-check: test check-dist
-
-publish: check-dist
-	$(PYTHON) -m twine upload --repository $(TWINE_REPOSITORY) dist/*
-
-publish-testpypi: check-dist
-	$(PYTHON) -m twine upload --repository testpypi dist/*
