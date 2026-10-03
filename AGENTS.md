@@ -8,6 +8,7 @@
 ## Release / Versioning Workflow
 
 - Keep user-facing docs in `README.md`.
+- README must always be written for end users: explain what TokenCat does, installation, usage, supported features, and troubleshooting. Do not put implementation progress, migration plans, decision records, build/test reports, or internal API details in README. Keep necessary design and maintenance documentation under `docs/`.
 - Current tag convention: `vX.Y.Z`.
 
 ## Git Hygiene

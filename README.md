@@ -13,7 +13,7 @@ TokenCat shows how many tokens your AI coding tools use and estimates their API-
 
 ## Choose an interface
 
-| Coding tool | macOS app | Stable CLI 0.8.0 | Native candidate |
+| Coding tool | macOS app | Stable CLI | CLI candidate |
 | --- | :---: | :---: | :---: |
 | Codex | Yes | Yes | Yes |
 | Claude Code | Yes | Yes | Yes |
@@ -22,7 +22,7 @@ TokenCat shows how many tokens your AI coding tools use and estimates their API-
 | Gemini CLI | — | Yes | — |
 | GitHub Copilot Chat/Agent and CLI | — | Yes | — |
 
-Stable CLI versions after 0.8.0 will no longer support Gemini CLI or GitHub Copilot. The opt-in native candidate provides the local dashboard; other commands are deferred, and remote workflows will be redesigned separately. The existing `tokencat` command keeps its Python implementation during candidate evaluation.
+Choose the macOS app for background monitoring, the stable CLI for terminal reports and multi-machine aggregation, or the experimental CLI candidate for local dashboards. The two CLI commands can be installed together.
 
 The app requires macOS 14 or newer. The CLI supports macOS and Linux with Python 3.9 or newer. Windows is not supported. Multi-machine aggregation is available in the stable CLI.
 
@@ -64,9 +64,9 @@ Standard source locations are detected automatically:
 
 If your tools store data elsewhere, set their roots in Settings. Project paths stay hidden unless you enable them.
 
-## Native CLI candidate
+## CLI candidate (experimental)
 
-The candidate shares the macOS app's native usage and pricing core. It installs as `tokencat-native` and runs as `tokencat-candidate`, alongside the stable CLI. Its current version is `0.9.0rc1`; it has not been published to PyPI.
+The candidate shows local usage for Codex, Claude Code, OpenCode, and Antigravity. It runs as `tokencat-candidate` and supports dashboards and JSON export. Remote aggregation and the stable CLI's other commands are unavailable.
 
 From a checkout, with Rust and a C compiler installed:
 
@@ -80,13 +80,13 @@ tokencat-candidate --since 7d --json
 
 The default view shows the last seven days; `dashboard` also shows recent sessions. Use `--daily`, `--weekly`, or `--monthly` to choose the calendar grouping, and `--theme light` or `--theme dark` for terminal colors. Time windows use the system time zone unless you pass `--timezone`. Date-only `--until` values include that whole day; datetime end bounds are exclusive.
 
-The candidate keeps its ledger in `~/.tokencat-candidate/usage.sqlite3`, independently of the stable CLI and app. Use `--data-dir` to choose another directory. Source folders can be set with `--codex-root`, repeatable `--claude-root`, `--opencode-root`, and repeatable `--antigravity-root`; each root contains the source subdirectories listed above. Claude also honors `CLAUDE_CONFIG_DIR` and `XDG_CONFIG_HOME`, and OpenCode honors `XDG_DATA_HOME`. `--home` selects a separate source home and uses native default locations beneath it.
+Standard source locations are detected automatically. For other locations, use `--codex-root`, `--claude-root`, `--opencode-root`, or `--antigravity-root`; pass the tool's root folder containing the source subdirectories listed above. Claude and Antigravity options can be repeated for multiple folders. Run `tokencat-candidate --help` for all options.
 
-Prices come from the native bundled snapshot. `--pricing-path` selects a native-compatible catalog, including the app's downloaded LiteLLM cache envelope. The candidate does not download prices or load the old Python pricing cache. Estimates can differ from the stable CLI because native model matching and cache accounting rules apply. Missing prices remain unknown, and uncertain prices display a range. `--no-price` hides terminal cost columns; it does not disable native pricing and cannot be combined with `--json`.
+The candidate includes offline prices. Use `--pricing-path` to select a custom LiteLLM catalog, or `--no-price` to hide terminal cost columns. Missing prices appear as unknown and uncertain estimates appear as a range. `--no-price` cannot be combined with `--json`.
 
-Candidate JSON contains `candidate_version`, `query`, and `dashboard`; its structure differs from the stable CLI. Session identifiers and parent links are anonymized, project paths remain hidden, and observed-state metadata is excluded. Collection warnings can include source file paths to help diagnose problems. Gemini CLI, Copilot, remote workflows, and the other stable CLI commands are unavailable in the candidate.
+JSON exports use a different format from the stable CLI. Session identifiers are anonymized and project paths are hidden; diagnostic warnings may include source file paths.
 
-To remove the candidate, run `pipx uninstall tokencat-native`. This leaves your stable CLI installed; the candidate ledger directory remains available for reuse.
+To remove the candidate, run `pipx uninstall tokencat-native`. Your stable CLI and saved candidate usage remain available.
 
 ## Stable terminal CLI
 
@@ -150,7 +150,7 @@ Automatic HTTP-node discovery requires the optional extra: `pipx install "tokenc
 
 Costs are **API-equivalent estimates, not your bill or subscription balance**. TokenCat counts recorded tokens even when a model has no price record. Unknown prices stay visible; usage without a confirmed date may be excluded from time-window totals. Estimates do not include every billing tier, tool fee, or regional adjustment.
 
-The macOS app includes an offline price catalog and checks for updates every 24 hours by default. Settings offers manual refresh, other update intervals, an off switch, and a custom catalog. The CLI also includes offline prices and can refresh its catalog with `tokencat pricing refresh`. Failed updates preserve available prices. Native and CLI price catalogs differ, so their cost estimates can differ. Both interfaces show pricing coverage and source information.
+All interfaces include offline prices and show pricing coverage and sources. The macOS app checks for updates every 24 hours by default; Settings offers manual refresh, other intervals, an off switch, and a custom catalog. Update the stable CLI's prices with `tokencat pricing refresh`. The candidate uses bundled or custom prices without automatic updates. Failed updates preserve available prices. Estimates can differ between interfaces because their catalogs and usage accounting differ.
 
 Usage collection reads local records. TokenCat does not proxy requests, change provider endpoints, or read OAuth/session credentials for reporting. Reports exclude prompt and response bodies. Price updates access the network; remote aggregation exchanges usage snapshots with machines you explicitly trust.
 
@@ -162,7 +162,7 @@ Usage collection reads local records. TokenCat does not proxy requests, change p
 
 **Costs look different from an invoice.** TokenCat estimates standard API usage, including when a tool is used through a subscription. Check pricing coverage and unknown models before comparing totals. Updating the catalog can change estimates for earlier dates.
 
-**Where is TokenCat's data stored?** The app keeps its usage ledger and downloaded prices in `~/Library/Application Support/TokenCat/`. The CLI stores prices, node identity, trust settings, and server logs under `~/.tokencat/`. Removing source logs does not erase usage already saved in the native app's ledger.
+**Where is TokenCat's data stored?** The app keeps usage and downloaded prices in `~/Library/Application Support/TokenCat/`. The stable CLI stores prices, node identity, trust settings, and server logs under `~/.tokencat/`. The candidate saves usage in `~/.tokencat-candidate/`; use `--data-dir` to choose another folder. Removing source logs does not erase usage already saved by the app or candidate.
 
 ## Contributing
 
