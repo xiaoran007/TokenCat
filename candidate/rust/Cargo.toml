@@ -1,0 +1,17 @@
+[package]
+name = "tokencat-python"
+version = "0.9.0-rc.1"
+edition = "2021"
+license = "GPL-3.0-only"
+
+# Keep Python dependencies and their lockfile out of the macOS workspace.
+[workspace]
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.29.3", features = ["abi3-py39"] }
+serde_json = "1.0"
+tokencat-core = { path = "../../native/tokencat-core" }
