@@ -6,9 +6,14 @@ public struct CoreConfiguration: Codable, Equatable, Sendable {
     public let codexRoot: String?
     public let claudeRoots: [String]
     public let pricingPath: String?
-    public init(home: String, databasePath: String, codexRoot: String?, claudeRoots: [String], pricingPath: String?) {
+    public let pricingRevision: String?
+    public let opencodeRoot: String?
+    public let antigravityRoots: [String]
+    public init(home: String, databasePath: String, codexRoot: String?, claudeRoots: [String], pricingPath: String?,
+                pricingRevision: String? = nil, opencodeRoot: String? = nil, antigravityRoots: [String] = []) {
         self.home = home; self.databasePath = databasePath; self.codexRoot = codexRoot
         self.claudeRoots = claudeRoots; self.pricingPath = pricingPath
+        self.pricingRevision = pricingRevision; self.opencodeRoot = opencodeRoot; self.antigravityRoots = antigravityRoots
     }
 }
 

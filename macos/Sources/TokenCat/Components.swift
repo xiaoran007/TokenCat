@@ -27,7 +27,14 @@ struct SurfaceCard<Content: View>: View {
 }
 
 extension Harness {
-    var tint: Color { self == .codex ? .indigo : .orange }
+    var tint: Color {
+        switch self {
+        case .codex: .indigo
+        case .claude: .orange
+        case .opencode: .blue
+        case .antigravity: .purple
+        }
+    }
 }
 
 struct SectionHeading: View {
@@ -72,8 +79,8 @@ struct TokenUsageHero: View {
                 .accessibilityHint(s.text("cost.details"))
             Text(s.eventCount(summary.eventCount)).font(.caption).foregroundStyle(.secondary)
             if summary.cost.unpricedEvents > 0 {
-                Label(s.format("cost.unpriced", summary.cost.unpricedEvents), systemImage: "exclamationmark.circle")
-                    .font(.caption).foregroundStyle(.orange)
+                Label(s.format("cost.unpriced", summary.cost.unpricedEvents), systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,8 +134,8 @@ struct CostHero: View {
                     }
                 }.font(.caption).foregroundStyle(.secondary)
                 if summary.cost.unpricedEvents > 0 {
-                    Label(s.format("cost.unpriced", summary.cost.unpricedEvents), systemImage: "exclamationmark.circle")
-                        .font(.caption).foregroundStyle(.orange)
+                    Label(s.format("cost.unpriced", summary.cost.unpricedEvents), systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 if summary.cost.hasRange { Text(s.text("cost.rangeExplanation")).font(.caption).foregroundStyle(.secondary) }
             }
@@ -174,6 +181,21 @@ struct CostBreakdown: View {
             if !summary.cost.unknownModels.isEmpty {
                 Text(s.text("cost.unknownModels")).font(.caption.weight(.semibold))
                 Text(summary.cost.unknownModels.joined(separator: ", ")).font(.caption).textSelection(.enabled)
+            }
+            if let matches = summary.cost.pricingMatches, !matches.isEmpty {
+                DisclosureGroup(s.text("cost.matches")) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(matches, id: \.self) { match in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(match.model).font(.caption.weight(.medium))
+                                    Text(match.pricedModel + " · " + match.source).font(.caption2).textSelection(.enabled)
+                                    Text(s.text("cost.match." + match.kind)).font(.caption2).foregroundStyle(.secondary)
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }.frame(maxHeight: 180)
+                }.font(.caption)
             }
         }
     }
@@ -420,8 +442,8 @@ struct StatusFooter: View {
             } else { Text(s.text("status.neverChecked")) }
             Spacer(minLength: 4)
             if model.refreshing { ProgressView().controlSize(.mini).frame(width: 14) }
-            if model.error != nil || dashboard?.lastScan?.warnings.isEmpty == false {
-                Button { showStatus = true } label: { Image(systemName: "exclamationmark.circle") }.buttonStyle(.plain)
+            if model.error != nil || dashboard?.lastScan?.warnings.isEmpty == false || (dashboard?.lastScan?.undatedEvents ?? 0) > 0 {
+                Button { showStatus = true } label: { Image(systemName: "info.circle") }.buttonStyle(.plain)
                     .help(s.text("status.warnings")).accessibilityLabel(s.text("status.warnings"))
             }
         }
@@ -435,6 +457,9 @@ struct StatusFooter: View {
                 }
                 if let scan = dashboard?.lastScan {
                     Text(s.format("status.sources", scan.filesDiscovered)).font(.caption)
+                    if let undated = scan.undatedEvents, undated > 0 {
+                        Text(s.format("status.undated", undated)).font(.caption).foregroundStyle(.secondary)
+                    }
                     ForEach(s.collectionDiagnostics(scan.warnings, showPaths: settings.showPaths), id: \.self) {
                         Text($0).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                     }

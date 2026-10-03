@@ -55,8 +55,8 @@ final class TokenCatKitTests: XCTestCase {
         let chinese = Localizer(.simplifiedChinese)
         var cost = try Dashboard.decode(fixture()).summary.cost
         cost.minUsd = 0; cost.maxUsd = 0; cost.pricedTokens = 0
-        XCTAssertEqual(english.cost(cost, compact: true), "Unpriced")
-        XCTAssertEqual(chinese.cost(cost, compact: true), "尚未定价")
+        XCTAssertEqual(english.cost(cost, compact: true), "No price record")
+        XCTAssertEqual(chinese.cost(cost, compact: true), "无价格记录")
         cost.minUsd = 0.0025; cost.maxUsd = 0.0025; cost.pricedTokens = 100
         XCTAssertEqual(english.cost(cost, compact: true), "Known $0.0025")
         cost.unpricedEvents = 0
@@ -65,7 +65,7 @@ final class TokenCatKitTests: XCTestCase {
         cost.minUsd = 0; cost.maxUsd = 0.00000005
         XCTAssertEqual(english.cost(cost, compact: true), "$0.00–<$0.0001")
         XCTAssertTrue(chinese.money(0.000001, compact: true).hasPrefix("小于"))
-        XCTAssertEqual(english.categoryCost(tokens: 100, min: 0, max: 0, hasUnpriced: true), "Unpriced")
+        XCTAssertEqual(english.categoryCost(tokens: 100, min: 0, max: 0, hasUnpriced: true), "No price record")
         XCTAssertEqual(english.categoryCost(tokens: 100, min: 0.1, max: 0.1, hasUnpriced: true), "Known $0.10")
         XCTAssertEqual(english.categoryCost(tokens: 0, min: 0, max: 0, hasUnpriced: true), "$0.00")
     }

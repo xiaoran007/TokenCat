@@ -1,9 +1,30 @@
 import Foundation
 
 public enum Harness: String, Codable, Sendable {
-    case codex, claude
-    public var label: String { self == .codex ? "Codex" : "Claude" }
-    public var symbol: String { self == .codex ? "terminal" : "sparkle" }
+    case codex, claude, opencode, antigravity
+    public var label: String {
+        switch self {
+        case .codex: "Codex"
+        case .claude: "Claude Code"
+        case .opencode: "OpenCode"
+        case .antigravity: "Antigravity"
+        }
+    }
+    public var symbol: String {
+        switch self {
+        case .codex: "terminal"
+        case .claude: "sparkle"
+        case .opencode: "chevron.left.forwardslash.chevron.right"
+        case .antigravity: "a.circle"
+        }
+    }
+}
+
+public struct PricingMatch: Codable, Hashable, Sendable {
+    public var model: String
+    public var pricedModel: String
+    public var source: String
+    public var kind: String
 }
 
 public struct CostSummary: Codable, Sendable {
@@ -19,6 +40,7 @@ public struct CostSummary: Codable, Sendable {
     public var unpricedEvents: Int
     public var uncertainEvents: Int
     public var unknownModels: [String]
+    public var pricingMatches: [PricingMatch]? = nil
     public var hasRange: Bool { maxUsd != minUsd }
     public var coverage: Double? { totalTokens == 0 ? nil : Double(pricedTokens) / Double(totalTokens) }
     public mutating func add(_ other: CostSummary) {
@@ -33,6 +55,8 @@ public struct CostSummary: Codable, Sendable {
         totalTokens = total.overflow ? .max : total.partialValue
         unpricedEvents += other.unpricedEvents; uncertainEvents += other.uncertainEvents
         unknownModels = Array(Set(unknownModels + other.unknownModels)).sorted()
+        pricingMatches = Array(Set((pricingMatches ?? []) + (other.pricingMatches ?? [])))
+            .sorted { ($0.model, $0.source, $0.pricedModel) < ($1.model, $1.source, $1.pricedModel) }
     }
 }
 
@@ -110,6 +134,8 @@ public struct ScanReport: Codable, Sendable {
     public var eventsUpserted: Int
     public var checkedAtMs: Int64
     public var warnings: [String]
+    public var undatedEvents: Int? = nil
+    public var undatedTokens: UInt64? = nil
 }
 
 public struct Dashboard: Codable, Sendable {
