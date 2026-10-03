@@ -860,3 +860,17 @@ fn cache_breakdown_reclassification_with_unchanged_consumption_is_not_a_new_requ
     assert_eq!(store.events().unwrap().len(),1);
     assert_eq!(store.events().unwrap()[0].tokens.total,Some(120));
 }
+
+#[test]
+fn conflicting_claude_cache_write_aggregate_retains_larger_ttl_sum() {
+    let f=Fixture::new();
+    let mut row=claude(10,"2026-10-02T10:01:00Z");
+    row["message"]["usage"]["cache_creation_input_tokens"]=json!(10);
+    f.write(".claude/projects/repo/main.jsonl",&[row]);
+    let mut store=f.store();
+    collect(&mut store,&f.config).unwrap();
+    let event=store.events().unwrap().pop().unwrap();
+    assert_eq!(event.tokens.cache_write,Some(300));
+    assert_eq!(event.tokens.total,Some(910));
+    assert!(event.incomplete);
+}
