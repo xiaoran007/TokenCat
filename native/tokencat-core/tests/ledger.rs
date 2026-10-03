@@ -87,6 +87,9 @@ fn query(since: i64, until: i64, timezone: &str) -> Query {
         until_ms: until,
         timezone: timezone.into(),
         show_paths: false,
+        providers: None,
+        granularity: TimelineGranularity::Auto,
+        include_details: false,
     }
 }
 fn near(actual: f64, expected: f64) {

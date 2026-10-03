@@ -121,6 +121,17 @@ pub struct CoreConfig {
     pub pricing_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TimelineGranularity {
+    #[default]
+    Auto,
+    Hour,
+    Day,
+    Week,
+    Month,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Query {
     pub since_ms: i64,
@@ -128,6 +139,14 @@ pub struct Query {
     pub timezone: String,
     #[serde(default)]
     pub show_paths: bool,
+    /// None selects all harnesses; an empty list selects none.
+    #[serde(default)]
+    pub providers: Option<Vec<Provider>>,
+    #[serde(default)]
+    pub granularity: TimelineGranularity,
+    /// Opt in to bucket model breakdowns, distinct session counts and session models.
+    #[serde(default)]
+    pub include_details: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -176,12 +195,24 @@ pub struct BreakdownRow {
     pub provider: Option<Provider>,
     pub parent_id: Option<String>,
     pub summary: UsageSummary,
+    /// Session model with the most tokens in this query window; ties use model name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineDetails {
+    /// Distinct (harness, session) pairs with events in this bucket, not daily counts summed.
+    pub session_count: usize,
+    pub models: Vec<BreakdownRow>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimelineBucket {
     pub timestamp_ms: i64,
     pub summary: UsageSummary,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<TimelineDetails>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,7 +3,7 @@ use crate::{
     pricing::{cache_write_total, EventCost, PricingCatalog},
     store::Store,
 };
-use chrono::{DateTime, Duration, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, Months, NaiveDate, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -98,6 +98,45 @@ fn session_key(provider: Provider, id: &str) -> String {
     format!("{}:{id}", provider.as_str())
 }
 
+#[derive(Default)]
+struct BucketDetails {
+    sessions: BTreeSet<String>,
+    models: BTreeMap<(Provider, String), Aggregate>,
+}
+
+impl BucketDetails {
+    fn add(&mut self, event: &UsageEvent, cost: &EventCost, session: &str) {
+        self.sessions.insert(session.to_owned());
+        self.models
+            .entry((
+                event.provider,
+                event.model.clone().unwrap_or_else(|| "unknown".into()),
+            ))
+            .or_default()
+            .add(event, cost);
+    }
+
+    fn finish(self) -> TimelineDetails {
+        let mut models: Vec<_> = self
+            .models
+            .into_iter()
+            .map(|((provider, model), value)| BreakdownRow {
+                id: format!("{}:{model}", provider.as_str()),
+                label: model,
+                provider: Some(provider),
+                parent_id: None,
+                summary: value.finish(),
+                primary_model: None,
+            })
+            .collect();
+        sort_rows(&mut models);
+        TimelineDetails {
+            session_count: self.sessions.len(),
+            models,
+        }
+    }
+}
+
 /// Sessions contain their own usage; summing rows never counts descendants twice.
 /// Time bounds are [since, until), with local calendar buckets including DST.
 pub fn query_dashboard(
@@ -112,8 +151,19 @@ pub fn query_dashboard(
         .timezone
         .parse()
         .map_err(|_| format!("Unknown timezone: {}", query.timezone))?;
-    let hourly = i128::from(query.until_ms) - i128::from(query.since_ms) <= 3 * 86_400_000;
-    let mut timeline = empty_timeline(query, timezone, hourly)?;
+    let granularity = match query.granularity {
+        TimelineGranularity::Auto => {
+            if i128::from(query.until_ms) - i128::from(query.since_ms) <= 3 * 86_400_000 {
+                TimelineGranularity::Hour
+            } else {
+                TimelineGranularity::Day
+            }
+        }
+        value => value,
+    };
+    let mut timeline = empty_timeline(query, timezone, granularity)?;
+    let mut bucket_details: BTreeMap<i64, BucketDetails> = BTreeMap::new();
+    let mut session_models: BTreeMap<String, BTreeMap<Option<String>, u128>> = BTreeMap::new();
     let metadata: BTreeMap<_, _> = store
         .sessions()?
         .into_iter()
@@ -128,6 +178,13 @@ pub fn query_dashboard(
     let mut session_labels = BTreeMap::new();
     let mut session_providers = BTreeMap::new();
     for event in store.events_between(query.since_ms, query.until_ms)? {
+        if query
+            .providers
+            .as_ref()
+            .is_some_and(|providers| !providers.contains(&event.provider))
+        {
+            continue;
+        }
         let cost = catalog.price(&event);
         summary.add(&event, &cost);
         providers
@@ -151,9 +208,20 @@ pub fn query_dashboard(
         projects.entry(project_id).or_default().add(&event, &cost);
         session_labels.insert(key.clone(), anonymous("session", &key));
         session_providers.insert(key.clone(), event.provider);
-        sessions.entry(key).or_default().add(&event, &cost);
-        let timestamp = bucket_start(event.timestamp_ms, timezone, hourly)?;
+        let timestamp = bucket_start(event.timestamp_ms, timezone, granularity)?;
         timeline.entry(timestamp).or_default().add(&event, &cost);
+        if query.include_details {
+            bucket_details
+                .entry(timestamp)
+                .or_default()
+                .add(&event, &cost, &key);
+            *session_models
+                .entry(key.clone())
+                .or_default()
+                .entry(event.model.clone())
+                .or_default() += u128::from(cost.total_tokens);
+        }
+        sessions.entry(key).or_default().add(&event, &cost);
     }
     let provider_rows = providers
         .into_iter()
@@ -163,13 +231,16 @@ pub fn query_dashboard(
             id: provider.as_str().into(),
             parent_id: None,
             summary: value.finish(),
+            primary_model: None,
         })
         .collect();
     let model_rows = rows(models, |id| (id.to_owned(), None, None));
     let project_rows = rows(projects, |id| (project_labels[id].clone(), None, None));
     let mut session_rows = rows(sessions, |id| {
         let session = metadata.get(id);
-        let provider = session.map(|session| session.provider).or_else(|| session_providers.get(id).copied());
+        let provider = session
+            .map(|session| session.provider)
+            .or_else(|| session_providers.get(id).copied());
         let parent = session.and_then(|session| {
             session
                 .parent_id
@@ -178,6 +249,18 @@ pub fn query_dashboard(
         });
         (session_labels[id].clone(), provider, parent)
     });
+    if query.include_details {
+        for row in &mut session_rows {
+            if let Some(models) = session_models.remove(&row.id) {
+                row.primary_model = models
+                    .into_iter()
+                    .max_by(|(a_model, a_tokens), (b_model, b_tokens)| {
+                        a_tokens.cmp(b_tokens).then_with(|| b_model.cmp(a_model))
+                    })
+                    .and_then(|(model, _)| model);
+            }
+        }
+    }
     // Include structural ancestors with zero own usage so tasks remain navigable
     // when the requested window only contains a subagent.
     let mut included: BTreeSet<_> = session_rows.iter().map(|row| row.id.clone()).collect();
@@ -203,6 +286,7 @@ pub fn query_dashboard(
                 provider: Some(session.provider),
                 parent_id: parent,
                 summary: UsageSummary::default(),
+                primary_model: None,
             });
         }
     }
@@ -224,9 +308,24 @@ pub fn query_dashboard(
             .map(|(timestamp_ms, value)| TimelineBucket {
                 timestamp_ms,
                 summary: value.finish(),
+                details: query.include_details.then(|| {
+                    bucket_details
+                        .remove(&timestamp_ms)
+                        .unwrap_or_default()
+                        .finish()
+                }),
             })
             .collect(),
-        states: store.states()?,
+        states: store
+            .states()?
+            .into_iter()
+            .filter(|state| {
+                query
+                    .providers
+                    .as_ref()
+                    .is_none_or(|providers| providers.contains(&state.provider))
+            })
+            .collect(),
         catalog_id: catalog.id.clone(),
         catalog_retrieved_at: catalog.retrieved_at.clone(),
         catalog_sources: catalog.sources.clone(),
@@ -248,24 +347,33 @@ fn rows(
                 provider,
                 parent_id,
                 summary: value.finish(),
+                primary_model: None,
             }
         })
         .collect();
-    result.sort_by(|a, b| {
+    sort_rows(&mut result);
+    result
+}
+
+fn sort_rows(rows: &mut [BreakdownRow]) {
+    rows.sort_by(|a, b| {
         b.summary
             .cost
             .max_usd
             .total_cmp(&a.summary.cost.max_usd)
             .then_with(|| a.id.cmp(&b.id))
     });
-    result
 }
 
-fn bucket_start(timestamp_ms: i64, timezone: Tz, hourly: bool) -> CoreResult<i64> {
+fn bucket_start(
+    timestamp_ms: i64,
+    timezone: Tz,
+    granularity: TimelineGranularity,
+) -> CoreResult<i64> {
     let time = DateTime::<Utc>::from_timestamp_millis(timestamp_ms)
         .ok_or("Timestamp outside calendar range")?
         .with_timezone(&timezone);
-    if hourly {
+    if granularity == TimelineGranularity::Hour {
         // Subtract elapsed sub-hour time, preserving the offset during repeated
         // autumn hours rather than merging two distinct hours.
         Ok(timestamp_ms
@@ -273,53 +381,62 @@ fn bucket_start(timestamp_ms: i64, timezone: Tz, hourly: bool) -> CoreResult<i64
             - i64::from(time.second()) * 1000
             - i64::from(time.timestamp_subsec_millis()))
     } else {
-        let midnight = time
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .ok_or("Invalid calendar date")?;
-        // Some historical zones move clocks at midnight. First valid local minute
-        // is the beginning of that calendar day.
-        for minutes in 0..=180 {
-            if let Some(start) = timezone
-                .from_local_datetime(&(midnight + Duration::minutes(minutes)))
-                .earliest()
-            {
-                return Ok(start.timestamp_millis());
-            }
+        let date = time.date_naive();
+        let start_date = match granularity {
+            TimelineGranularity::Day => Some(date),
+            TimelineGranularity::Week => date.checked_sub_signed(Duration::days(i64::from(
+                date.weekday().num_days_from_monday(),
+            ))),
+            TimelineGranularity::Month => date.with_day(1),
+            _ => return Err("Timeline granularity must be resolved before bucketing".into()),
         }
-        Err("Calendar day has no valid start in selected timezone".into())
+        .ok_or("Timestamp outside calendar range")?;
+        calendar_start(start_date, timezone)
     }
+}
+
+fn calendar_start(date: NaiveDate, timezone: Tz) -> CoreResult<i64> {
+    let midnight = date.and_hms_opt(0, 0, 0).ok_or("Invalid calendar date")?;
+    // Some historical zones move clocks at midnight. First valid local minute
+    // is the beginning of that calendar day.
+    for minutes in 0..=180 {
+        let local = midnight
+            .checked_add_signed(Duration::minutes(minutes))
+            .ok_or("Timestamp outside calendar range")?;
+        if let Some(start) = timezone.from_local_datetime(&local).earliest() {
+            return Ok(start.timestamp_millis());
+        }
+    }
+    Err("Calendar day has no valid start in selected timezone".into())
 }
 
 fn empty_timeline(
     query: &Query,
     timezone: Tz,
-    hourly: bool,
+    granularity: TimelineGranularity,
 ) -> CoreResult<BTreeMap<i64, Aggregate>> {
     let mut result = BTreeMap::new();
-    let mut cursor = bucket_start(query.since_ms, timezone, hourly)?;
+    let mut cursor = bucket_start(query.since_ms, timezone, granularity)?;
     while cursor < query.until_ms {
         if result.len() >= 100_000 {
             return Err("Query exceeds 100,000 calendar buckets".into());
         }
         result.insert(cursor, Aggregate::default());
-        cursor = if hourly {
+        cursor = if granularity == TimelineGranularity::Hour {
             cursor.checked_add(3_600_000).ok_or("Timestamp overflow")?
         } else {
             let time = DateTime::<Utc>::from_timestamp_millis(cursor)
                 .ok_or("Timestamp outside calendar range")?
                 .with_timezone(&timezone);
-            let next = time
-                .date_naive()
-                .succ_opt()
-                .ok_or("Timestamp outside calendar range")?
-                .and_hms_opt(12, 0, 0)
-                .ok_or("Invalid calendar date")?;
-            let noon = timezone
-                .from_local_datetime(&next)
-                .earliest()
-                .ok_or("Calendar date unavailable in selected timezone")?;
-            bucket_start(noon.timestamp_millis(), timezone, false)?
+            let date = time.date_naive();
+            let next = match granularity {
+                TimelineGranularity::Day => date.succ_opt(),
+                TimelineGranularity::Week => date.checked_add_signed(Duration::days(7)),
+                TimelineGranularity::Month => date.checked_add_months(Months::new(1)),
+                _ => return Err("Timeline granularity must be resolved before bucketing".into()),
+            }
+            .ok_or("Timestamp outside calendar range")?;
+            calendar_start(next, timezone)?
         };
     }
     Ok(result)
