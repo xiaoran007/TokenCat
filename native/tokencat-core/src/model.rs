@@ -4,11 +4,13 @@ use std::path::PathBuf;
 
 pub type CoreResult<T> = Result<T, String>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
     Codex,
     Claude,
+    OpenCode,
+    Antigravity,
 }
 
 impl Provider {
@@ -16,6 +18,17 @@ impl Provider {
         match self {
             Self::Codex => "codex",
             Self::Claude => "claude",
+            Self::OpenCode => "opencode",
+            Self::Antigravity => "antigravity",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Codex => "Codex",
+            Self::Claude => "Claude Code",
+            Self::OpenCode => "OpenCode",
+            Self::Antigravity => "Antigravity",
         }
     }
 }
@@ -40,6 +53,11 @@ pub struct UsageEvent {
     pub session_id: String,
     pub timestamp_ms: i64,
     pub model: Option<String>,
+    #[serde(default)]
+    pub revision_ms: Option<i64>,
+    /// Model service identity; `provider` above is the collection harness.
+    #[serde(default)]
+    pub model_provider: Option<String>,
     pub attribution: String,
     pub tokens: Tokens,
     #[serde(default)]
@@ -83,6 +101,10 @@ pub struct ScanReport {
     pub events_upserted: usize,
     pub checked_at_ms: i64,
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub undated_events: usize,
+    #[serde(default)]
+    pub undated_tokens: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +114,10 @@ pub struct CoreConfig {
     pub codex_root: Option<PathBuf>,
     #[serde(default)]
     pub claude_roots: Vec<PathBuf>,
+    #[serde(default)]
+    pub opencode_root: Option<PathBuf>,
+    #[serde(default)]
+    pub antigravity_roots: Vec<PathBuf>,
     pub pricing_path: Option<PathBuf>,
 }
 
@@ -102,6 +128,14 @@ pub struct Query {
     pub timezone: String,
     #[serde(default)]
     pub show_paths: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct PricingMatch {
+    pub model: String,
+    pub priced_model: String,
+    pub source: String,
+    pub kind: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -118,6 +152,8 @@ pub struct CostSummary {
     pub unpriced_events: usize,
     pub uncertain_events: usize,
     pub unknown_models: Vec<String>,
+    #[serde(default)]
+    pub pricing_matches: Vec<PricingMatch>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

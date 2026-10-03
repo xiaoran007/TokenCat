@@ -7,6 +7,7 @@ extern "C" {
 void *tokencat_open(const char *config_json);
 char *tokencat_scan(void *handle);
 char *tokencat_query(void *handle, const char *query_json);
+char *tokencat_validate_catalog(const char *catalog_json, const char *retrieved_at);
 char *tokencat_last_error(void);
 void tokencat_string_free(char *pointer);
 void tokencat_close(void *handle);

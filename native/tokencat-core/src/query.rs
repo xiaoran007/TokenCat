@@ -18,6 +18,7 @@ struct Aggregate {
     output_units: u128,
     tier_max_extra_units: u128,
     unknown: BTreeSet<String>,
+    pricing_matches: BTreeSet<PricingMatch>,
 }
 
 impl Aggregate {
@@ -61,6 +62,9 @@ impl Aggregate {
         if let Some(model) = &cost.unknown_model {
             self.unknown.insert(model.clone());
         }
+        if let Some(matched) = &cost.pricing_match {
+            self.pricing_matches.insert(matched.clone());
+        }
     }
 
     fn finish(mut self) -> UsageSummary {
@@ -78,6 +82,7 @@ impl Aggregate {
             + self.output_units
             + self.tier_max_extra_units);
         cost.unknown_models = self.unknown.into_iter().collect();
+        cost.pricing_matches = self.pricing_matches.into_iter().collect();
         self.summary
     }
 }
@@ -115,17 +120,18 @@ pub fn query_dashboard(
         .map(|session| (session_key(session.provider, &session.id), session))
         .collect();
     let mut summary = Aggregate::default();
-    let mut providers: BTreeMap<String, Aggregate> = BTreeMap::new();
+    let mut providers: BTreeMap<Provider, Aggregate> = BTreeMap::new();
     let mut models: BTreeMap<String, Aggregate> = BTreeMap::new();
     let mut projects: BTreeMap<String, Aggregate> = BTreeMap::new();
     let mut sessions: BTreeMap<String, Aggregate> = BTreeMap::new();
     let mut project_labels = BTreeMap::new();
     let mut session_labels = BTreeMap::new();
+    let mut session_providers = BTreeMap::new();
     for event in store.events_between(query.since_ms, query.until_ms)? {
         let cost = catalog.price(&event);
         summary.add(&event, &cost);
         providers
-            .entry(event.provider.as_str().to_owned())
+            .entry(event.provider)
             .or_default()
             .add(&event, &cost);
         models
@@ -144,24 +150,17 @@ pub fn query_dashboard(
         project_labels.insert(project_id.clone(), label);
         projects.entry(project_id).or_default().add(&event, &cost);
         session_labels.insert(key.clone(), anonymous("session", &key));
+        session_providers.insert(key.clone(), event.provider);
         sessions.entry(key).or_default().add(&event, &cost);
         let timestamp = bucket_start(event.timestamp_ms, timezone, hourly)?;
         timeline.entry(timestamp).or_default().add(&event, &cost);
     }
     let provider_rows = providers
         .into_iter()
-        .map(|(id, value)| BreakdownRow {
-            label: match id.as_str() {
-                "codex" => "Codex",
-                _ => "Claude",
-            }
-            .into(),
-            provider: Some(if id == "codex" {
-                Provider::Codex
-            } else {
-                Provider::Claude
-            }),
-            id,
+        .map(|(provider, value)| BreakdownRow {
+            label: provider.label().into(),
+            provider: Some(provider),
+            id: provider.as_str().into(),
             parent_id: None,
             summary: value.finish(),
         })
@@ -170,13 +169,7 @@ pub fn query_dashboard(
     let project_rows = rows(projects, |id| (project_labels[id].clone(), None, None));
     let mut session_rows = rows(sessions, |id| {
         let session = metadata.get(id);
-        let provider = session.map(|session| session.provider).or_else(|| {
-            if id.starts_with("codex:") {
-                Some(Provider::Codex)
-            } else {
-                Some(Provider::Claude)
-            }
-        });
+        let provider = session.map(|session| session.provider).or_else(|| session_providers.get(id).copied());
         let parent = session.and_then(|session| {
             session
                 .parent_id

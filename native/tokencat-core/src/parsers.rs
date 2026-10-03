@@ -19,6 +19,7 @@ pub(crate) struct Context {
     project: Option<String>,
     configured_model: Option<String>,
     reported_model: Option<String>,
+    model_provider: Option<String>,
     previous: Option<RawTokens>,
     previous_last: Option<RawTokens>,
     epoch: u64,
@@ -168,6 +169,7 @@ struct CodexPayload {
     cwd: Option<String>,
     model: Option<String>,
     model_name: Option<String>,
+    model_provider: Option<String>,
     to_model: Option<String>,
     parent_thread_id: Option<String>,
     forked_from_id: Option<String>,
@@ -222,6 +224,9 @@ pub(crate) fn parse_line(
     match provider {
         Provider::Codex => parse_codex(line, state, batch),
         Provider::Claude => parse_claude(path, line, state, batch),
+        Provider::OpenCode | Provider::Antigravity => {
+            Err("This harness uses SQLite metadata, not JSONL".into())
+        }
     }
 }
 fn timestamp(raw: Option<&str>) -> CoreResult<i64> {
@@ -251,6 +256,9 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
     let c = &mut state.context;
     if row.kind == "session_meta" {
         c.session = p.thread_id.or(p.id).or(p.session_id);
+        c.model_provider = p
+            .model_provider
+            .filter(|provider| !provider.trim().is_empty());
         c.parent = p.parent_thread_id.or_else(|| match p.source {
             Some(SessionSource::SubAgent { subagent }) => {
                 subagent.thread_spawn.and_then(|s| s.parent_thread_id)
@@ -319,6 +327,8 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
             session_id: session,
             timestamp_ms: time,
             model,
+            model_provider: c.model_provider.clone().or_else(|| Some("openai".into())),
+            revision_ms: None,
             attribution: attribution.into(),
             incomplete: tokens.input_uncached.is_none() || tokens.output.is_none(),
             tokens,
@@ -434,6 +444,8 @@ fn parse_codex(line: &[u8], state: &mut ParserState, batch: &mut Batch) -> CoreR
         session_id: session,
         timestamp_ms: time,
         model,
+        model_provider: c.model_provider.clone().or_else(|| Some("openai".into())),
+        revision_ms: None,
         attribution: attribution.into(),
         incomplete: incomplete_baseline
             || tokens.input_uncached.is_none()
@@ -610,6 +622,8 @@ fn parse_claude(
         }
         .into(),
         model: message.model,
+        model_provider: Some("anthropic".into()),
+        revision_ms: None,
         incomplete: tokens.input_uncached.is_none() || tokens.output.is_none(),
         tokens,
     });

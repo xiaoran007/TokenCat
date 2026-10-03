@@ -7,6 +7,11 @@ use std::{
 };
 use tokencat_core::{model::*, pricing::PricingCatalog, query::query_dashboard, store::Store};
 
+// Deterministic math regression fixture, independent of live LiteLLM updates.
+fn legacy_catalog() -> PricingCatalog {
+    PricingCatalog::from_json(include_str!("fixtures/legacy-pricing.json"), "2026-10-02").unwrap()
+}
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Scratch(PathBuf);
 impl Scratch {
@@ -46,6 +51,8 @@ fn event(id: &str, session: &str, timestamp: i64) -> UsageEvent {
         session_id: session.into(),
         timestamp_ms: timestamp,
         model: Some("claude-sonnet-4-6".into()),
+        model_provider: None,
+        revision_ms: None,
         attribution: "explicit".into(),
         incomplete: false,
         tokens: Tokens {
@@ -178,13 +185,13 @@ fn stale_copied_root_cannot_undo_newer_usage_revision() {
 
 #[test]
 fn unknown_tier_threshold_produces_bounds_and_old_claude_long_context_is_unpriced() {
-    let mut catalog = PricingCatalog::load(None).unwrap();
+    let mut catalog = legacy_catalog();
     catalog
         .models
         .get_mut("gpt-6-astra")
         .unwrap()
-        .long_context
-        .as_mut()
+        .tiers
+        .first_mut()
         .unwrap()
         .above_input_tokens = None;
     let mut sample = event("a", "task", 1);
@@ -202,8 +209,55 @@ fn unknown_tier_threshold_produces_bounds_and_old_claude_long_context_is_unprice
 }
 
 #[test]
+fn proven_alias_merge_keeps_latest_usage_earliest_time_and_source_links() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    let mut original = event("canonical", "task", 10);
+    original.revision_ms = Some(100);
+    let mut updated = event("provisional", "task-copy", 20);
+    updated.revision_ms = Some(200);
+    updated.tokens.output = Some(300);
+    updated.tokens.total = Some(8300);
+    let mut unrelated = updated.clone();
+    unrelated.provider = Provider::Codex;
+    store.commit_source(&cursor("first", 0), &[], &[original.clone()], &[]).unwrap();
+    store.commit_source(&cursor("copy", 0), &[], &[updated, unrelated], &[]).unwrap();
+    for _ in 0..2 {
+        store.merge_event_ids(Provider::Claude, "canonical", &["provisional".into()]).unwrap();
+    }
+    let events = store.events().unwrap();
+    assert_eq!(events.len(), 2);
+    let merged = events.iter().find(|event| event.provider == Provider::Claude).unwrap();
+    assert_eq!(merged.id, "canonical");
+    assert_eq!(merged.timestamp_ms, 10);
+    assert_eq!(merged.revision_ms, Some(200));
+    assert_eq!(merged.tokens.output, Some(300));
+    assert!(events.iter().any(|event| event.provider == Provider::Codex && event.id == "provisional"));
+    let connection = Connection::open(scratch.db()).unwrap();
+    let count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM source_events WHERE provider='claude' AND event_id='canonical'",
+        [], |row| row.get(0),
+    ).unwrap();
+    assert_eq!(count, 2);
+    store.commit_source(&cursor("first", 0), &[], &[original], &[]).unwrap();
+    assert_eq!(store.events().unwrap().into_iter().find(|e| e.provider == Provider::Claude).unwrap().tokens.output, Some(300));
+}
+
+#[test]
+fn proven_alias_merge_can_create_the_canonical_identity() {
+    let scratch = Scratch::new();
+    let store = Store::open(&scratch.db()).unwrap();
+    store.commit_source(&cursor("source", 0), &[], &[event("provisional", "task", 10)], &[]).unwrap();
+    store.merge_event_ids(Provider::Claude, "canonical", &["provisional".into()]).unwrap();
+    let events = store.events().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].id, "canonical");
+    assert_eq!(events[0].tokens.total, Some(8100));
+}
+
+#[test]
 fn legacy_codex_cache_write_uses_base_input_rate_without_an_additive_fee() {
-    let catalog = PricingCatalog::load(None).unwrap();
+    let catalog = legacy_catalog();
     let mut sample = event("a", "task", 1);
     sample.provider = Provider::Codex;
     sample.model = Some("gpt-5.4".into());
@@ -240,7 +294,7 @@ fn custom_unknown_cache_write_rates_are_excluded_from_pricing_coverage() {
 
 #[test]
 fn prices_exclusive_categories_and_does_not_double_charge_reasoning() {
-    let catalog = PricingCatalog::load(None).unwrap();
+    let catalog = legacy_catalog();
     let cost = catalog.price(&event("a", "task", 1));
     assert!(!cost.uncertain && !cost.unpriced);
     assert_eq!(cost.total_tokens, 8100);
@@ -253,7 +307,7 @@ fn prices_exclusive_categories_and_does_not_double_charge_reasoning() {
 
 #[test]
 fn unknown_cache_ttl_produces_bounds_and_known_mixed_ttls_are_exact() {
-    let catalog = PricingCatalog::load(None).unwrap();
+    let catalog = legacy_catalog();
     let mut sample = event("a", "task", 1);
     sample.tokens.cache_write_5m = None;
     sample.tokens.cache_write_1h = None;
@@ -270,8 +324,8 @@ fn unknown_cache_ttl_produces_bounds_and_known_mixed_ttls_are_exact() {
 }
 
 #[test]
-fn model_names_are_exact_and_provider_scoped() {
-    let catalog = PricingCatalog::load(None).unwrap();
+fn model_names_are_exact_and_harness_does_not_define_model_identity() {
+    let catalog = legacy_catalog();
     let mut sample = event("a", "task", 1);
     sample.model = Some("claude-sonnet-4-6-unknown-suffix".into());
     let unknown = catalog.price(&sample);
@@ -280,7 +334,7 @@ fn model_names_are_exact_and_provider_scoped() {
     assert_eq!(unknown.input_units, 0);
     sample.model = Some("claude-sonnet-4-6".into());
     sample.provider = Provider::Codex;
-    assert!(catalog.price(&sample).unpriced);
+    assert!(!catalog.price(&sample).unpriced);
 }
 
 #[test]
@@ -337,7 +391,7 @@ fn fractional_nanodollars_accumulate_without_rounding_each_event() {
 
 #[test]
 fn common_codex_models_and_verified_snapshots_have_complete_cost_coverage() {
-    let catalog = PricingCatalog::load(None).unwrap();
+    let catalog = legacy_catalog();
     let scratch = Scratch::new();
     let store = Store::open(&scratch.db()).unwrap();
     let examples = [
@@ -392,7 +446,7 @@ fn common_codex_models_and_verified_snapshots_have_complete_cost_coverage() {
 
 #[test]
 fn long_context_threshold_applies_full_request_rate() {
-    let catalog = PricingCatalog::load(None).unwrap();
+    let catalog = legacy_catalog();
     let mut sample = event("a", "task", 1);
     sample.provider = Provider::Codex;
     sample.model = Some("gpt-5.4".into());
@@ -427,12 +481,7 @@ fn summaries_preserve_cost_ranges_coverage_and_own_task_usage() {
             &[],
         )
         .unwrap();
-    let dashboard = query_dashboard(
-        &store,
-        &PricingCatalog::load(None).unwrap(),
-        &query(0, 4000, "UTC"),
-    )
-    .unwrap();
+    let dashboard = query_dashboard(&store, &legacy_catalog(), &query(0, 4000, "UTC")).unwrap();
     near(dashboard.summary.cost.min_usd, 0.027);
     near(dashboard.summary.cost.max_usd, 0.0315);
     assert_eq!(dashboard.summary.cost.unpriced_events, 1);
@@ -492,7 +541,7 @@ fn local_midnight_boundaries_and_repeated_dst_hours_are_distinct() {
         .unwrap();
     let dashboard = query_dashboard(
         &store,
-        &PricingCatalog::load(None).unwrap(),
+        &legacy_catalog(),
         &query(midnight, until, "America/New_York"),
     )
     .unwrap();
@@ -530,7 +579,7 @@ fn daily_buckets_follow_local_calendar_and_structural_parent_is_available() {
         .unwrap();
     let dashboard = query_dashboard(
         &store,
-        &PricingCatalog::load(None).unwrap(),
+        &legacy_catalog(),
         &query(start, until, "America/New_York"),
     )
     .unwrap();
@@ -544,7 +593,7 @@ fn daily_buckets_follow_local_calendar_and_structural_parent_is_available() {
     assert_eq!(parent.summary.event_count, 0);
     assert!(query_dashboard(
         &store,
-        &PricingCatalog::load(None).unwrap(),
+        &legacy_catalog(),
         &query(start, until, "not-a-zone")
     )
     .is_err());

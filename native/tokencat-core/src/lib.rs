@@ -1,6 +1,8 @@
 pub mod collector;
+pub mod antigravity;
 pub mod ffi;
 pub mod model;
+pub mod opencode;
 pub mod parsers;
 pub mod pricing;
 pub mod query;

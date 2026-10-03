@@ -23,6 +23,8 @@ impl Fixture {
             home: home.clone(),
             database_path: home.join("usage.sqlite"),
             claude_roots: vec![],
+            opencode_root: None,
+            antigravity_roots: vec![],
             codex_root: None,
             pricing_path: None,
         };
@@ -55,6 +57,78 @@ fn context() -> Value {
 }
 fn raw(input: u64, output: u64) -> Value {
     json!({"input_tokens":input,"cached_input_tokens":input/2,"output_tokens":output,"reasoning_output_tokens":output/2,"total_tokens":input+output})
+}
+
+#[test]
+fn codex_model_service_metadata_survives_restart_and_does_not_capture_config() {
+    let f = Fixture::new();
+    let mut metadata = meta("custom");
+    metadata["payload"]["model_provider"] = json!("private-service");
+    metadata["payload"]["api_key"] = json!("PRIVATE_CREDENTIAL");
+    let path = f.write(
+        ".codex/sessions/custom.jsonl",
+        &[metadata, context(), count(100, 20, 100)],
+    );
+    {
+        let mut store = f.store();
+        collect(&mut store, &f.config).unwrap();
+        let events = store.events().unwrap();
+        assert_eq!(events[0].model_provider.as_deref(), Some("private-service"));
+        assert!(!serde_json::to_string(&events)
+            .unwrap()
+            .contains("PRIVATE_CREDENTIAL"));
+    }
+    let mut out = OpenOptions::new().append(true).open(path).unwrap();
+    writeln!(out, "{}", json!({"type":"token_usage_record","timestamp":"2026-10-02T10:02:00Z", "payload":{"thread_id":"custom","response_id":"modern-response","model":"private-model","usage":raw(120,30)}})).unwrap();
+    let mut store = f.store();
+    collect(&mut store, &f.config).unwrap();
+    let events = store.events().unwrap();
+    assert_eq!(events.len(), 2);
+    assert!(events
+        .iter()
+        .all(|event| event.model_provider.as_deref() == Some("private-service")));
+    f.write(
+        ".codex/sessions/default.jsonl",
+        &[meta("default"), context(), count(100, 20, 100)],
+    );
+    collect(&mut store, &f.config).unwrap();
+    assert_eq!(
+        store
+            .events()
+            .unwrap()
+            .iter()
+            .find(|event| event.session_id == "default")
+            .unwrap()
+            .model_provider
+            .as_deref(),
+        Some("openai")
+    );
+}
+
+#[test]
+fn old_codex_cursor_replays_service_identity_once_without_duplicate_usage() {
+    let f = Fixture::new();
+    let mut metadata = meta("custom");
+    metadata["payload"]["model_provider"] = json!("private-service");
+    f.write(
+        ".codex/sessions/custom.jsonl",
+        &[metadata, context(), count(100, 20, 100)],
+    );
+    {
+        let mut store = f.store();
+        collect(&mut store, &f.config).unwrap();
+    }
+    let connection = rusqlite::Connection::open(&f.config.database_path).unwrap();
+    connection.execute("UPDATE cursors SET payload=json_set(payload,'$.parser_state.context',json_remove(json_extract(payload,'$.parser_state.context'),'$.model_provider')) WHERE identity LIKE 'codex:%'",[]).unwrap();
+    connection.execute("UPDATE events SET payload=json_set(payload,'$.model_provider','openai') WHERE provider='codex'",[]).unwrap();
+    drop(connection);
+    let mut store = f.store();
+    let report = collect(&mut store, &f.config).unwrap();
+    assert_eq!(report.files_changed, 1);
+    let events = store.events().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].model_provider.as_deref(), Some("private-service"));
+    assert_eq!(collect(&mut store, &f.config).unwrap().files_changed, 0);
 }
 fn count(input: u64, output: u64, last: u64) -> Value {
     json!({"type":"event_msg","timestamp":"2026-10-02T10:01:00Z","payload":{"type":"token_count","info":{"total_token_usage":raw(input,output),"last_token_usage":raw(last,output),"model_context_window":200000},"rate_limits":{"primary":{"used_percent":11.5,"window_minutes":300,"resets_at":1791000000}}}})

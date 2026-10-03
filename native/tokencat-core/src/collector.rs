@@ -52,6 +52,12 @@ pub fn collect(store: &mut Store, config: &CoreConfig) -> CoreResult<ScanReport>
             report.warnings.push(format!("{}: {error}", path.display()));
         }
     }
+    if let Err(error) = crate::opencode::collect(store, config, &mut report) {
+        report.warnings.push(format!("OpenCode: {error}"));
+    }
+    if let Err(error) = crate::antigravity::collect(store, config, &mut report) {
+        report.warnings.push(format!("Antigravity: {error}"));
+    }
     store.save_scan(&report)?;
     Ok(report)
 }
@@ -127,10 +133,19 @@ fn collect_source(
     }
     report.files_discovered += 1;
     let previous = store.load_cursor(&identity)?;
+    // Existing Codex cursors predate model-service attribution. Replay once to
+    // read the allowlisted session metadata and revise stable ledger event IDs.
+    let refresh_model_provider = provider == Provider::Codex
+        && previous.as_ref().is_some_and(|old| {
+            old.parser_state
+                .get("context")
+                .and_then(|context| context.get("model_provider"))
+                .is_none()
+        });
     let modified_ns = modified(&stat);
     let path_string = path.to_string_lossy().into_owned();
     if let Some(old) = &previous {
-        if old.length == stat.len() && old.modified_ns == modified_ns {
+        if !refresh_model_provider && old.length == stat.len() && old.modified_ns == modified_ns {
             if old.path != path_string {
                 let mut renamed = old.clone();
                 renamed.path = path_string;
@@ -150,10 +165,18 @@ fn collect_source(
         None => ParserState::default(),
     };
     let mut offset = previous.as_ref().map(|v| v.offset).unwrap_or(0);
+    if refresh_model_provider {
+        state = ParserState {
+            generation: state.generation,
+            ..Default::default()
+        };
+        offset = 0;
+    }
     if let Some(old) = &previous {
-        if opened.len() < offset
-            || fingerprint(&mut file, offset)? != old.head_hash
-            || (opened.len() <= old.length && modified_ns != old.modified_ns)
+        if !refresh_model_provider
+            && (opened.len() < offset
+                || fingerprint(&mut file, offset)? != old.head_hash
+                || (opened.len() <= old.length && modified_ns != old.modified_ns))
         {
             report.warnings.push(format!(
                 "{}: source rewritten or truncated; retained previous usage ledger",

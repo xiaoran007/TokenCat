@@ -129,7 +129,7 @@ impl Store {
             if let Some(timestamp) = timestamp {
                 revised.timestamp_ms = timestamp;
             }
-            transaction.execute("INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET revision_ms=excluded.revision_ms,payload=excluded.payload WHERE excluded.revision_ms>=events.revision_ms", params![revised.provider.as_str(), revised.id, revised.timestamp_ms, event.timestamp_ms, encoded(&revised)?]).map_err(|error| error.to_string())?;
+            transaction.execute("INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET revision_ms=excluded.revision_ms,payload=excluded.payload WHERE excluded.revision_ms>=events.revision_ms", params![revised.provider.as_str(), revised.id, revised.timestamp_ms, event.revision_ms.unwrap_or(event.timestamp_ms), encoded(&revised)?]).map_err(|error| error.to_string())?;
             transaction.execute("INSERT OR IGNORE INTO source_events(identity,provider,event_id) VALUES(?1,?2,?3)", params![cursor.identity, event.provider.as_str(), event.id]).map_err(|error| error.to_string())?;
         }
         for state in states {
@@ -143,6 +143,52 @@ impl Store {
     pub fn save_scan(&self, report: &ScanReport) -> CoreResult<()> {
         self.connection.execute("INSERT INTO metadata(key,payload) VALUES('last_scan',?1) ON CONFLICT(key) DO UPDATE SET payload=excluded.payload", [encoded(report)?]).map_err(|error| error.to_string())?;
         Ok(())
+    }
+
+    /// Consolidate identities only after the adapter has observed evidence that
+    /// they refer to the same request. Missing source files never trigger this.
+    pub fn merge_event_ids(
+        &self,
+        provider: Provider,
+        canonical: &str,
+        retired: &[String],
+    ) -> CoreResult<()> {
+        let transaction = self.connection.unchecked_transaction().map_err(|e| e.to_string())?;
+        let mut best: Option<(i64, UsageEvent)> = None;
+        let mut earliest: Option<i64> = None;
+        for id in std::iter::once(canonical).chain(retired.iter().map(String::as_str)) {
+            let row: Option<(i64, i64, String)> = transaction.query_row(
+                "SELECT timestamp_ms,revision_ms,payload FROM events WHERE provider=?1 AND id=?2",
+                params![provider.as_str(), id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            ).optional().map_err(|e| e.to_string())?;
+            if let Some((timestamp, revision, payload)) = row {
+                earliest = Some(earliest.map_or(timestamp, |old| old.min(timestamp)));
+                let event: UsageEvent = decoded(payload)?;
+                if best.as_ref().is_none_or(|(old_revision, _)| revision > *old_revision) {
+                    best = Some((revision, event));
+                }
+            }
+        }
+        if let Some((revision, mut event)) = best {
+            event.id = canonical.into();
+            event.timestamp_ms = earliest.expect("a stored event has a timestamp");
+            transaction.execute(
+                "INSERT INTO events(provider,id,timestamp_ms,revision_ms,payload) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(provider,id) DO UPDATE SET timestamp_ms=excluded.timestamp_ms,revision_ms=excluded.revision_ms,payload=excluded.payload",
+                params![provider.as_str(), canonical, event.timestamp_ms, revision, encoded(&event)?],
+            ).map_err(|e| e.to_string())?;
+            for id in retired.iter().filter(|id| id.as_str() != canonical) {
+                transaction.execute(
+                    "INSERT OR IGNORE INTO source_events(identity,provider,event_id) SELECT identity,provider,?1 FROM source_events WHERE provider=?2 AND event_id=?3",
+                    params![canonical, provider.as_str(), id],
+                ).map_err(|e| e.to_string())?;
+                transaction.execute("DELETE FROM source_events WHERE provider=?1 AND event_id=?2",
+                    params![provider.as_str(), id]).map_err(|e| e.to_string())?;
+                transaction.execute("DELETE FROM events WHERE provider=?1 AND id=?2",
+                    params![provider.as_str(), id]).map_err(|e| e.to_string())?;
+            }
+        }
+        transaction.commit().map_err(|e| e.to_string())
     }
 
     fn records<T: DeserializeOwned>(&self, sql: &str) -> CoreResult<Vec<T>> {

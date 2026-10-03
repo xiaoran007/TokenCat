@@ -89,6 +89,20 @@ pub extern "C" fn tokencat_last_error() -> *mut c_char {
     owned_json::<()>(Err(LAST_ERROR.with(|e| e.borrow().clone())))
 }
 
+/// Validate a downloaded snapshot before the app atomically selects it.
+/// # Safety
+/// Both arguments must be live NUL-terminated UTF-8 strings for this call.
+#[no_mangle]
+pub unsafe extern "C" fn tokencat_validate_catalog(
+    catalog_json: *const c_char,
+    retrieved_at: *const c_char,
+) -> *mut c_char {
+    owned_json(protect(|| {
+        let catalog = crate::pricing::PricingCatalog::from_json(input(catalog_json)?, input(retrieved_at)?)?;
+        Ok(serde_json::json!({"id":catalog.id,"model_count":catalog.models.len()}))
+    }))
+}
+
 /// # Safety
 /// pointer must be NULL or an unfreed string returned by this library.
 #[no_mangle]
