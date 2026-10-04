@@ -18,7 +18,7 @@ Both interfaces support **Codex, Claude Code, OpenCode, and Antigravity**. The a
 CLI instructions below apply to 0.9.0 and newer. These versions provide local dashboards and JSON export. Remote aggregation, the older report/server commands, Gemini CLI, and GitHub Copilot are unavailable. If you still need those older CLI features, install `tokencat==0.8.0` in a separate environment.
 
 ## macOS app
-[![nl5vroQ.md.png](https://iili.io/nl5vroQ.md.png)](https://freeimage.host/i/nl5vroQ)
+![macOS app](https://img.xiaoran007.cc/9257c6e9-1241-4482-8ff9-f6eb16641f87.png)
 
 ### Install from source
 
