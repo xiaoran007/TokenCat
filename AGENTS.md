@@ -13,7 +13,8 @@
 
 ## Git Hygiene
 
-- Use a branch and PR for substantial changes, breaking changes, or changes to implementation design. Make small corrective fixes and minor adjustments directly on `main`, keeping commits small and traceable.
+- Default to committing small, focused, independently verifiable changes directly on `main`, keeping commits small and traceable. This includes documentation, repository guidance, minor fixes, and incremental CI/release workflow changes such as creating a GitHub Release after a successful CLI publish. A workflow or permission adjustment alone does not require a branch or PR.
+- Use a branch and PR for substantial changes, breaking changes, or broad changes to implementation design, or when the user explicitly requests a PR.
 - Split commits by concern whenever practical:
   - `feat`
   - `test`
