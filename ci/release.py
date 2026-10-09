@@ -4,6 +4,7 @@ import ast
 from email.parser import BytesParser
 import re
 from pathlib import Path
+import subprocess
 import tarfile
 import zipfile
 
@@ -39,6 +40,17 @@ def check_metadata(content, version):
     metadata = BytesParser().parsebytes(content)
     if metadata.get_all("Name") != ["tokencat"] or metadata.get_all("Version") != [version]:
         raise ValueError("Distribution metadata does not match this release")
+
+
+def verify_release_tag(root, version, commit):
+    tag = f"v{version}"
+    existing = subprocess.check_output(["git", "tag", "--list", tag], cwd=root, text=True).strip()
+    if existing:
+        target = subprocess.check_output(
+            ["git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"], cwd=root, text=True,
+        ).strip()
+        if target != commit:
+            raise ValueError(f"Release tag {tag} points to {target}, expected {commit}")
 
 
 def wheel_platform(tags):
@@ -91,8 +103,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--dist", type=Path)
+    parser.add_argument("--tag-commit", help="Require an existing release tag to point to this full commit SHA")
     args = parser.parse_args()
     version = read_version(args.root)
+    if args.tag_commit:
+        verify_release_tag(args.root, version, args.tag_commit)
     if args.dist:
         for file in verify_distributions(args.dist, version):
             print(file.name)

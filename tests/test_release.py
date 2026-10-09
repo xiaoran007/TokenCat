@@ -1,6 +1,7 @@
 import importlib.util
 import io
 from pathlib import Path
+import subprocess
 import sys
 import tarfile
 import zipfile
@@ -102,3 +103,30 @@ def test_filenames_cannot_hide_wrong_package_metadata(distributions, release, ki
 def test_unsupported_or_mixed_platform_tags_fail(release, tags):
     with pytest.raises(ValueError):
         release.wheel_platform(tags)
+
+
+@pytest.mark.parametrize("tag_kind", [None, "lightweight", "annotated"])
+@pytest.mark.parametrize("matches", [True, False])
+def test_release_tag_must_identify_the_tested_commit(tmp_path, release, tag_kind, matches):
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-c", "user.name=Release test", "-c", "user.email=release@example.invalid", *args],
+            cwd=tmp_path, text=True, stderr=subprocess.PIPE,
+        ).strip()
+
+    git("init")
+    git("commit", "--allow-empty", "-m", "Previous version")
+    previous = git("rev-parse", "HEAD")
+    git("commit", "--allow-empty", "-m", "Tested release")
+    tested = git("rev-parse", "HEAD")
+    if tag_kind:
+        target = tested if matches else previous
+        if tag_kind == "annotated":
+            git("tag", "-a", "v0.9.0", target, "-m", "Release")
+        else:
+            git("tag", "v0.9.0", target)
+    if tag_kind and not matches:
+        with pytest.raises(ValueError, match="Release tag v0.9.0 points to"):
+            release.verify_release_tag(tmp_path, "0.9.0", tested)
+    else:
+        release.verify_release_tag(tmp_path, "0.9.0", tested)
