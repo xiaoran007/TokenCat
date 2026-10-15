@@ -36,7 +36,8 @@ struct MenuPanel: View {
             footer
         }
         .frame(width: 390)
-        // MenuBarExtra owns the window's background material and corner clipping.
+        .background(MenuWindowCorners().allowsHitTesting(false))
+        // Keep the system material; round the native window and content together.
         .tint(TokenCatTheme.accent)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.dashboard?.summary.cost.totalTokens)
     }
