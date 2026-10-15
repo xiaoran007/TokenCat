@@ -16,26 +16,34 @@ struct MenuPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
+            sectionDivider
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let snapshot = model.dashboard {
-                        summary(snapshot)
-                    } else {
-                        LoadingOrEmpty().frame(minHeight: 220)
+                MenuModuleContainer {
+                    VStack(alignment: .leading, spacing: settings.menuStyle == .cards ? 12 : 16) {
+                        if let snapshot = model.dashboard {
+                            summary(snapshot)
+                        } else {
+                            MenuSection { LoadingOrEmpty().frame(minHeight: 220) }
+                        }
                     }
-                }.padding(20)
+                    .padding(settings.menuStyle == .cards ? 12 : 20)
+                }
             }
             // MenuBarExtra asks for the minimum size: a maxHeight-only scroll
             // view is allowed to collapse to zero even when its content is loaded.
             .frame(height: contentHeight)
-            Divider()
+            sectionDivider
             footer
         }
         .frame(width: 390)
         // MenuBarExtra owns the window's background material and corner clipping.
         .tint(TokenCatTheme.accent)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.dashboard?.summary.cost.totalTokens)
+    }
+
+    @ViewBuilder
+    private var sectionDivider: some View {
+        if settings.menuStyle == .system { Divider() }
     }
 
     private var header: some View {
@@ -58,58 +66,68 @@ struct MenuPanel: View {
             Label(s.text("status.retained"), systemImage: "exclamationmark.circle")
                 .font(.caption).foregroundStyle(.orange)
         }
-        TokenUsageHero(summary: snapshot.summary)
+        MenuSection { TokenUsageHero(summary: snapshot.summary) }
         if snapshot.summary.eventCount == 0 {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(s.text("usage.noEvents")).font(.subheadline.weight(.medium))
-                Text(s.text("usage.emptyDescription")).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button { settingsWindow.open() } label: { Label(s.text("settings.sources"), systemImage: "folder") }
-                    .buttonStyle(.bordered)
-            }.padding(.vertical, 12)
+            MenuSection {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(s.text("usage.noEvents")).font(.subheadline.weight(.medium))
+                    Text(s.text("usage.emptyDescription")).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { settingsWindow.open() } label: { Label(s.text("settings.sources"), systemImage: "folder") }
+                        .buttonStyle(.bordered)
+                }.padding(.vertical, 12)
+            }
         } else {
             if !snapshot.providers.isEmpty {
-                Divider()
-                VStack(spacing: 12) {
-                    SectionHeading(title: s.text("usage.harnesses"))
-                    ForEach(s.matchingRows(snapshot.providers, query: "", kind: .provider, sort: .tokens)) { row in
-                        providerRow(row, totalTokens: snapshot.summary.cost.totalTokens)
+                sectionDivider
+                MenuSection {
+                    VStack(spacing: 12) {
+                        SectionHeading(title: s.text("usage.harnesses"))
+                        ForEach(s.matchingRows(snapshot.providers, query: "", kind: .provider, sort: .tokens)) { row in
+                            providerRow(row, totalTokens: snapshot.summary.cost.totalTokens)
+                        }
                     }
                 }
             }
             if !snapshot.models.isEmpty {
-                Divider()
-                VStack(spacing: 12) {
-                    SectionHeading(title: s.text("usage.topModels"))
-                    ForEach(s.matchingRows(snapshot.models, query: "", kind: .model, sort: .tokens).prefix(3)) { row in
-                        HStack(spacing: 8) {
-                            Image(systemName: row.provider?.symbol ?? "cpu")
-                                .foregroundStyle(row.provider?.tint ?? TokenCatTheme.accent).frame(width: 18)
-                            Text(s.label(row, kind: .model)).lineLimit(1).help(s.label(row, kind: .model))
-                            Spacer(minLength: 6)
-                            Text(s.compactCount(row.summary.cost.totalTokens)).monospacedDigit()
-                            if snapshot.summary.cost.totalTokens > 0 {
-                                Text(s.percent(Double(row.summary.cost.totalTokens) / Double(snapshot.summary.cost.totalTokens)))
-                                    .foregroundStyle(.secondary).monospacedDigit().frame(width: 38, alignment: .trailing)
-                            }
-                        }.font(.subheadline)
-                            .help(s.count(row.summary.cost.totalTokens) + " " + s.text("tokens.title") + " · " + s.cost(row.summary.cost))
+                sectionDivider
+                MenuSection {
+                    VStack(spacing: 12) {
+                        SectionHeading(title: s.text("usage.topModels"))
+                        ForEach(s.matchingRows(snapshot.models, query: "", kind: .model, sort: .tokens).prefix(3)) { row in
+                            HStack(spacing: 8) {
+                                Image(systemName: row.provider?.symbol ?? "cpu")
+                                    .foregroundStyle(row.provider?.tint ?? TokenCatTheme.accent).frame(width: 18)
+                                Text(s.label(row, kind: .model)).lineLimit(1).help(s.label(row, kind: .model))
+                                Spacer(minLength: 6)
+                                Text(s.compactCount(row.summary.cost.totalTokens)).monospacedDigit()
+                                if snapshot.summary.cost.totalTokens > 0 {
+                                    Text(s.percent(Double(row.summary.cost.totalTokens) / Double(snapshot.summary.cost.totalTokens)))
+                                        .foregroundStyle(.secondary).monospacedDigit().frame(width: 38, alignment: .trailing)
+                                }
+                            }.font(.subheadline)
+                                .help(s.count(row.summary.cost.totalTokens) + " " + s.text("tokens.title") + " · " + s.cost(row.summary.cost))
+                        }
                     }
                 }
             }
-            Divider()
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    SectionHeading(title: s.text("chart.activity"))
-                    Text(s.text("tokens.title")).font(.caption2).foregroundStyle(.secondary)
+            sectionDivider
+            MenuSection {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        SectionHeading(title: s.text("chart.activity"))
+                        Text(s.text("tokens.title")).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    UsageChart(buckets: snapshot.timeline, compact: true, window: model.window, compactMetric: .tokens)
                 }
-                UsageChart(buckets: snapshot.timeline, compact: true, window: model.window, compactMetric: .tokens)
             }
             if !snapshot.rootSessions.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeading(title: s.text("usage.recentTasks"))
-                    ForEach(snapshot.rootSessions.prefix(2)) { row in recentTask(row, dashboard: snapshot) }
+                sectionDivider
+                MenuSection {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeading(title: s.text("usage.recentTasks"))
+                        ForEach(snapshot.rootSessions.prefix(2)) { row in recentTask(row, dashboard: snapshot) }
+                    }
                 }
             }
         }
@@ -155,17 +173,19 @@ struct MenuPanel: View {
                         .font(.subheadline.weight(.medium))
                 }.buttonStyle(.plain).foregroundStyle(TokenCatTheme.accent)
                 Spacer()
-                Button { model.requestRefresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 22, height: 22) }
-                    .buttonStyle(.plain).disabled(model.refreshing)
-                    .help(s.text("action.refresh")).accessibilityLabel(s.text("accessibility.refresh"))
-                Button { settingsWindow.open() } label: { Image(systemName: "gearshape").frame(width: 22, height: 22) }
-                    .buttonStyle(.plain).help(s.text("action.settings")).accessibilityLabel(s.text("action.settings"))
-                    .keyboardShortcut(",", modifiers: .command)
-                Menu {
-                    Button(s.text("action.quit")) { NSApp.terminate(nil) }.keyboardShortcut("q")
-                } label: { Image(systemName: "ellipsis").frame(width: 18, height: 22) }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .help(s.text("action.more")).accessibilityLabel(s.text("action.more"))
+                HStack(spacing: 14) {
+                    Button { model.requestRefresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 22, height: 22) }
+                        .buttonStyle(.plain).disabled(model.refreshing)
+                        .help(s.text("action.refresh")).accessibilityLabel(s.text("accessibility.refresh"))
+                    Button { settingsWindow.open() } label: { Image(systemName: "gearshape").frame(width: 22, height: 22) }
+                        .buttonStyle(.plain).help(s.text("action.settings")).accessibilityLabel(s.text("action.settings"))
+                        .keyboardShortcut(",", modifiers: .command)
+                    Menu {
+                        Button(s.text("action.quit")) { NSApp.terminate(nil) }.keyboardShortcut("q")
+                    } label: { Image(systemName: "ellipsis").frame(width: 18, height: 22) }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        .help(s.text("action.more")).accessibilityLabel(s.text("action.more"))
+                }.modifier(MenuSectionSurface(padding: 6, cornerRadius: 22))
             }
             StatusFooter(dashboard: model.dashboard)
         }.padding(.horizontal, 20).padding(.vertical, 14)

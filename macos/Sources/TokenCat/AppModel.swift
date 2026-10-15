@@ -10,6 +10,7 @@ final class AppSettings: ObservableObject {
     let snapshotSettingsDidChange = PassthroughSubject<Void, Never>()
     @Published var language: AppLanguage { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var appearance: String { didSet { defaults.set(appearance, forKey: "appearance") } }
+    @Published var menuStyle: MenuPanelStyle { didSet { defaults.set(menuStyle.rawValue, forKey: "menuStyle") } }
     @Published var showMenuCost: Bool { didSet { defaults.set(showMenuCost, forKey: "showMenuCost") } }
     @Published var showPaths: Bool { didSet {
         defaults.set(showPaths, forKey: "showPaths")
@@ -51,12 +52,13 @@ final class AppSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        defaults.register(defaults: ["language": "system", "appearance": "system", "showMenuCost": true,
+        defaults.register(defaults: ["language": "system", "appearance": "system", "menuStyle": "system", "showMenuCost": true,
                                      "showPaths": false, "home": NSHomeDirectory(), "codexRoot": "", "claudeRoots": "", "pricingPath": "",
                                      "opencodeRoot": "", "antigravityRoots": "", "autoUpdateCatalog": true, "catalogUpdateHours": 24,
                                      "refreshSeconds": 2, "timezone": ""])
         language = AppLanguage(rawValue: defaults.string(forKey: "language")!) ?? .system
         appearance = defaults.string(forKey: "appearance")!
+        menuStyle = MenuPanelStyle(rawValue: defaults.string(forKey: "menuStyle")!) ?? .system
         showMenuCost = defaults.bool(forKey: "showMenuCost")
         showPaths = defaults.bool(forKey: "showPaths")
         home = defaults.string(forKey: "home")!

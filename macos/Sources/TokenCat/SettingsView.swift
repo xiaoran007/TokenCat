@@ -27,6 +27,10 @@ struct SettingsView: View {
                 Picker(s.text("settings.appearance"), selection: $settings.appearance) {
                     ForEach(["system", "light", "dark"], id: \.self) { Text(s.text("appearance.\($0)")).tag($0) }
                 }
+                Picker(s.text("settings.menuStyle"), selection: $settings.menuStyle) {
+                    ForEach(MenuPanelStyle.allCases) { style in Text(s.text(style.localizationKey)).tag(style) }
+                }
+                Text(s.text("settings.menuStyleExplanation")).font(.caption).foregroundStyle(.secondary)
                 Toggle(s.text("settings.menuCost"), isOn: $settings.showMenuCost)
                 Toggle(s.text("settings.startLogin"), isOn: Binding(get: { settings.loginEnabled }, set: { settings.setLogin($0) }))
                 if SMAppService.mainApp.status == .requiresApproval {

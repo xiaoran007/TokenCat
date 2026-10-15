@@ -159,3 +159,7 @@
 "cost.match.third_party" = "第三方价格 · LiteLLM";
 "cost.match.fixed" = "固定估算：codex-auto-review → gpt-5.6-luna";
 "status.undated" = "%ld 条用量记录缺少可确认的时间戳，未纳入按时段统计。";
+"settings.menuStyle" = "菜单面板风格";
+"menuStyle.system" = "系统";
+"menuStyle.cards" = "玻璃卡片";
+"settings.menuStyleExplanation" = "仅影响菜单栏面板。玻璃卡片在 macOS 26 及以上使用 Liquid Glass，较早版本使用标准材质；辅助功能设置可降低透明度。";

@@ -159,3 +159,7 @@
 "cost.match.third_party" = "Third-party price via LiteLLM";
 "cost.match.fixed" = "Fixed estimate: codex-auto-review → gpt-5.6-luna";
 "status.undated" = "%ld usage records have no confirmed timestamp and are excluded from time-range totals.";
+"settings.menuStyle" = "Menu panel style";
+"menuStyle.system" = "System";
+"menuStyle.cards" = "Glass cards";
+"settings.menuStyleExplanation" = "Applies to the menu panel only. Glass cards use Liquid Glass on macOS 26 or later, and standard material on earlier versions. Accessibility settings can reduce transparency.";
