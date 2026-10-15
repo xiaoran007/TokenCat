@@ -63,6 +63,8 @@ For a task with recorded subagents, expand its row in **Tasks** and open the par
 
 Open Settings with the settings button or **Command–comma**. Choose language, appearance, time zone, refresh interval, and source folders. English and Simplified Chinese are included. By default, the app waits two seconds after each refresh before scanning again and refreshes when the Mac wakes. This is near-real-time monitoring of local records, not token-by-token streaming from the provider.
 
+In **Settings → General → Menu panel style**, choose **System** for a continuous panel or **Glass cards** for separate usage modules and a grouped action area. The choice is saved and applies immediately to the menu panel. Glass cards use Liquid Glass on macOS 26 or later, standard material on earlier versions, and opaque surfaces when reduced transparency or increased contrast is enabled. Dashboard and Settings keep their existing layouts.
+
 Standard source locations are detected automatically:
 
 | Tool | Default locations |
