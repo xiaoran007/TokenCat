@@ -24,9 +24,22 @@ final class MenuPanelLayoutTests: XCTestCase {
     func testLoadedMenuKeepsUsageVisibleInBothLanguagesAndAppearances() async throws {
         for language in [AppLanguage.english, .simplifiedChinese] {
             for dark in [false, true] {
-                try await withMenu(state: .loaded, language: language, dark: dark) { host in
+                for style in MenuPanelStyle.allCases {
+                    try await withMenu(state: .loaded, language: language, dark: dark, style: style) { host in
+                        try assertMinimumViewport(host)
+                        try exportPreviewIfRequested(host, name: "loaded-\(style.rawValue)-\(language.rawValue)-\(dark ? "dark" : "light")")
+                    }
+                }
+            }
+        }
+    }
+
+    func testCardPresetKeepsAllStatesVisibleInHighContrast() async throws {
+        for state in [MenuState.loading, .empty, .failed, .loaded] {
+            for dark in [false, true] {
+                try await withMenu(state: state, dark: dark, style: .cards, contrast: .increased) { host in
                     try assertMinimumViewport(host)
-                    try exportPreviewIfRequested(host, name: "loaded-\(language.rawValue)-\(dark ? "dark" : "light")")
+                    try exportPreviewIfRequested(host, name: "cards-\(state)-contrast-\(dark ? "dark" : "light")")
                 }
             }
         }
@@ -49,6 +62,7 @@ final class MenuPanelLayoutTests: XCTestCase {
     private enum MenuState { case loading, loaded, empty, failed }
 
     private func withMenu(state: MenuState, language: AppLanguage = .english, dark: Bool = false,
+                          style: MenuPanelStyle = .system, contrast: ColorSchemeContrast = .standard,
                           _ body: (NSHostingView<AnyView>) throws -> Void) async throws {
         _ = NSApplication.shared
         let suite = "TokenCat.MenuPanelLayoutTests.\(UUID().uuidString)"
@@ -56,6 +70,7 @@ final class MenuPanelLayoutTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = AppSettings(defaults: defaults)
         settings.language = language
+        settings.menuStyle = style
         settings.home = NSTemporaryDirectory()
         settings.timezone = "America/New_York"
         let result: Result<Dashboard, CoreFailure> = state == .failed
@@ -77,7 +92,9 @@ final class MenuPanelLayoutTests: XCTestCase {
             .environmentObject(settingsWindow)
             .environment(\.locale, language.locale)
             .preferredColorScheme(dark ? .dark : .light)))
-        host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        host.appearance = NSAppearance(named: contrast == .increased
+            ? (dark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua)
+            : (dark ? .darkAqua : .aqua))
         try body(host)
     }
 
