@@ -5,13 +5,11 @@ import TokenCatKit
 struct MenuPanel: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var settingsWindow: SettingsWindowController
-    @Environment(\.openWindow) private var openWindow
+    let openDashboard: () -> Void
+    let openSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var contentHeight: CGFloat? {
-        NSScreen.main.map { max(140, min(560, $0.visibleFrame.height - 160)) }
-    }
+    let viewportHeight: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,16 +27,13 @@ struct MenuPanel: View {
                     .padding(settings.menuStyle == .cards ? 12 : 20)
                 }
             }
-            // MenuBarExtra asks for the minimum size: a maxHeight-only scroll
-            // view is allowed to collapse to zero even when its content is loaded.
-            .frame(height: contentHeight)
+            // Keep a fixed viewport when the native window measures its content.
+            .frame(height: viewportHeight)
             sectionDivider
             footer
         }
         .frame(width: 390)
-        .clipShape(RoundedRectangle(cornerRadius: MenuWindowCornerView.cornerRadius, style: .continuous))
-        .background(MenuWindowCorners(appearance: settings.appearance).allowsHitTesting(false))
-        // Keep the system material; round the native window and content together.
+        .clipShape(RoundedRectangle(cornerRadius: MenuMaterialView.cornerRadius, style: .continuous))
         .tint(TokenCatTheme.accent)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.dashboard?.summary.cost.totalTokens)
     }
@@ -75,7 +70,7 @@ struct MenuPanel: View {
                     Text(s.text("usage.noEvents")).font(.subheadline.weight(.medium))
                     Text(s.text("usage.emptyDescription")).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button { settingsWindow.open() } label: { Label(s.text("settings.sources"), systemImage: "folder") }
+                    Button { openSettings() } label: { Label(s.text("settings.sources"), systemImage: "folder") }
                         .buttonStyle(.bordered)
                 }.padding(.vertical, 12)
             }
@@ -168,8 +163,7 @@ struct MenuPanel: View {
         return VStack(spacing: 12) {
             HStack(spacing: 14) {
                 Button {
-                    openWindow(id: "dashboard")
-                    NSApp.activate(ignoringOtherApps: true)
+                    openDashboard()
                 } label: {
                     Label(s.text("action.dashboard"), systemImage: "arrow.up.right.square")
                         .font(.subheadline.weight(.medium))
@@ -179,7 +173,7 @@ struct MenuPanel: View {
                     Button { model.requestRefresh() } label: { Image(systemName: "arrow.clockwise").frame(width: 22, height: 22) }
                         .buttonStyle(.plain).disabled(model.refreshing)
                         .help(s.text("action.refresh")).accessibilityLabel(s.text("accessibility.refresh"))
-                    Button { settingsWindow.open() } label: { Image(systemName: "gearshape").frame(width: 22, height: 22) }
+                    Button { openSettings() } label: { Image(systemName: "gearshape").frame(width: 22, height: 22) }
                         .buttonStyle(.plain).help(s.text("action.settings")).accessibilityLabel(s.text("action.settings"))
                         .keyboardShortcut(",", modifiers: .command)
                     Menu {
@@ -198,8 +192,7 @@ struct MenuPanel: View {
         let family = dashboard.taskFamily(row)
         return Button {
             model.openTask(row.id, window: model.window)
-            openWindow(id: "dashboard")
-            NSApp.activate(ignoringOtherApps: true)
+            openDashboard()
         } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {

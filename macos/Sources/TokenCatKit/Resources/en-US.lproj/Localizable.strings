@@ -163,3 +163,15 @@
 "menuStyle.system" = "System";
 "menuStyle.cards" = "Glass cards";
 "settings.menuStyleExplanation" = "Applies to the menu panel only. Glass cards use Liquid Glass on macOS 26 or later, and standard material on earlier versions. Accessibility settings can reduce transparency.";
+"menu.edit" = "Edit";
+"menu.undo" = "Undo";
+"menu.redo" = "Redo";
+"menu.cut" = "Cut";
+"menu.copy" = "Copy";
+"menu.paste" = "Paste";
+"menu.selectAll" = "Select All";
+"menu.file" = "File";
+"menu.close" = "Close";
+"menu.window" = "Window";
+"menu.minimize" = "Minimize";
+"menu.zoom" = "Zoom";
