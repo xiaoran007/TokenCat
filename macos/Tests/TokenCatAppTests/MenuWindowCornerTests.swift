@@ -132,9 +132,11 @@ final class MenuWindowCornerTests: XCTestCase {
     func testAnchorPlacementStaysOnTheSelectedScreen() {
         let screen = NSRect(x: -1440, y: 0, width: 1440, height: 875)
         let size = NSSize(width: 390, height: 700)
-        for x: CGFloat in [-1435, -800, -20] {
+        // Center below the item when there is room; clamp only at the screen edges.
+        for (x, expectedMinX): (CGFloat, CGFloat) in [(-1435, -1432), (-800, -983), (-20, -398)] {
             let anchor = NSRect(x: x, y: 875, width: 24, height: 25)
             let frame = MenuPanelController.frame(size: size, anchor: anchor, visibleFrame: screen)
+            XCTAssertEqual(frame.minX, expectedMinX)
             XCTAssertGreaterThanOrEqual(frame.minX, screen.minX + 8)
             XCTAssertLessThanOrEqual(frame.maxX, screen.maxX - 8)
             XCTAssertGreaterThanOrEqual(frame.minY, screen.minY + 8)

@@ -109,7 +109,7 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
     static func frame(size: NSSize, anchor: NSRect, visibleFrame: NSRect) -> NSRect {
         let availableHeight = min(visibleFrame.maxY, anchor.minY - 6) - visibleFrame.minY - 8
         let fittedSize = NSSize(width: size.width, height: min(size.height, availableHeight))
-        let x = max(visibleFrame.minX + 8, min(anchor.maxX - fittedSize.width, visibleFrame.maxX - fittedSize.width - 8))
+        let x = max(visibleFrame.minX + 8, min(anchor.midX - fittedSize.width / 2, visibleFrame.maxX - fittedSize.width - 8))
         let y = max(visibleFrame.minY + 8, anchor.minY - fittedSize.height - 6)
         return NSRect(origin: NSPoint(x: x, y: y), size: fittedSize)
     }
