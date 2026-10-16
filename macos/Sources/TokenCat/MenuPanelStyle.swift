@@ -15,21 +15,24 @@ struct MenuSectionSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
-    @ViewBuilder
     func body(content: Content) -> some View {
+        content
+            .padding(settings.menuStyle == .cards ? padding : 0)
+            .background { surface }
+    }
+
+    @ViewBuilder
+    private var surface: some View {
         if settings.menuStyle == .cards {
             let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             if reduceTransparency || contrast == .increased {
-                content.padding(padding)
-                    .background(Color(nsColor: .controlBackgroundColor), in: shape)
+                shape.fill(Color(nsColor: .controlBackgroundColor))
                     .overlay(shape.strokeBorder(.primary.opacity(0.25), lineWidth: 1))
             } else if #available(macOS 26.0, *) {
-                content.padding(padding).glassEffect(.regular, in: shape)
+                shape.fill(.clear).glassEffect(.regular, in: shape)
             } else {
-                content.padding(padding).background(.regularMaterial, in: shape)
+                shape.fill(.regularMaterial)
             }
-        } else {
-            content
         }
     }
 }
@@ -46,14 +49,13 @@ struct MenuSection<Content: View>: View {
 }
 
 struct MenuModuleContainer<Content: View>: View {
-    @EnvironmentObject private var settings: AppSettings
     let content: Content
 
     init(@ViewBuilder content: () -> Content) { self.content = content() }
 
     @ViewBuilder
     var body: some View {
-        if #available(macOS 26.0, *), settings.menuStyle == .cards {
+        if #available(macOS 26.0, *) {
             GlassEffectContainer(spacing: 8) { content }
         } else {
             content
