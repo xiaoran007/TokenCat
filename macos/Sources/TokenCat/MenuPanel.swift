@@ -36,7 +36,8 @@ struct MenuPanel: View {
             footer
         }
         .frame(width: 390)
-        .background(MenuWindowCorners().allowsHitTesting(false))
+        .clipShape(RoundedRectangle(cornerRadius: MenuWindowCornerView.cornerRadius, style: .continuous))
+        .background(MenuWindowCorners(appearance: settings.appearance).allowsHitTesting(false))
         // Keep the system material; round the native window and content together.
         .tint(TokenCatTheme.accent)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.dashboard?.summary.cost.totalTokens)
