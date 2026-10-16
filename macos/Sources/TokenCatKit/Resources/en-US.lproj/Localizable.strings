@@ -77,7 +77,10 @@
 "appearance.system" = "System";
 "appearance.light" = "Light";
 "appearance.dark" = "Dark";
-"settings.menuCost" = "Show today’s cost in menu bar";
+"settings.menuUsage" = "Show today’s usage in menu bar";
+"settings.menuMetric" = "Menu bar content";
+"settings.menuMetric.cost" = "Cost";
+"settings.menuMetric.tokens" = "Tokens";
 "settings.startLogin" = "Open TokenCat at login";
 "settings.loginApproval" = "Allow TokenCat in System Settings → General → Login Items.";
 "settings.loginError" = "Unable to change login item";

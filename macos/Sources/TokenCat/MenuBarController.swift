@@ -7,7 +7,7 @@ final class MenuBarController: NSObject {
     private let settings: AppSettings
     private let model: AppModel
     private let menu: MenuPanelController
-    private var statusItem: NSStatusItem?
+    private(set) var statusItem: NSStatusItem?
     private var subscriptions = Set<AnyCancellable>()
     private var workspaceObserver: NSObjectProtocol?
 
@@ -18,9 +18,9 @@ final class MenuBarController: NSObject {
         menu = MenuPanelController(settings: settings, model: model, settingsWindow: settingsWindow,
                                    openDashboard: openDashboard)
         super.init()
-        settings.$language.combineLatest(settings.$showMenuCost, model.$today)
-            .sink { [weak self] language, showCost, today in
-                self?.updateLabel(language: language, showCost: showCost, today: today)
+        settings.$language.combineLatest(settings.$showMenuUsage, settings.$menuBarMetric, model.$today)
+            .sink { [weak self] language, showUsage, metric, today in
+                self?.updateLabel(language: language, showUsage: showUsage, metric: metric, today: today)
             }.store(in: &subscriptions)
         settings.$appearance.sink { [weak self] in self?.menu.updateAppearance($0) }.store(in: &subscriptions)
         settings.$menuStyle.dropFirst().sink { [weak self] _ in
@@ -40,7 +40,7 @@ final class MenuBarController: NSObject {
             button.action = #selector(toggleMenu)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
-        updateLabel(language: settings.language, showCost: settings.showMenuCost, today: model.today)
+        updateLabel(language: settings.language, showUsage: settings.showMenuUsage, metric: settings.menuBarMetric, today: model.today)
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.menu.hide() }
@@ -61,10 +61,17 @@ final class MenuBarController: NSObject {
         else { menu.show(relativeTo: button) }
     }
 
-    private func updateLabel(language: AppLanguage, showCost: Bool, today: Dashboard?) {
+    private func updateLabel(language: AppLanguage, showUsage: Bool, metric: MenuBarMetric, today: Dashboard?) {
         guard let button = statusItem?.button else { return }
         let strings = Localizer(language)
-        button.title = showCost ? today.map { " " + strings.cost($0.summary.cost, compact: true) } ?? "" : ""
+        if showUsage, let today {
+            switch metric {
+            case .cost: button.title = " " + strings.cost(today.summary.cost, compact: true)
+            case .tokens: button.title = " " + strings.compactCount(today.summary.cost.totalTokens) + " tokens"
+            }
+        } else {
+            button.title = ""
+        }
         button.toolTip = strings.text("app.name")
         button.setAccessibilityLabel(strings.text("accessibility.menu"))
     }

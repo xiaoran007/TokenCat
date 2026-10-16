@@ -77,7 +77,10 @@
 "appearance.system" = "跟随系统";
 "appearance.light" = "浅色";
 "appearance.dark" = "深色";
-"settings.menuCost" = "在菜单栏显示今日费用";
+"settings.menuUsage" = "在菜单栏显示今日用量";
+"settings.menuMetric" = "菜单栏显示内容";
+"settings.menuMetric.cost" = "金额";
+"settings.menuMetric.tokens" = "Token 用量";
 "settings.startLogin" = "登录时启动 TokenCat";
 "settings.loginApproval" = "请在系统设置 → 通用 → 登录项中允许 TokenCat。";
 "settings.loginError" = "无法修改登录项";
