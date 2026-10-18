@@ -51,7 +51,6 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
     private let host: NSHostingController<MenuHostedContent>
     private var localMonitor: Any?
     private var globalMonitor: Any?
-    private weak var anchorWindow: NSWindow?
     private weak var anchorButton: NSStatusBarButton?
     private var maximumHeight: CGFloat?
 
@@ -116,7 +115,6 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
 
     func show(relativeTo button: NSStatusBarButton) {
         guard let window = button.window, let screen = window.screen else { return }
-        anchorWindow = window
         anchorButton = button
         let anchor = window.convertToScreen(button.convert(button.bounds, to: nil))
         maximumHeight = min(screen.visibleFrame.maxY, anchor.minY - 6) - screen.visibleFrame.minY - 8
@@ -153,21 +151,31 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         return false
     }
 
+    func handleMouseDown(_ event: NSEvent) -> NSEvent? {
+        if let button = anchorButton, event.window === button.window,
+           button.bounds.contains(button.convert(event.locationInWindow, from: nil)) {
+            // Consume the press so the button cannot reopen the panel on mouse-up after it loses key.
+            hide()
+            return nil
+        }
+        if event.window === panel {
+            let rect = material.bounds
+            let point = material.convert(event.locationInWindow, from: nil)
+            if !RoundedRectangle(cornerRadius: MenuMaterialView.cornerRadius, style: .continuous).path(in: rect).contains(point) {
+                hide()
+                return nil
+            }
+        } else if !contains(window: event.window) {
+            hide()
+        }
+        return event
+    }
+
     private func installMonitors() {
         guard localMonitor == nil else { return }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self else { return event }
-            if event.window === self.panel {
-                let rect = self.material.bounds
-                let point = self.material.convert(event.locationInWindow, from: nil)
-                if !RoundedRectangle(cornerRadius: MenuMaterialView.cornerRadius, style: .continuous).path(in: rect).contains(point) {
-                    self.hide()
-                    return nil
-                }
-            } else if event.window !== self.anchorWindow && !self.contains(window: event.window) {
-                self.hide()
-            }
-            return event
+            return self.handleMouseDown(event)
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.hide()
