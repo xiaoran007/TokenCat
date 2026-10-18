@@ -15,7 +15,7 @@ Costs are **API-equivalent estimates, not your bill or remaining subscription qu
 
 [macOS app](#macos-app) · [Terminal CLI](#terminal-cli) · [Prices and privacy](#prices-and-privacy) · [Feedback and contributing](#feedback-and-contributing)
 
-![TokenCat macOS dashboard](https://img.xiaoran007.cc/9257c6e9-1241-4482-8ff9-f6eb16641f87.png)
+![TokenCat macOS dashboard](https://img.xiaoran007.cc/208f4cb1-9059-4c04-b64c-618e23d9861d.png)
 
 ## Choose an interface
 
