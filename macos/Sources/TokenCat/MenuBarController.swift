@@ -6,7 +6,7 @@ import TokenCatKit
 final class MenuBarController: NSObject {
     private let settings: AppSettings
     private let model: AppModel
-    private let menu: MenuPanelController
+    let menu: MenuPanelController
     private(set) var statusItem: NSStatusItem?
     private var subscriptions = Set<AnyCancellable>()
     private var workspaceObserver: NSObjectProtocol?
@@ -38,7 +38,7 @@ final class MenuBarController: NSObject {
             button.imagePosition = .imageLeading
             button.target = self
             button.action = #selector(toggleMenu)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.sendAction(on: [.leftMouseDown, .rightMouseDown])
         }
         updateLabel(language: settings.language, showUsage: settings.showMenuUsage, metric: settings.menuBarMetric, today: model.today)
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(

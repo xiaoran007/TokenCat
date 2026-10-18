@@ -63,6 +63,7 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
             settingsWindow: settingsWindow, openDashboard: openDashboard, openSettings: { settingsWindow.open() }))
         super.init()
         panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -138,8 +139,21 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         // SwiftUI help popovers can become key; keep their parent menu visible.
         DispatchQueue.main.async { [weak self] in
             guard let self, self.panel.isVisible else { return }
-            if !self.contains(window: NSApp.keyWindow) { self.hide() }
+            self.dismissAfterKeyLoss(keyWindow: NSApp.keyWindow, mouseLocation: NSEvent.mouseLocation,
+                                     mouseButtons: NSEvent.pressedMouseButtons)
         }
+    }
+
+    func dismissAfterKeyLoss(keyWindow: NSWindow?, mouseLocation: NSPoint, mouseButtons: Int) {
+        guard !contains(window: keyWindow) else { return }
+        // Losing key can precede the status button's action; that press owns the toggle.
+        if mouseButtons & 3 != 0, statusItemContains(mouseLocation) { return }
+        hide()
+    }
+
+    private func statusItemContains(_ screenPoint: NSPoint) -> Bool {
+        guard let button = anchorButton, let window = button.window else { return false }
+        return window.convertToScreen(button.convert(button.bounds, to: nil)).contains(screenPoint)
     }
 
     func contains(window: NSWindow?) -> Bool {
@@ -152,12 +166,9 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
     }
 
     func handleMouseDown(_ event: NSEvent) -> NSEvent? {
-        if let button = anchorButton, event.window === button.window,
-           button.bounds.contains(button.convert(event.locationInWindow, from: nil)) {
-            // Consume the press so the button cannot reopen the panel on mouse-up after it loses key.
-            hide()
-            return nil
-        }
+        // Windowless events carry screen coordinates. Do not depend on a status-window identity.
+        let screenPoint = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) } ?? event.locationInWindow
+        if statusItemContains(screenPoint) { return event }
         if event.window === panel {
             let rect = material.bounds
             let point = material.convert(event.locationInWindow, from: nil)
@@ -171,6 +182,10 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
         return event
     }
 
+    func handleGlobalMouseDown(at screenPoint: NSPoint) {
+        if !statusItemContains(screenPoint) { hide() }
+    }
+
     private func installMonitors() {
         guard localMonitor == nil else { return }
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
@@ -178,7 +193,7 @@ final class MenuPanelController: NSObject, NSWindowDelegate {
             return self.handleMouseDown(event)
         }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.hide()
+            self?.handleGlobalMouseDown(at: NSEvent.mouseLocation)
         }
     }
 }

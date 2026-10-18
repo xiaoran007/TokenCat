@@ -80,28 +80,6 @@ final class MenuWindowCornerTests: XCTestCase {
         }
     }
 
-    func testClickingTheOpenMenusStatusItemClosesAndConsumesTheClick() throws {
-        try withController { controller, _ in
-            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            defer { NSStatusBar.system.removeStatusItem(item) }
-            let button = try XCTUnwrap(item.button)
-            button.image = TokenCatBrand.menuMark
-            button.setFrameSize(NSSize(width: 38, height: 24))
-            let window = try XCTUnwrap(button.window)
-            for type in [NSEvent.EventType.leftMouseDown, .rightMouseDown] {
-                controller.show(relativeTo: button)
-                XCTAssertTrue(controller.panel.isVisible)
-                let point = button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil)
-                let event = try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
-                    timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-                    clickCount: 1, pressure: 1))
-
-                XCTAssertNil(controller.handleMouseDown(event), "The status button must not receive a second toggle from the same click.")
-                XCTAssertFalse(controller.panel.isVisible)
-            }
-        }
-    }
-
     func testMenuFitsTheAvailableHeightOfTheAnchorScreen() throws {
         try withController { controller, _ in
             controller.resizeToFit(maximumHeight: 480)
