@@ -31,7 +31,10 @@ struct SettingsView: View {
                     ForEach(MenuPanelStyle.allCases) { style in Text(s.text(style.localizationKey)).tag(style) }
                 }
                 Text(s.text("settings.menuStyleExplanation")).font(.caption).foregroundStyle(.secondary)
-                Toggle(s.text("settings.menuCost"), isOn: $settings.showMenuCost)
+                Toggle(s.text("settings.menuUsage"), isOn: $settings.showMenuUsage)
+                Picker(s.text("settings.menuMetric"), selection: $settings.menuBarMetric) {
+                    ForEach(MenuBarMetric.allCases) { metric in Text(s.text(metric.localizationKey)).tag(metric) }
+                }.disabled(!settings.showMenuUsage)
                 Toggle(s.text("settings.startLogin"), isOn: Binding(get: { settings.loginEnabled }, set: { settings.setLogin($0) }))
                 if SMAppService.mainApp.status == .requiresApproval {
                     Button(s.text("settings.loginApproval")) { SMAppService.openSystemSettingsLoginItems() }.font(.caption)

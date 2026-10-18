@@ -86,7 +86,7 @@ final class MenuPanelLayoutTests: XCTestCase {
                 XCTAssertNotNil(model.dashboard)
             }
         }
-        let host = NSHostingView(rootView: AnyView(MenuPanel()
+        let host = NSHostingView(rootView: AnyView(MenuPanel(openDashboard: {}, openSettings: {}, viewportHeight: 560)
             .environmentObject(model)
             .environmentObject(settings)
             .environmentObject(settingsWindow)
@@ -99,7 +99,7 @@ final class MenuPanelLayoutTests: XCTestCase {
     }
 
     private func assertMinimumViewport(_ host: NSHostingView<AnyView>, file: StaticString = #filePath, line: UInt = #line) throws {
-        // MenuBarExtra can propose the smallest supported height while fitting its window.
+        // Measure the smallest supported height while fitting the menu window.
         // Measure the actual SwiftUI hierarchy, then lay out the native scroll view at that size.
         let controller = NSHostingController(rootView: host.rootView)
         let minimum = controller.sizeThatFits(in: NSSize(width: 390, height: 0))

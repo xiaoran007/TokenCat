@@ -114,3 +114,9 @@ The native app bundles a pinned LiteLLM catalog and optionally loads a validated
 Collection harness and model service (`model_provider`) are separate identities. Native matching prefers official model-service records, then an explicitly identified third-party record. It does not guess similar model names or choose among ambiguous records. The explicit native mapping is `codex-auto-review` to `gpt-5.6-luna`; the Python CLI currently maps it to `gpt-5.4-mini`. Pricing details disclose the mapping and source.
 
 Missing prices stay unknown, while an explicit zero rate means free. Missing cache TTL or long-context detail can produce uncertainty. Reasoning is part of output. Estimates use standard token rates and exclude Priority, Flex, Batch, tool charges, and regional adjustments. The selected catalog applies to every displayed period; updates do not alter the token ledger or reconstruct historical invoices.
+
+## macOS menu window
+
+An `NSStatusItem` opens a reusable borderless `NSPanel`. The panel's content view is one owned `NSVisualEffectView` with the popover material and behind-window blending. Its full-size mask and the SwiftUI content use the same continuous 24-point corner shape. Keeping the effect as the window content view lets AppKit derive the window shadow from its mask; masking the material alone does not clip child views. No system frame views or private MenuBarExtra background layers are traversed or modified.
+
+Appearance and the System/Glass cards preset update the existing window and hosted content. The viewport is measured against the status item's screen. Local and global mouse monitors dismiss the panel while allowing its child help popovers; Escape and Space changes also dismiss it. Dashboard and Settings use reusable window controllers with the shared app model and settings. The application stays a menu-bar accessory after those windows close.

@@ -11,7 +11,8 @@ final class AppSettings: ObservableObject {
     @Published var language: AppLanguage { didSet { defaults.set(language.rawValue, forKey: "language") } }
     @Published var appearance: String { didSet { defaults.set(appearance, forKey: "appearance") } }
     @Published var menuStyle: MenuPanelStyle { didSet { defaults.set(menuStyle.rawValue, forKey: "menuStyle") } }
-    @Published var showMenuCost: Bool { didSet { defaults.set(showMenuCost, forKey: "showMenuCost") } }
+    @Published var showMenuUsage: Bool { didSet { defaults.set(showMenuUsage, forKey: "showMenuUsage") } }
+    @Published var menuBarMetric: MenuBarMetric { didSet { defaults.set(menuBarMetric.rawValue, forKey: "menuBarMetric") } }
     @Published var showPaths: Bool { didSet {
         defaults.set(showPaths, forKey: "showPaths")
         if oldValue != showPaths { snapshotSettingsDidChange.send() }
@@ -52,14 +53,15 @@ final class AppSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        defaults.register(defaults: ["language": "system", "appearance": "system", "menuStyle": "system", "showMenuCost": true,
+        defaults.register(defaults: ["language": "system", "appearance": "system", "menuStyle": "system", "showMenuUsage": false, "menuBarMetric": "cost",
                                      "showPaths": false, "home": NSHomeDirectory(), "codexRoot": "", "claudeRoots": "", "pricingPath": "",
                                      "opencodeRoot": "", "antigravityRoots": "", "autoUpdateCatalog": true, "catalogUpdateHours": 24,
                                      "refreshSeconds": 2, "timezone": ""])
         language = AppLanguage(rawValue: defaults.string(forKey: "language")!) ?? .system
         appearance = defaults.string(forKey: "appearance")!
         menuStyle = MenuPanelStyle(rawValue: defaults.string(forKey: "menuStyle")!) ?? .system
-        showMenuCost = defaults.bool(forKey: "showMenuCost")
+        showMenuUsage = defaults.bool(forKey: "showMenuUsage")
+        menuBarMetric = MenuBarMetric(rawValue: defaults.string(forKey: "menuBarMetric")!) ?? .cost
         showPaths = defaults.bool(forKey: "showPaths")
         home = defaults.string(forKey: "home")!
         codexRoot = defaults.string(forKey: "codexRoot")!

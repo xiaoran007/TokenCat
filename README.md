@@ -51,7 +51,7 @@ The app is created at `build/TokenCat.app`. Move it to `/Applications` before en
 
 ### Use the app
 
-Click the cat in the menu bar to see today's estimated cost and open the usage panel. Choose **Today**, **7 days**, or **30 days**, then open the dashboard for more detail.
+Click the cat in the menu bar to open the usage panel. Choose **Today**, **7 days**, or **30 days**, then open the dashboard for more detail.
 
 In the dashboard you can:
 
@@ -62,6 +62,8 @@ In the dashboard you can:
 For a task with recorded subagents, expand its row in **Tasks** and open the parent. **Direct task cost** shows that task's own usage; **Task and subagents** includes its descendants. Open a child to inspect its contribution. Relationships and usage depend on what the source records expose.
 
 Open Settings with the settings button or **Command–comma**. Choose language, appearance, time zone, refresh interval, and source folders. English and Simplified Chinese are included. By default, the app waits two seconds after each refresh before scanning again and refreshes when the Mac wakes. This is near-real-time monitoring of local records, not token-by-token streaming from the provider.
+
+**Settings → General → Show today’s usage in menu bar** optionally adds today’s cost or token count next to the cat icon. It is off by default. Enable it and choose **Menu bar content → Cost** or **Tokens**; both the switch and selection are saved.
 
 In **Settings → General → Menu panel style**, choose **System** for a continuous panel or **Glass cards** for separate usage modules and a grouped action area. The choice is saved and applies immediately to the menu panel. Glass cards use Liquid Glass on macOS 26 or later, standard material on earlier versions, and opaque surfaces when reduced transparency or increased contrast is enabled. Dashboard and Settings keep their existing layouts.
 

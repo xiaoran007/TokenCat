@@ -77,7 +77,10 @@
 "appearance.system" = "跟随系统";
 "appearance.light" = "浅色";
 "appearance.dark" = "深色";
-"settings.menuCost" = "在菜单栏显示今日费用";
+"settings.menuUsage" = "在菜单栏显示今日用量";
+"settings.menuMetric" = "菜单栏显示内容";
+"settings.menuMetric.cost" = "金额";
+"settings.menuMetric.tokens" = "Token 用量";
 "settings.startLogin" = "登录时启动 TokenCat";
 "settings.loginApproval" = "请在系统设置 → 通用 → 登录项中允许 TokenCat。";
 "settings.loginError" = "无法修改登录项";
@@ -163,3 +166,15 @@
 "menuStyle.system" = "系统";
 "menuStyle.cards" = "玻璃卡片";
 "settings.menuStyleExplanation" = "仅影响菜单栏面板。玻璃卡片在 macOS 26 及以上使用 Liquid Glass，较早版本使用标准材质；辅助功能设置可降低透明度。";
+"menu.edit" = "编辑";
+"menu.undo" = "撤销";
+"menu.redo" = "重做";
+"menu.cut" = "剪切";
+"menu.copy" = "拷贝";
+"menu.paste" = "粘贴";
+"menu.selectAll" = "全选";
+"menu.file" = "文件";
+"menu.close" = "关闭";
+"menu.window" = "窗口";
+"menu.minimize" = "最小化";
+"menu.zoom" = "缩放";
