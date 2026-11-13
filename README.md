@@ -1,6 +1,6 @@
 # TokenCat
 
-<img src="macos/Branding/TokenCatAppIcon.png" width="96" height="96" alt="TokenCat cat icon">
+<img src="https://img.xiaoran007.cc/20c43892-ca51-43b2-b741-017e296b3794.png" width="96" height="96" alt="TokenCat cat icon">
 
 [![PyPI](https://img.shields.io/pypi/v/tokencat?style=flat-square)](https://pypi.org/project/tokencat/)
 [![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)](LICENSE)
