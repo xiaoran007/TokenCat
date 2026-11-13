@@ -109,6 +109,57 @@ fn unknown_names_and_vendor_namespaces_never_match_by_resemblance() {
 }
 
 #[test]
+fn antigravity_suffixes_use_the_longest_catalog_prefix_without_overriding_exact_prices() {
+    let catalog = catalog(json!({
+        "gemini-3.7-flash": rates("gemini", 0.000001),
+        "gemini/gemini-3.7-flash-preview": rates("gemini", 0.000002),
+        "gemini-3.8-flash": rates("gemini", 0.000003),
+        "gemini-3.8-flash-cyber": rates("gemini", 0.000004)
+    }));
+    for (observed, priced, input_units) in [
+        (
+            "gemini-3.7-flash-control",
+            "gemini-3.7-flash",
+            1_000_000_000_000,
+        ),
+        (
+            "gemini-3.7-flash-preview-internal-v2",
+            "gemini/gemini-3.7-flash-preview",
+            2_000_000_000_000,
+        ),
+        ("gemini-3.8-flash-n", "gemini-3.8-flash", 3_000_000_000_000),
+        (
+            "gemini-3.8-flash-cyber",
+            "gemini-3.8-flash-cyber",
+            4_000_000_000_000,
+        ),
+    ] {
+        let mut sample = event(observed, Some("gemini"));
+        sample.provider = Provider::Antigravity;
+        let cost = catalog.price(&sample);
+        assert!(!cost.unpriced, "{observed}");
+        assert_eq!(cost.input_units, input_units);
+        let matched = cost.pricing_match.unwrap();
+        assert_eq!(matched.model, observed);
+        assert_eq!(matched.priced_model, priced);
+        assert_eq!(matched.kind, "official");
+    }
+
+    for (provider, observed) in [
+        (Provider::OpenCode, "gemini-3.8-flash-n"),
+        (Provider::Antigravity, "gemini-3.8-flashy-n"),
+        (Provider::Antigravity, "gemini-4-argon-trial"),
+        (Provider::Antigravity, "anthropic/gemini-3.8-flash-n"),
+    ] {
+        let mut sample = event(observed, Some("gemini"));
+        sample.provider = provider;
+        let cost = catalog.price(&sample);
+        assert!(cost.unpriced, "{observed}");
+        assert_eq!(cost.unknown_model.as_deref(), Some(observed));
+    }
+}
+
+#[test]
 fn fixed_auto_review_policy_uses_luna_only_and_discloses_mapping() {
     let catalog = catalog(
         json!({"gpt-5.6-luna":rates("openai",0.0000002),"codex-auto-review":rates("openai",0.01)}),

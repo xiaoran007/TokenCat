@@ -333,9 +333,22 @@ impl PricingCatalog {
             .filter(|_| observed.contains('/'))
             .map_or(source, |price| price.provider.as_str());
         let (vendor, model) = identity(observed, identity_source);
-        let candidates: Vec<_> = self
-            .identities
-            .get(&(vendor.clone(), model.to_owned()))?
+        let exact = self.identities.get(&(vendor.clone(), model.to_owned()));
+        let (model, entries) = match exact {
+            Some(entries) => (model, entries),
+            // Antigravity can append internal variants to a published model ID.
+            None if event.provider == Provider::Antigravity && vendor.is_some() => model
+                .rmatch_indices('-')
+                .filter(|(end, _)| *end > 0 && *end + 1 < model.len())
+                .find_map(|(end, _)| {
+                    let prefix = &model[..end];
+                    self.identities
+                        .get(&(vendor.clone(), prefix.to_owned()))
+                        .map(|entries| (prefix, entries))
+                })?,
+            None => return None,
+        };
+        let candidates: Vec<_> = entries
             .iter()
             .filter_map(|key| self.models.get(key).map(|value| (key.as_str(), value)))
             .collect();
