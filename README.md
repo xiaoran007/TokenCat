@@ -24,11 +24,9 @@ Both interfaces support **Codex, Claude Code, OpenCode, and Antigravity**. The a
 | Interface | Use it for | Availability |
 | --- | --- | --- |
 | macOS app | Background monitoring, task trees, and interactive breakdowns | Build from source |
-| Terminal CLI | Period reviews, provider filters, calendar grouping, and JSON exports | PyPI release or source checkout; see the version note below |
+| Terminal CLI | Period reviews, provider filters, calendar grouping, and JSON exports | PyPI release or source checkout |
 
-**Version note:** this README describes the **0.9.0 source version**. As of October 4, 2026, the latest PyPI release is **0.8.0**; `pipx install tokencat` installs that release. Use [the 0.8.0 documentation on PyPI](https://pypi.org/project/tokencat/0.8.0/) for its commands, or install this checkout for the behavior below.
-
-The 0.9.0 CLI provides local dashboards and JSON export. Remote aggregation, the older report/server commands, Gemini CLI, and GitHub Copilot are unavailable in this version.
+Starting with 0.9.0, the CLI provides local dashboards and JSON export. Remote aggregation, the older report/server commands, Gemini CLI, and GitHub Copilot are unavailable in these versions.
 
 The app and CLI keep separate settings and usage histories; they do not automatically synchronize. To compare results, use the same source roots, time window, time zone, and pricing catalog. Previously collected history can still differ.
 
@@ -84,7 +82,7 @@ If your tools store data elsewhere, set their roots in Settings. Project paths s
 
 ### Install or upgrade
 
-For the published **0.8.0** release, follow [its documentation](https://pypi.org/project/tokencat/0.8.0/):
+Install or upgrade from PyPI:
 
 ```bash
 pipx install tokencat
@@ -92,7 +90,7 @@ pipx install tokencat
 pipx upgrade tokencat
 ```
 
-For the **0.9.0 source version** described below, you need Python 3.9+, pipx, Rust, and a C compiler:
+To install from source, you need Python 3.9+, pipx, Rust, and a C compiler:
 
 ```bash
 git clone https://github.com/xiaoran007/TokenCat.git
@@ -106,7 +104,7 @@ If you previously installed the candidate alongside TokenCat, remove that extra 
 
 ### Use the dashboard
 
-After installing the source version, run `tokencat --since 7d`. You should see recorded tokens, model totals, and pricing coverage for supported tools with local activity in that period. No provider login is needed for TokenCat. If the view is empty, check warnings, confirm you used a supported tool under this user account, and try `--since 30d`.
+After installing, run `tokencat --since 7d`. You should see recorded tokens, model totals, and pricing coverage for supported tools with local activity in that period. No provider login is needed for TokenCat. If the view is empty, check warnings, confirm you used a supported tool under this user account, and try `--since 30d`.
 
 The CLI scans once per invocation. Use the app for automatic background refreshes.
 

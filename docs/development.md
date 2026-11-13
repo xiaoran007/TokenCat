@@ -19,7 +19,7 @@ cargo test --locked --manifest-path native/Cargo.toml
 
 ## Native Python CLI
 
-The root package is `tokencat` 0.9.0 and uses maturin. Its Python frontend and adapter are in `src/tokencat`; the PyO3 extension is in `bindings/python`, with a separate Cargo workspace. Rust and a C compiler are needed for local source installation. Development tooling is an optional extra:
+The root package is `tokencat` and uses maturin. Its Python frontend and adapter are in `src/tokencat`; the PyO3 extension is in `bindings/python`, with a separate Cargo workspace. Rust and a C compiler are needed for local source installation. Development tooling is an optional extra:
 
 ```bash
 make install-dev
